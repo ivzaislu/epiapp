@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#315bd6">
+  <meta name="description" content="Простая отметка приёма лекарства с уведомлением родителя">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <title>EpiApp</title>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">✓</span><span>EpiApp</span></div>
+      <a class="link-button" href="/parent">Для родителей</a>
+    </header>
+
+    <section class="hero">
+      <h1 id="greeting">Сегодня всё просто.</h1>
+      <p id="todayLabel">Отмечай лекарство после того, как выпил его.</p>
+    </section>
+
+    <section class="grid dose-grid">
+      <article class="dose-card" data-slot="morning">
+        <div class="dose-head">
+          <div class="dose-title"><div class="dose-icon">☀️</div><div><h2>Утро</h2><div class="dose-time" id="morningTime">08:00</div></div></div>
+          <span class="status" id="morningStatus">Не отмечено</span>
+        </div>
+        <button class="primary take-button" data-slot="morning">Я выпил(а) лекарство</button>
+      </article>
+
+      <article class="dose-card" data-slot="evening">
+        <div class="dose-head">
+          <div class="dose-title"><div class="dose-icon">🌙</div><div><h2>Вечер</h2><div class="dose-time" id="eveningTime">20:00</div></div></div>
+          <span class="status" id="eveningStatus">Не отмечено</span>
+        </div>
+        <button class="primary take-button" data-slot="evening">Я выпил(а) лекарство</button>
+      </article>
+    </section>
+
+    <section class="panel">
+      <h2>Последние отметки</h2>
+      <div class="history" id="history"><div class="empty">Загрузка…</div></div>
+    </section>
+  </main>
+
+  <div class="modal-backdrop" id="confirmModal" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+      <h2 id="confirmTitle">Ты уже выпил(а) лекарство?</h2>
+      <p>Нажимай «Да» только после приёма. Отметка сразу сохранится и родителю может прийти уведомление.</p>
+      <div class="modal-actions">
+        <button class="secondary" id="cancelConfirm">Нет</button>
+        <button class="primary" id="acceptConfirm">Да, отметить</button>
+      </div>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
