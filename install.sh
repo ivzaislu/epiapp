@@ -143,7 +143,9 @@ EOF_UNIT
 
   chmod 0644 "${UNIT_FILE}"
   systemctl daemon-reload
-  systemctl enable --now "${SERVICE_NAME}"
+  systemctl enable "${SERVICE_NAME}"
+  log "Restarting ${SERVICE_NAME} to load the installed application version"
+  systemctl restart "${SERVICE_NAME}"
 }
 
 read_port() {
