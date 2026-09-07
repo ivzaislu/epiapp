@@ -160,3 +160,56 @@ test('invited parent can manage medication settings and read statistics', async 
     await close(server);
   }
 });
+
+test('Android APK pairs once, creates a secure web session and loses access after revoke', async () => {
+  const store = await tempStore();
+  const invite = await store.createInvite('child', ADMIN_ID);
+  await store.acceptInvite(invite.token, { id: '444444444', firstName: 'Android Child' });
+  const pairing = await store.createDevicePairCode('444444444');
+
+  const server = createServer({ store, botToken: BOT_TOKEN, adminId: ADMIN_ID });
+  const port = await listen(server);
+  const baseUrl = `http://127.0.0.1:${port}`;
+  try {
+    const pair = await fetch(`${baseUrl}/api/device/pair`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ code: pairing.code, deviceName: 'Pixel Test' }),
+    });
+    assert.equal(pair.status, 201);
+    const pairData = await pair.json();
+    assert.equal(pairData.user.role, 'child');
+    assert.ok(pairData.deviceToken.length >= 32);
+    assert.match(pair.headers.get('set-cookie') || '', /HttpOnly/i);
+    assert.match(pair.headers.get('set-cookie') || '', /Secure/i);
+
+    const replay = await fetch(`${baseUrl}/api/device/pair`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ code: pairing.code, deviceName: 'Replay' }),
+    });
+    assert.equal(replay.status, 401);
+
+    const nativeState = await fetch(`${baseUrl}/api/device/schedule`, {
+      headers: { authorization: `Bearer ${pairData.deviceToken}` },
+    });
+    assert.equal(nativeState.status, 200);
+    const nativeData = await nativeState.json();
+    assert.equal(nativeData.user.role, 'child');
+
+    const nativeSession = await fetch(`${baseUrl}/api/device/session`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${pairData.deviceToken}` },
+    });
+    assert.equal(nativeSession.status, 200);
+    assert.match(nativeSession.headers.get('set-cookie') || '', /SameSite=Strict/i);
+
+    await store.revokeAccessUser('444444444');
+    const afterRevoke = await fetch(`${baseUrl}/api/device/schedule`, {
+      headers: { authorization: `Bearer ${pairData.deviceToken}` },
+    });
+    assert.equal(afterRevoke.status, 401);
+  } finally {
+    await close(server);
+  }
+});
