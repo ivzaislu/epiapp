@@ -1,0 +1,12 @@
+.git
+.github
+node_modules
+.env
+data
+androidApp/.gradle
+androidApp/build
+.gradle
+*.apk
+*.aab
+*.jks
+*.keystore
