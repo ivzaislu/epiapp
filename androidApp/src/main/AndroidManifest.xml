@@ -38,6 +38,10 @@
             android:exported="false" />
 
         <receiver
+            android:name=".ScheduleSyncReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".BootReceiver"
             android:enabled="true"
             android:exported="true">
