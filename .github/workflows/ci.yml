@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - v1
+      - v-1.1
   pull_request:
   workflow_dispatch:
 
@@ -17,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22]
+        node: [18.19.1, 20, 22]
 
     steps:
       - name: Checkout

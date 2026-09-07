@@ -1,16 +1,16 @@
 {
   "name": "epiapp",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
-  "description": "Minimal medication check-in app for a child with parent Telegram notifications",
+  "description": "Medication check-in app with Telegram-authenticated family access and parent notifications",
   "scripts": {
     "dev": "node --watch server.js",
     "start": "node server.js",
     "test": "node --test",
-    "check": "node --check server.js && node --check src/store.js && node --check src/telegram.js && node --check src/validation.js && node --check public/app.js && node --check public/parent.js"
+    "check": "node --check server.js && node --check src/auth.js && node --check src/reminders.js && node --check src/store.js && node --check src/telegram.js && node --check src/validation.js && node --check public/auth.js && node --check public/app.js && node --check public/parent.js && node --check public/sw.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=18.19.0"
   }
 }

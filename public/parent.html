@@ -6,58 +6,108 @@
   <meta name="theme-color" content="#315bd6">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
+  <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
   <title>EpiApp — родители</title>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell" id="accessGate">
+    <section class="pin-gate">
+      <div class="panel">
+        <h1>Доступ родителя</h1>
+        <p class="help" id="accessMessage">Проверяю Telegram-аккаунт…</p>
+      </div>
+    </section>
+  </main>
+
+  <main class="shell hidden" id="parentApp">
     <header class="topbar">
       <div class="brand"><span class="brand-mark">✓</span><span>EpiApp</span></div>
-      <a class="link-button" href="/">Экран ребёнка</a>
+      <a class="link-button" href="/">Статус приёма</a>
     </header>
 
-    <section class="pin-gate" id="pinGate">
-      <div class="panel">
-        <h1>Режим родителя</h1>
-        <p class="help">Введите PIN, заданный на сервере через переменную <code>PARENT_PIN</code>.</p>
-        <form class="form" id="pinForm">
-          <div class="field"><label for="parentPin">PIN</label><input id="parentPin" type="password" inputmode="numeric" autocomplete="current-password" required></div>
-          <button class="primary" type="submit">Открыть настройки</button>
-        </form>
-      </div>
-    </section>
+    <div class="hero">
+      <h1>Родительский кабинет</h1>
+      <p>Таблетница, расписание, напоминания, статистика и Telegram-доступ семьи.</p>
+      <p class="help" id="signedInAs"></p>
+    </div>
 
-    <section id="parentApp" class="hidden">
-      <div class="hero"><h1>Настройки</h1><p>Расписание и Telegram-уведомления для родителей.</p></div>
-
-      <div class="panel">
-        <h2>Расписание</h2>
-        <form class="form" id="settingsForm">
-          <div class="field"><label for="childName">Имя ребёнка</label><input id="childName" maxlength="50" required></div>
-          <div class="row">
-            <div class="field"><label for="morningTime">Утро</label><input id="morningTime" type="time" required></div>
-            <div class="field"><label for="eveningTime">Вечер</label><input id="eveningTime" type="time" required></div>
-          </div>
-          <div class="field"><label for="timezone">Часовой пояс</label><input id="timezone" placeholder="Europe/Berlin" required><div class="help">Например: Europe/Berlin, Europe/Moscow.</div></div>
-          <button class="primary" type="submit">Сохранить настройки</button>
-        </form>
-      </div>
-
-      <div class="panel">
-        <h2>Telegram</h2>
-        <div id="telegramNotice" class="notice">Проверяю настройку Telegram…</div>
-        <div class="form" style="margin-top:14px">
-          <div class="field"><label for="chatIds">Chat ID родителей</label><input id="chatIds" placeholder="123456789, -100123456789"><div class="help">Можно указать несколько ID через запятую. Название лекарства и дозировка в Telegram не отправляются.</div></div>
-          <div class="row"><button class="secondary" id="findChats" type="button">Найти недавние чаты</button><button class="secondary" id="testTelegram" type="button">Отправить тест</button></div>
-          <div id="chatList" class="chat-list"></div>
-          <button class="primary" id="saveTelegram" type="button">Сохранить Telegram</button>
+    <div class="panel">
+      <h2>Таблетница и расписание</h2>
+      <p class="help">Здесь хранится только схема, которую вы сами внесли. EpiApp не назначает препарат и не изменяет дозу.</p>
+      <form class="form" id="settingsForm" style="margin-top:14px">
+        <div class="field"><label for="childName">Имя ребёнка</label><input id="childName" maxlength="50" required></div>
+        <div class="field"><label for="medicationName">Препарат</label><input id="medicationName" maxlength="100" placeholder="Например, название назначенного препарата"></div>
+        <div class="row">
+          <div class="field"><label for="morningDose">Доза утром</label><input id="morningDose" maxlength="80" placeholder="Например, 1 таблетка"></div>
+          <div class="field"><label for="eveningDose">Доза вечером</label><input id="eveningDose" maxlength="80" placeholder="Например, 1 таблетка"></div>
         </div>
+        <div class="row">
+          <div class="field"><label for="morningTime">Время утром</label><input id="morningTime" type="time" required></div>
+          <div class="field"><label for="eveningTime">Время вечером</label><input id="eveningTime" type="time" required></div>
+        </div>
+        <div class="field"><label for="timezone">Часовой пояс</label><input id="timezone" placeholder="Europe/Berlin" required><div class="help">Например: Europe/Berlin, Europe/Moscow.</div></div>
+
+        <div class="reminder-box">
+          <label class="toggle-row" for="remindersEnabled">
+            <input id="remindersEnabled" type="checkbox">
+            <span><strong>Telegram-напоминания при опоздании</strong><span class="help">Ребёнку и обоим родителям, пока отметки нет.</span></span>
+          </label>
+          <div id="reminderFields" class="form reminder-fields">
+            <div class="row">
+              <div class="field"><label for="reminderFirstMinutes">Первое напоминание, мин</label><input id="reminderFirstMinutes" type="number" min="5" max="60" step="1"></div>
+              <div class="field"><label for="reminderUrgentMinutes">Срочное напоминание, мин</label><input id="reminderUrgentMinutes" type="number" min="10" max="120" step="1"></div>
+            </div>
+            <div class="row">
+              <div class="field"><label for="reminderRepeatMinutes">Повторять каждые, мин</label><input id="reminderRepeatMinutes" type="number" min="5" max="60" step="1"></div>
+              <div class="field"><label for="reminderStopMinutes">Повторять до, мин</label><input id="reminderStopMinutes" type="number" min="15" max="240" step="1"></div>
+            </div>
+            <div class="help">По умолчанию: 15 мин — напоминание, 30 мин — срочное, затем каждые 15 мин до 60 мин. Telegram не может обойти беззвучный режим телефона.</div>
+          </div>
+        </div>
+
+        <button class="primary" type="submit">Сохранить таблетницу</button>
+      </form>
+      <div id="settingsAudit" class="help" style="margin-top:14px"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Статистика</h2>
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat-card"><div class="help">7 дней</div><div class="stat-value" id="stats7Rate">—</div><div class="help" id="stats7Detail">Загрузка…</div></div>
+        <div class="stat-card"><div class="help">30 дней</div><div class="stat-value" id="stats30Rate">—</div><div class="help" id="stats30Detail">Загрузка…</div></div>
+        <div class="stat-card"><div class="help">Утро · 30 дней</div><div class="stat-value" id="statsMorning">—</div><div class="help" id="statsMorningDetail"></div></div>
+        <div class="stat-card"><div class="help">Вечер · 30 дней</div><div class="stat-value" id="statsEvening">—</div><div class="help" id="statsEveningDetail"></div></div>
+      </div>
+      <div class="notice good" id="streakNotice" style="margin-top:14px">Загрузка статистики…</div>
+
+      <h3 class="section-title">График за 30 дней</h3>
+      <p class="help">Каждый столбик — один день: верхняя половина — вечер, нижняя — утро.</p>
+      <div class="chart-shell">
+        <div class="chart-y-axis"><span>100%</span><span>50%</span><span>0%</span></div>
+        <div id="adherenceChart" class="adherence-chart" role="img" aria-label="График отметок утреннего и вечернего приёма за 30 дней"></div>
+      </div>
+      <div class="chart-legend">
+        <span><i class="legend-dot done"></i> отмечено</span>
+        <span><i class="legend-dot missed"></i> нет отметки</span>
+        <span><i class="legend-dot future"></i> ещё не ожидалось</span>
       </div>
 
-      <div class="panel">
-        <h2>Сегодня</h2>
-        <div id="todaySummary" class="history"><div class="empty">Загрузка…</div></div>
-      </div>
-    </section>
+      <h3 class="section-title">Последние дни</h3>
+      <div id="statsHistory" class="history"><div class="empty">Загрузка…</div></div>
+    </div>
+
+    <div class="panel">
+      <h2>Telegram-доступ</h2>
+      <div id="telegramNotice" class="notice">Проверяю Telegram…</div>
+      <p class="help" style="margin-top:14px">Уведомления автоматически отправляются администратору и всем приглашённым родителям. Название препарата и дозы в уведомление не включаются.</p>
+      <div id="adminHelp" class="notice good hidden" style="margin-top:14px">В личном чате с ботом у администратора есть кнопки «Пригласить ребёнка», «Пригласить родителя», «Статистика» и «Пользователи».</div>
+      <button class="secondary" id="testTelegram" type="button" style="margin-top:14px">Отправить тест уведомлений</button>
+    </div>
+
+    <div class="panel">
+      <h2>Сегодня</h2>
+      <div id="todaySummary" class="history"><div class="empty">Загрузка…</div></div>
+    </div>
   </main>
   <div class="toast" id="toast"></div>
   <script type="module" src="/parent.js"></script>

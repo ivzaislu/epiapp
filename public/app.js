@@ -1,7 +1,10 @@
+import { ensureTelegramSession, roleLabel } from './auth.js';
+
 const $ = (selector) => document.querySelector(selector);
 const slotLabels = { morning: 'утренний', evening: 'вечерний' };
 let pendingSlot = null;
 let state = null;
+let currentUser = null;
 
 function toast(message, error = false) {
   const el = $('#toast');
@@ -21,18 +24,27 @@ function formatTakenAt(iso, timeZone) {
 
 function render(next) {
   state = next;
-  $('#greeting').textContent = `${next.settings.childName}, сегодня всё просто.`;
-  $('#todayLabel').textContent = 'Отмечай лекарство только после того, как выпил(а) его.';
+  $('#greeting').textContent = currentUser?.role === 'child'
+    ? `${next.settings.childName}, сегодня всё просто.`
+    : `${next.settings.childName}: отметки сегодня`;
+  $('#todayLabel').textContent = currentUser?.role === 'child'
+    ? 'Сверь препарат и дозу с таблетницей и отмечай только после приёма.'
+    : 'Просмотр статуса приёма. Отметку делает только аккаунт ребёнка.';
+  $('#medicationName').textContent = next.settings.medicationName || 'Препарат не указан';
+  $('#morningDose').textContent = next.settings.morningDose || 'Доза не указана';
+  $('#eveningDose').textContent = next.settings.eveningDose || 'Доза не указана';
   $('#morningTime').textContent = next.settings.morningTime;
   $('#eveningTime').textContent = next.settings.eveningTime;
 
+  const canTake = currentUser?.role === 'child';
   for (const slot of ['morning', 'evening']) {
     const dose = next.todayDoses[slot];
     const status = $(`#${slot}Status`);
     const button = document.querySelector(`.take-button[data-slot="${slot}"]`);
     status.textContent = dose ? `✓ ${formatTakenAt(dose.takenAt, next.settings.timezone).split(', ').at(-1)}` : 'Не отмечено';
     status.classList.toggle('done', Boolean(dose));
-    button.disabled = Boolean(dose);
+    button.classList.toggle('hidden', !canTake);
+    button.disabled = Boolean(dose) || !canTake;
     button.textContent = dose ? 'Уже отмечено' : 'Я выпил(а) лекарство';
   }
 
@@ -50,13 +62,20 @@ function render(next) {
 
 async function loadState() {
   const response = await fetch('/api/state', { cache: 'no-store' });
-  if (!response.ok) throw new Error('Не удалось загрузить данные.');
-  render(await response.json());
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || 'Не удалось загрузить данные.');
+  render(data);
 }
 
 function openConfirm(slot) {
+  if (currentUser?.role !== 'child' || !state) return;
   pendingSlot = slot;
   $('#confirmTitle').textContent = slot === 'morning' ? 'Утреннее лекарство уже выпито?' : 'Вечернее лекарство уже выпито?';
+  const dose = slot === 'morning' ? state.settings.morningDose : state.settings.eveningDose;
+  const parts = [state.settings.medicationName, dose].filter(Boolean);
+  $('#confirmDoseText').textContent = parts.length
+    ? `${parts.join(' · ')}. Нажимай «Да» только после приёма.`
+    : 'Нажимай «Да» только после приёма. Отметка сразу сохранится.';
   $('#confirmModal').classList.add('open');
   $('#confirmModal').setAttribute('aria-hidden', 'false');
 }
@@ -71,7 +90,7 @@ document.querySelectorAll('.take-button').forEach((button) => button.addEventLis
 $('#cancelConfirm').addEventListener('click', closeConfirm);
 $('#confirmModal').addEventListener('click', (event) => { if (event.target.id === 'confirmModal') closeConfirm(); });
 $('#acceptConfirm').addEventListener('click', async () => {
-  if (!pendingSlot) return;
+  if (!pendingSlot || currentUser?.role !== 'child') return;
   const slot = pendingSlot;
   const button = $('#acceptConfirm');
   button.disabled = true;
@@ -95,7 +114,19 @@ $('#acceptConfirm').addEventListener('click', async () => {
   }
 });
 
-loadState().catch((error) => toast(error.message, true));
-setInterval(() => loadState().catch(() => undefined), 30000);
+async function start() {
+  try {
+    currentUser = await ensureTelegramSession();
+    $('#signedInAs').textContent = `${roleLabel(currentUser.role)} · Telegram ID ${currentUser.telegramId}`;
+    $('#parentLink').classList.toggle('hidden', !['parent', 'admin'].includes(currentUser.role));
+    $('#accessGate').classList.add('hidden');
+    $('#appShell').classList.remove('hidden');
+    await loadState();
+    setInterval(() => loadState().catch(() => undefined), 30000);
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+  } catch (error) {
+    $('#accessMessage').textContent = error.message || 'Доступ закрыт.';
+  }
+}
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+void start();

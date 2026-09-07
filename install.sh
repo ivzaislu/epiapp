@@ -29,13 +29,19 @@ require_systemd() {
   command -v systemctl >/dev/null 2>&1 || fail "systemctl not found. This installer requires a Linux system with systemd."
 }
 
-require_node20() {
-  command -v node >/dev/null 2>&1 || fail "Node.js 20+ is required. Install Node.js first, then run this installer again."
+require_supported_node() {
+  command -v node >/dev/null 2>&1 || fail "Node.js 18.19+ is required. Install Node.js first, then run this installer again."
 
-  local major
+  local major minor
   major="$(node -p 'Number(process.versions.node.split(".")[0])')"
-  [[ "${major}" =~ ^[0-9]+$ ]] || fail "Could not detect the installed Node.js version."
-  (( major >= 20 )) || fail "Node.js 20+ is required; found $(node --version)."
+  minor="$(node -p 'Number(process.versions.node.split(".")[1])')"
+  [[ "${major}" =~ ^[0-9]+$ && "${minor}" =~ ^[0-9]+$ ]] || fail "Could not detect the installed Node.js version."
+
+  if (( major < 18 || (major == 18 && minor < 19) )); then
+    fail "Node.js 18.19+ is required; found $(node --version)."
+  fi
+
+  log "Using $(node --version)"
 }
 
 ensure_service_user() {
@@ -75,21 +81,13 @@ install_application() {
   find "${APP_DIR}" -type f -exec chmod 0644 {} +
 }
 
-generate_parent_pin() {
-  local random_number
-  random_number="$(od -An -N4 -tu4 /dev/urandom | tr -d ' ')"
-  printf '%06d' "$(( random_number % 1000000 ))"
-}
-
 install_environment() {
   install -d -m 0750 -o root -g "${SERVICE_GROUP}" "${CONFIG_DIR}"
   install -d -m 0750 -o "${SERVICE_USER}" -g "${SERVICE_GROUP}" "${DATA_DIR}"
 
-  GENERATED_PIN=""
   if [[ ! -f "${ENV_FILE}" ]]; then
-    GENERATED_PIN="$(generate_parent_pin)"
     log "Creating ${ENV_FILE}"
-    sed "s/^PARENT_PIN=change-me$/PARENT_PIN=${GENERATED_PIN}/" "${SOURCE_DIR}/.env.example" > "${ENV_FILE}"
+    install -m 0640 -o root -g "${SERVICE_GROUP}" "${SOURCE_DIR}/.env.example" "${ENV_FILE}"
   else
     log "Keeping existing ${ENV_FILE}"
   fi
@@ -121,8 +119,6 @@ RestartSec=3
 TimeoutStopSec=15
 UMask=0027
 
-# Basic systemd hardening. The app only needs read-only code, network access,
-# and write access to its persistent data directory.
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
@@ -139,13 +135,21 @@ EOF_UNIT
 
   chmod 0644 "${UNIT_FILE}"
   systemctl daemon-reload
-  systemctl enable --now "${SERVICE_NAME}"
+  systemctl enable "${SERVICE_NAME}"
+  log "Restarting ${SERVICE_NAME} to load the installed application version"
+  systemctl restart "${SERVICE_NAME}"
 }
 
 read_port() {
   local port
   port="$(sed -n 's/^PORT=\([0-9][0-9]*\)$/\1/p' "${ENV_FILE}" | tail -n 1)"
   printf '%s' "${port:-3000}"
+}
+
+read_app_url() {
+  local app_url
+  app_url="$(sed -n 's/^APP_BASE_URL=//p' "${ENV_FILE}" | tail -n 1)"
+  printf '%s' "${app_url:-https://epiapp.duckdns.org}"
 }
 
 healthcheck() {
@@ -167,19 +171,22 @@ healthcheck() {
 }
 
 print_summary() {
-  local port
+  local port app_url
   port="$(read_port)"
+  app_url="$(read_app_url)"
 
   printf '\nEpiApp installed successfully.\n'
-  printf '  Child UI:   http://SERVER_IP:%s/\n' "${port}"
-  printf '  Parent UI:  http://SERVER_IP:%s/parent\n' "${port}"
-  printf '  Env file:   %s\n' "${ENV_FILE}"
-  printf '  Data dir:   %s\n' "${DATA_DIR}"
-  printf '  Service:    %s\n' "${SERVICE_NAME}"
+  printf '  App URL:      %s\n' "${app_url}"
+  printf '  Local health: http://127.0.0.1:%s/healthz\n' "${port}"
+  printf '  Env file:     %s\n' "${ENV_FILE}"
+  printf '  Data dir:     %s\n' "${DATA_DIR}"
+  printf '  Service:      %s\n' "${SERVICE_NAME}"
 
-  if [[ -n "${GENERATED_PIN:-}" ]]; then
-    printf '  Parent PIN: %s\n' "${GENERATED_PIN}"
-    printf '              Save this PIN now; it is also stored in %s.\n' "${ENV_FILE}"
+  if ! grep -Eq '^TELEGRAM_ADMIN_ID=[0-9]{1,20}$' "${ENV_FILE}"; then
+    printf '\nIMPORTANT: set TELEGRAM_ADMIN_ID=<your numeric Telegram ID> in %s and restart %s.\n' "${ENV_FILE}" "${SERVICE_NAME}"
+  fi
+  if ! grep -Eq '^TELEGRAM_BOT_TOKEN=.+$' "${ENV_FILE}"; then
+    printf 'IMPORTANT: set TELEGRAM_BOT_TOKEN in %s and restart %s.\n' "${ENV_FILE}" "${SERVICE_NAME}"
   fi
 
   printf '\nUseful commands:\n'
@@ -187,13 +194,12 @@ print_summary() {
   printf '  sudo journalctl -u %s -f\n' "${SERVICE_NAME}"
   printf '  sudo nano %s\n' "${ENV_FILE}"
   printf '  sudo systemctl restart %s\n' "${SERVICE_NAME}"
-  printf '\nIf this server is reachable from the Internet, put EpiApp behind HTTPS/reverse proxy before real use.\n'
 }
 
 main() {
   require_root
   require_systemd
-  require_node20
+  require_supported_node
 
   [[ -f "${SOURCE_DIR}/server.js" ]] || fail "server.js not found next to install.sh"
   [[ -f "${SOURCE_DIR}/.env.example" ]] || fail ".env.example not found next to install.sh"

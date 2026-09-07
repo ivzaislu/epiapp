@@ -38,6 +38,30 @@ export function sanitizeName(value) {
   return clean;
 }
 
+export function sanitizeOptionalText(value, fieldName, maxLength) {
+  if (value === undefined || value === null) return '';
+  if (typeof value !== 'string') throw new ValidationError(`${fieldName} должно быть текстом.`);
+  const clean = value.trim().replace(/\s+/g, ' ');
+  if (clean.length > maxLength) {
+    throw new ValidationError(`${fieldName} слишком длинное (максимум ${maxLength} символов).`);
+  }
+  return clean;
+}
+
+function sanitizeInteger(value, fieldName, min, max, fallback) {
+  const candidate = value === undefined || value === null || value === '' ? fallback : Number(value);
+  if (!Number.isInteger(candidate) || candidate < min || candidate > max) {
+    throw new ValidationError(`${fieldName}: укажите целое число от ${min} до ${max}.`);
+  }
+  return candidate;
+}
+
+function sanitizeBoolean(value, fallback) {
+  if (value === undefined || value === null) return Boolean(fallback);
+  if (typeof value !== 'boolean') throw new ValidationError('Некорректная настройка напоминаний.');
+  return value;
+}
+
 export function sanitizeChatIds(value) {
   if (!Array.isArray(value)) throw new ValidationError('Список Telegram-чатов должен быть массивом.');
   const unique = [];
@@ -53,11 +77,55 @@ export function sanitizeChatIds(value) {
 }
 
 export function sanitizeSettings(input, current = {}) {
+  const reminderFirstMinutes = sanitizeInteger(
+    input.reminderFirstMinutes,
+    'Первое напоминание',
+    5,
+    60,
+    current.reminderFirstMinutes ?? 15,
+  );
+  const reminderUrgentMinutes = sanitizeInteger(
+    input.reminderUrgentMinutes,
+    'Срочное напоминание',
+    10,
+    120,
+    current.reminderUrgentMinutes ?? 30,
+  );
+  const reminderRepeatMinutes = sanitizeInteger(
+    input.reminderRepeatMinutes,
+    'Повтор напоминаний',
+    5,
+    60,
+    current.reminderRepeatMinutes ?? 15,
+  );
+  const reminderStopMinutes = sanitizeInteger(
+    input.reminderStopMinutes,
+    'Остановка повторов',
+    15,
+    240,
+    current.reminderStopMinutes ?? 60,
+  );
+
+  if (reminderUrgentMinutes <= reminderFirstMinutes) {
+    throw new ValidationError('Срочное напоминание должно быть позже первого напоминания.');
+  }
+  if (reminderStopMinutes < reminderUrgentMinutes) {
+    throw new ValidationError('Остановка повторов должна быть не раньше срочного напоминания.');
+  }
+
   return {
     childName: sanitizeName(input.childName ?? current.childName ?? 'Ребёнок'),
     morningTime: assertTime(input.morningTime ?? current.morningTime ?? '08:00', 'Утреннее время'),
     eveningTime: assertTime(input.eveningTime ?? current.eveningTime ?? '20:00', 'Вечернее время'),
     timezone: assertTimezone(input.timezone ?? current.timezone ?? 'Europe/Berlin'),
+    medicationName: sanitizeOptionalText(input.medicationName ?? current.medicationName ?? '', 'Название препарата', 100),
+    morningDose: sanitizeOptionalText(input.morningDose ?? current.morningDose ?? '', 'Утренняя доза', 80),
+    eveningDose: sanitizeOptionalText(input.eveningDose ?? current.eveningDose ?? '', 'Вечерняя доза', 80),
+    remindersEnabled: sanitizeBoolean(input.remindersEnabled, current.remindersEnabled ?? true),
+    reminderFirstMinutes,
+    reminderUrgentMinutes,
+    reminderRepeatMinutes,
+    reminderStopMinutes,
     telegramChatIds: sanitizeChatIds(input.telegramChatIds ?? current.telegramChatIds ?? []),
   };
 }
