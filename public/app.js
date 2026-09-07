@@ -2,6 +2,7 @@ import { ensureTelegramSession, roleLabel } from './auth.js';
 
 const $ = (selector) => document.querySelector(selector);
 const slotLabels = { morning: 'утренний', evening: 'вечерний' };
+const androidTakenNotified = new Set();
 let pendingSlot = null;
 let state = null;
 let currentUser = null;
@@ -13,6 +14,16 @@ function toast(message, error = false) {
   el.classList.add('show');
   clearTimeout(toast.timer);
   toast.timer = setTimeout(() => el.classList.remove('show'), 3200);
+}
+
+function notifyAndroidTaken(slot) {
+  if (androidTakenNotified.has(slot)) return;
+  try {
+    window.EpiAndroid?.doseTaken?.(slot);
+    androidTakenNotified.add(slot);
+  } catch {
+    // Normal browser/Telegram Mini App has no Android bridge.
+  }
 }
 
 function formatTakenAt(iso, timeZone) {
@@ -46,6 +57,7 @@ function render(next) {
     button.classList.toggle('hidden', !canTake);
     button.disabled = Boolean(dose) || !canTake;
     button.textContent = dose ? 'Уже отмечено' : 'Я выпил(а) лекарство';
+    if (canTake && dose) notifyAndroidTaken(slot);
   }
 
   const history = $('#history');
@@ -101,6 +113,7 @@ $('#acceptConfirm').addEventListener('click', async () => {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Не удалось сохранить отметку.');
+    notifyAndroidTaken(slot);
     closeConfirm();
     await loadState();
     if (data.notification?.configured && data.notification.failed === 0) toast('Готово. Родителю отправлено уведомление.');
