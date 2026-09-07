@@ -72,14 +72,18 @@ async function serveStatic(req, res, pathname) {
   try {
     const info = await stat(filePath);
     if (!info.isFile()) return false;
-    const bytes = await readFile(filePath);
     res.writeHead(200, {
       'content-type': MIME[extname(filePath)] || 'application/octet-stream',
+      'content-length': info.size,
       'cache-control': extname(filePath) === '.html' ? 'no-store' : 'public, max-age=3600',
       'x-content-type-options': 'nosniff',
       'referrer-policy': 'no-referrer',
     });
-    res.end(bytes);
+    if (req.method === 'HEAD') {
+      res.end();
+    } else {
+      res.end(await readFile(filePath));
+    }
     return true;
   } catch (error) {
     if (error?.code === 'ENOENT') return false;
@@ -141,7 +145,7 @@ export function createServer() {
         if (failed.length) throw Object.assign(new Error(`Не удалось отправить ${failed.length} из ${results.length} сообщений.`), { statusCode: 502 });
         return json(res, 200, { sent: results.length });
       }
-      if (req.method === 'GET' && !url.pathname.startsWith('/api/')) {
+      if ((req.method === 'GET' || req.method === 'HEAD') && !url.pathname.startsWith('/api/')) {
         if (await serveStatic(req, res, url.pathname)) return;
       }
       json(res, 404, { error: 'Не найдено.' });
