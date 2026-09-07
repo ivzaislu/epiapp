@@ -11,6 +11,7 @@ import {
   validateTelegramInitData,
   verifySessionToken,
 } from './src/auth.js';
+import { startReminderScheduler } from './src/reminders.js';
 import { Store } from './src/store.js';
 import { notifyDose, sendTelegramMessage, startTelegramBot } from './src/telegram.js';
 import { ValidationError } from './src/validation.js';
@@ -120,6 +121,11 @@ function publicSettings(settings) {
     medicationName: settings.medicationName,
     morningDose: settings.morningDose,
     eveningDose: settings.eveningDose,
+    remindersEnabled: settings.remindersEnabled,
+    reminderFirstMinutes: settings.reminderFirstMinutes,
+    reminderUrgentMinutes: settings.reminderUrgentMinutes,
+    reminderRepeatMinutes: settings.reminderRepeatMinutes,
+    reminderStopMinutes: settings.reminderStopMinutes,
   };
 }
 
@@ -207,6 +213,11 @@ export function createServer(options = {}) {
           medicationName: input.medicationName,
           morningDose: input.morningDose,
           eveningDose: input.eveningDose,
+          remindersEnabled: input.remindersEnabled,
+          reminderFirstMinutes: input.reminderFirstMinutes,
+          reminderUrgentMinutes: input.reminderUrgentMinutes,
+          reminderRepeatMinutes: input.reminderRepeatMinutes,
+          reminderStopMinutes: input.reminderStopMinutes,
         }, user);
         return json(res, 200, {
           settings: publicSettings(settings),
@@ -260,6 +271,14 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === normalize(process.argv
     startTelegramBot({ token: botToken, store: defaultStore, adminId, appUrl })
       .then(({ username }) => console.log(`EpiApp Telegram bot: @${username}`))
       .catch((error) => console.error('Telegram bot failed to start:', error));
+    startReminderScheduler({
+      token: botToken,
+      store: defaultStore,
+      adminId,
+      appUrl,
+      logger: console,
+    });
+    console.log('EpiApp reminders: enabled scheduler (settings-controlled)');
   } else {
     console.warn('EpiApp Telegram access is disabled: configure TELEGRAM_BOT_TOKEN and TELEGRAM_ADMIN_ID.');
   }
