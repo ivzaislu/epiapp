@@ -4,6 +4,12 @@ const $ = (selector) => document.querySelector(selector);
 let currentUser = null;
 let settings = null;
 
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[char]);
+}
+
 function toast(message, error = false) {
   const el = $('#toast');
   el.textContent = message;
@@ -72,7 +78,7 @@ async function loadToday() {
     let value = 'Не отмечено';
     if (dose) value = new Intl.DateTimeFormat('ru-RU', { timeZone: state.settings.timezone, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(dose.takenAt));
     const meta = [state.settings.medicationName, doseText, `план ${time}`].filter(Boolean).join(' · ');
-    return `<div class="history-row"><div><div class="history-main">${label}</div><div class="history-meta">${meta}</div></div><span class="status ${dose ? 'done' : ''}">${dose ? '✓ ' : ''}${value}</span></div>`;
+    return `<div class="history-row"><div><div class="history-main">${label}</div><div class="history-meta">${escapeHtml(meta)}</div></div><span class="status ${dose ? 'done' : ''}">${dose ? '✓ ' : ''}${escapeHtml(value)}</span></div>`;
   }).join('');
 }
 
@@ -105,7 +111,7 @@ function renderStats(stats7, stats30) {
   $('#statsHistory').innerHTML = days.map((day) => `
     <div class="history-row stats-row">
       <div>
-        <div class="history-main">${day.localDate}</div>
+        <div class="history-main">${escapeHtml(day.localDate)}</div>
         <div class="history-meta">Утро: ${slotDayText(day.slots.morning)} · Вечер: ${slotDayText(day.slots.evening)}</div>
       </div>
       <span class="status ${day.complete ? 'done' : ''}">${day.taken}/${day.expected}</span>
