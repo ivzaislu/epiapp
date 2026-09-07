@@ -26,29 +26,49 @@
     </header>
 
     <div class="hero">
-      <h1>Настройки</h1>
-      <p>Расписание и Telegram-доступ семьи.</p>
+      <h1>Родительский кабинет</h1>
+      <p>Таблетница, расписание, статистика и Telegram-доступ семьи.</p>
       <p class="help" id="signedInAs"></p>
     </div>
 
     <div class="panel">
-      <h2>Расписание</h2>
-      <form class="form" id="settingsForm">
+      <h2>Таблетница и расписание</h2>
+      <p class="help">Здесь хранится только схема, которую вы сами внесли. EpiApp не назначает препарат и не изменяет дозу.</p>
+      <form class="form" id="settingsForm" style="margin-top:14px">
         <div class="field"><label for="childName">Имя ребёнка</label><input id="childName" maxlength="50" required></div>
+        <div class="field"><label for="medicationName">Препарат</label><input id="medicationName" maxlength="100" placeholder="Например, название назначенного препарата"></div>
         <div class="row">
-          <div class="field"><label for="morningTime">Утро</label><input id="morningTime" type="time" required></div>
-          <div class="field"><label for="eveningTime">Вечер</label><input id="eveningTime" type="time" required></div>
+          <div class="field"><label for="morningDose">Доза утром</label><input id="morningDose" maxlength="80" placeholder="Например, 1 таблетка"></div>
+          <div class="field"><label for="eveningDose">Доза вечером</label><input id="eveningDose" maxlength="80" placeholder="Например, 1 таблетка"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label for="morningTime">Время утром</label><input id="morningTime" type="time" required></div>
+          <div class="field"><label for="eveningTime">Время вечером</label><input id="eveningTime" type="time" required></div>
         </div>
         <div class="field"><label for="timezone">Часовой пояс</label><input id="timezone" placeholder="Europe/Berlin" required><div class="help">Например: Europe/Berlin, Europe/Moscow.</div></div>
-        <button class="primary" type="submit">Сохранить настройки</button>
+        <button class="primary" type="submit">Сохранить таблетницу</button>
       </form>
+      <div id="settingsAudit" class="help" style="margin-top:14px"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Статистика</h2>
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat-card"><div class="help">7 дней</div><div class="stat-value" id="stats7Rate">—</div><div class="help" id="stats7Detail">Загрузка…</div></div>
+        <div class="stat-card"><div class="help">30 дней</div><div class="stat-value" id="stats30Rate">—</div><div class="help" id="stats30Detail">Загрузка…</div></div>
+        <div class="stat-card"><div class="help">Утро · 30 дней</div><div class="stat-value" id="statsMorning">—</div><div class="help" id="statsMorningDetail"></div></div>
+        <div class="stat-card"><div class="help">Вечер · 30 дней</div><div class="stat-value" id="statsEvening">—</div><div class="help" id="statsEveningDetail"></div></div>
+      </div>
+      <div class="notice good" id="streakNotice" style="margin-top:14px">Загрузка статистики…</div>
+      <h3 class="section-title">Последние дни</h3>
+      <div id="statsHistory" class="history"><div class="empty">Загрузка…</div></div>
     </div>
 
     <div class="panel">
       <h2>Telegram-доступ</h2>
       <div id="telegramNotice" class="notice">Проверяю Telegram…</div>
-      <p class="help" style="margin-top:14px">Уведомления автоматически отправляются администратору и всем приглашённым родителям. Ручные Chat ID больше не нужны.</p>
-      <div id="adminHelp" class="notice good hidden" style="margin-top:14px">Приглашения создаются в личном чате с ботом: <code>/invite_child</code> и <code>/invite_parent</code>. Список: <code>/users</code>. Отзыв: <code>/revoke ID</code>.</div>
+      <p class="help" style="margin-top:14px">Уведомления автоматически отправляются администратору и всем приглашённым родителям. Название препарата и дозы в уведомление не включаются.</p>
+      <div id="adminHelp" class="notice good hidden" style="margin-top:14px">В личном чате с ботом у администратора есть кнопки «Пригласить ребёнка», «Пригласить родителя», «Статистика» и «Пользователи».</div>
       <button class="secondary" id="testTelegram" type="button" style="margin-top:14px">Отправить тест уведомлений</button>
     </div>
 
