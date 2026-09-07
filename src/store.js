@@ -4,7 +4,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { assertSlot, sanitizeSettings } from './validation.js';
 
 const DEFAULT_STATE = {
-  version: 4,
+  version: 5,
   settings: {
     childName: 'Ребёнок',
     morningTime: '08:00',
@@ -26,6 +26,8 @@ const DEFAULT_STATE = {
   access: {
     users: [],
     invites: [],
+    deviceCodes: [],
+    devices: [],
   },
 };
 
@@ -44,8 +46,12 @@ function accessRole(value) {
   return value;
 }
 
+function secretHash(value) {
+  return createHash('sha256').update(String(value)).digest('hex');
+}
+
 function inviteHash(token) {
-  return createHash('sha256').update(String(token)).digest('hex');
+  return secretHash(token);
 }
 
 function normalizeAccess(parsed) {
@@ -55,7 +61,20 @@ function normalizeAccess(parsed) {
   const invites = Array.isArray(parsed?.invites)
     ? parsed.invites.filter((invite) => invite && typeof invite.tokenHash === 'string' && ['child', 'parent'].includes(invite.role))
     : [];
-  return { users, invites };
+  const deviceCodes = Array.isArray(parsed?.deviceCodes)
+    ? parsed.deviceCodes.filter((entry) => entry
+      && /^[a-f0-9]{64}$/i.test(String(entry.codeHash || ''))
+      && /^\d{1,20}$/.test(String(entry.telegramId || ''))
+      && typeof entry.expiresAt === 'string')
+    : [];
+  const devices = Array.isArray(parsed?.devices)
+    ? parsed.devices.filter((entry) => entry
+      && typeof entry.id === 'string'
+      && /^[a-f0-9]{64}$/i.test(String(entry.tokenHash || ''))
+      && /^\d{1,20}$/.test(String(entry.telegramId || ''))
+      && typeof entry.createdAt === 'string')
+    : [];
+  return { users, invites, deviceCodes, devices };
 }
 
 function normalizeAudit(value) {
@@ -105,6 +124,22 @@ function localTimeKey(date, timeZone) {
   return `${map.hour}:${map.minute}`;
 }
 
+function sanitizeDeviceName(value) {
+  const clean = String(value || 'Android').trim().replace(/\s+/g, ' ');
+  return clean.slice(0, 80) || 'Android';
+}
+
+function publicDevice(device) {
+  return {
+    id: device.id,
+    telegramId: String(device.telegramId),
+    platform: device.platform,
+    deviceName: device.deviceName,
+    createdAt: device.createdAt,
+    revokedAt: device.revokedAt || null,
+  };
+}
+
 export class DuplicateDoseError extends Error {
   constructor(slot, localDate) {
     super(`Приём ${slot} уже отмечен за ${localDate}.`);
@@ -121,6 +156,14 @@ export class InviteError extends Error {
   }
 }
 
+export class DeviceAuthError extends Error {
+  constructor(message, statusCode = 401) {
+    super(message);
+    this.name = 'DeviceAuthError';
+    this.statusCode = statusCode;
+  }
+}
+
 export class Store {
   constructor(filePath) {
     this.filePath = filePath;
@@ -134,7 +177,7 @@ export class Store {
       return {
         ...clone(DEFAULT_STATE),
         ...parsed,
-        version: 4,
+        version: 5,
         settings: sanitizeSettings(parsed.settings ?? {}, DEFAULT_STATE.settings),
         doses: Array.isArray(parsed.doses) ? parsed.doses : [],
         audit: normalizeAudit(parsed.audit),
@@ -360,6 +403,91 @@ export class Store {
     return clone(state.access.users);
   }
 
+  async createDevicePairCode(id, { now = new Date(), ttlMs = 5 * 60 * 1000 } = {}) {
+    const normalized = telegramId(id);
+    return this.mutate(async (state) => {
+      const cutoff = now.getTime() - 24 * 60 * 60 * 1000;
+      state.access.deviceCodes = state.access.deviceCodes.filter((entry) => {
+        const expires = Date.parse(entry.expiresAt || '');
+        const used = Date.parse(entry.usedAt || '');
+        return (Number.isFinite(expires) && expires > now.getTime()) || (Number.isFinite(used) && used > cutoff);
+      });
+
+      let code = '';
+      let codeHash = '';
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        code = String(randomBytes(4).readUInt32BE(0) % 1_000_000).padStart(6, '0');
+        codeHash = secretHash(code);
+        if (!state.access.deviceCodes.some((entry) => entry.codeHash === codeHash && !entry.usedAt)) break;
+      }
+      if (!code) throw new Error('Не удалось создать код подключения устройства.');
+
+      const expiresAt = new Date(now.getTime() + ttlMs).toISOString();
+      state.access.deviceCodes.push({
+        id: randomUUID(),
+        codeHash,
+        telegramId: normalized,
+        createdAt: now.toISOString(),
+        expiresAt,
+        usedAt: null,
+      });
+      if (state.access.deviceCodes.length > 100) state.access.deviceCodes = state.access.deviceCodes.slice(-100);
+      return { code, expiresAt };
+    });
+  }
+
+  async pairDevice(code, { deviceName = 'Android', now = new Date() } = {}) {
+    const normalizedCode = String(code || '').replace(/\s+/g, '');
+    if (!/^\d{6}$/.test(normalizedCode)) throw new DeviceAuthError('Код подключения должен содержать 6 цифр.', 400);
+    const codeHash = secretHash(normalizedCode);
+
+    return this.mutate(async (state) => {
+      const entry = state.access.deviceCodes.find((item) => item.codeHash === codeHash);
+      if (!entry || entry.usedAt) throw new DeviceAuthError('Код подключения недействителен или уже использован.', 401);
+      if (Date.parse(entry.expiresAt || '') <= now.getTime()) throw new DeviceAuthError('Срок действия кода подключения истёк.', 401);
+
+      const deviceToken = randomBytes(32).toString('base64url');
+      const device = {
+        id: randomUUID(),
+        tokenHash: secretHash(deviceToken),
+        telegramId: String(entry.telegramId),
+        platform: 'android',
+        deviceName: sanitizeDeviceName(deviceName),
+        createdAt: now.toISOString(),
+        revokedAt: null,
+      };
+      state.access.devices.push(device);
+      if (state.access.devices.length > 50) state.access.devices = state.access.devices.slice(-50);
+      entry.usedAt = now.toISOString();
+      return { deviceToken, device: publicDevice(device) };
+    });
+  }
+
+  async authenticateDevice(deviceToken) {
+    const token = String(deviceToken || '');
+    if (token.length < 32 || token.length > 256) throw new DeviceAuthError('Некорректный ключ устройства.');
+    const hash = secretHash(token);
+    const state = await this.read();
+    const device = state.access.devices.find((entry) => entry.tokenHash === hash && !entry.revokedAt);
+    if (!device) throw new DeviceAuthError('Устройство не подключено или его доступ отозван.');
+    return publicDevice(device);
+  }
+
+  async listDevices() {
+    const state = await this.read();
+    return state.access.devices.map(publicDevice);
+  }
+
+  async revokeDevice(deviceId) {
+    const id = String(deviceId || '');
+    return this.mutate(async (state) => {
+      const device = state.access.devices.find((entry) => entry.id === id && !entry.revokedAt);
+      if (!device) return false;
+      device.revokedAt = new Date().toISOString();
+      return true;
+    });
+  }
+
   async createInvite(role, createdBy, { now = new Date(), ttlMs = 24 * 60 * 60 * 1000 } = {}) {
     const normalizedRole = accessRole(role);
     const creator = telegramId(createdBy);
@@ -427,6 +555,12 @@ export class Store {
     return this.mutate(async (state) => {
       const before = state.access.users.length;
       state.access.users = state.access.users.filter((entry) => String(entry.telegramId) !== normalized);
+      if (before !== state.access.users.length) {
+        const now = new Date().toISOString();
+        for (const device of state.access.devices) {
+          if (String(device.telegramId) === normalized && !device.revokedAt) device.revokedAt = now;
+        }
+      }
       return before !== state.access.users.length;
     });
   }
