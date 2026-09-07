@@ -1,6 +1,7 @@
 package org.epiapp.android
 
 import android.app.AlarmManager
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -17,6 +18,9 @@ object AlarmScheduler {
     const val EXTRA_CHILD_NAME = "child_name"
     const val EXTRA_NOTIFICATION_ID = "notification_id"
 
+    const val NOTIFICATION_MORNING = 9001
+    const val NOTIFICATION_EVENING = 9002
+
     private const val PREFS = "epiapp_alarm_state"
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -31,6 +35,8 @@ object AlarmScheduler {
 
     private fun takenKey(slot: String) = "taken_$slot"
 
+    private fun notificationId(slot: String) = if (slot == "morning") NOTIFICATION_MORNING else NOTIFICATION_EVENING
+
     fun applyServerState(context: Context, state: DeviceScheduleState) {
         ScheduleStore.save(context, state.role, state.schedule)
         val editor = prefs(context).edit()
@@ -40,6 +46,9 @@ object AlarmScheduler {
         else if (prefs(context).getString(takenKey("evening"), null) == state.today) editor.remove(takenKey("evening"))
         editor.apply()
 
+        if (state.morningTaken) context.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_MORNING)
+        if (state.eveningTaken) context.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_EVENING)
+
         if (state.role == "child") scheduleAll(context, state.schedule) else cancelAll(context)
     }
 
@@ -48,6 +57,7 @@ object AlarmScheduler {
         val stored = ScheduleStore.load(context) ?: return
         val (role, schedule) = stored
         prefs(context).edit().putString(takenKey(slot), today(schedule)).apply()
+        context.getSystemService(NotificationManager::class.java).cancel(notificationId(slot))
         if (role == "child") scheduleAll(context, schedule)
     }
 
@@ -55,13 +65,21 @@ object AlarmScheduler {
         prefs(context).getString(takenKey(slot), null) == today(schedule)
 
     fun scheduleAll(context: Context, schedule: NativeSchedule) {
-        cancelAll(context)
+        cancelPendingAlarms(context)
         if (!schedule.remindersEnabled) return
         scheduleSlot(context, schedule, "morning", schedule.morningTime)
         scheduleSlot(context, schedule, "evening", schedule.eveningTime)
     }
 
     fun cancelAll(context: Context) {
+        cancelPendingAlarms(context)
+        context.getSystemService(NotificationManager::class.java).apply {
+            cancel(NOTIFICATION_MORNING)
+            cancel(NOTIFICATION_EVENING)
+        }
+    }
+
+    private fun cancelPendingAlarms(context: Context) {
         val manager = context.getSystemService(AlarmManager::class.java)
         for (base in listOf(100, 200)) {
             for (index in 0..39) {
@@ -137,7 +155,7 @@ object AlarmScheduler {
             putExtra(EXTRA_URGENT, urgent)
             putExtra(EXTRA_STAGE_MINUTE, stageMinute)
             putExtra(EXTRA_CHILD_NAME, childName)
-            putExtra(EXTRA_NOTIFICATION_ID, requestCode)
+            putExtra(EXTRA_NOTIFICATION_ID, notificationId(slot))
         }
         val pending = PendingIntent.getBroadcast(
             context,
