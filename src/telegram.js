@@ -73,6 +73,7 @@ export function botActionFromText(text) {
     ['👨‍👩‍👧 Пригласить родителя', { command: 'invite_parent', argument: '' }],
     ['📊 Статистика', { command: 'stats', argument: '' }],
     ['👥 Пользователи', { command: 'users', argument: '' }],
+    ['📲 Подключить Android', { command: 'android', argument: '' }],
     ['ℹ️ Помощь', { command: 'help', argument: '' }],
   ]);
   return actions.get(value) || null;
@@ -89,6 +90,7 @@ function displayName(user) {
 
 export function mainMenuMarkup(role, appUrl) {
   const rows = [[{ text: '📱 Открыть EpiApp', web_app: { url: appUrl } }]];
+  rows.push([{ text: '📲 Подключить Android' }]);
   if (role === 'admin') {
     rows.push([
       { text: '👶 Пригласить ребёнка' },
@@ -204,10 +206,22 @@ async function handleBotMessage({ token, store, adminId, appUrl, botUsername, me
   }
 
   if (parsed.command === 'help') {
-    let text = 'Используйте кнопки меню ниже. «Открыть EpiApp» запускает защищённое приложение.';
+    let text = 'Используйте кнопки меню ниже. «Открыть EpiApp» запускает защищённое приложение. «Подключить Android» выдаёт одноразовый код для APK.';
     if (access.role === 'parent') text += '\n\nРодителю доступна статистика и изменение расписания/препарата в EpiApp.';
     if (access.role === 'admin') text += '\n\nАдминистратор также может приглашать ребёнка/родителя и управлять доступом.';
     await sendTelegramMessage({ token, chatId, text, replyMarkup: mainMenuMarkup(access.role, appUrl) });
+    return;
+  }
+
+  if (parsed.command === 'android' || parsed.command === 'device_code') {
+    const pairing = await store.createDevicePairCode(telegramId);
+    const formatted = `${pairing.code.slice(0, 3)} ${pairing.code.slice(3)}`;
+    await sendTelegramMessage({
+      token,
+      chatId,
+      text: `📲 Код подключения EpiApp для Android:\n\n${formatted}\n\nДействует 5 минут и используется один раз. Введите его только в официальном APK EpiApp. Не пересылайте код другим людям.`,
+      replyMarkup: mainMenuMarkup(access.role, appUrl),
+    });
     return;
   }
 
@@ -241,6 +255,8 @@ async function handleBotMessage({ token, store, adminId, appUrl, botUsername, me
 
   if (parsed.command === 'users') {
     const users = await store.listAccessUsers();
+    const devices = await store.listDevices();
+    const activeDevices = devices.filter((device) => !device.revokedAt);
     const lines = [
       `admin · ${adminId} · из TELEGRAM_ADMIN_ID`,
       ...users.map((user) => {
@@ -251,7 +267,7 @@ async function handleBotMessage({ token, store, adminId, appUrl, botUsername, me
     await sendTelegramMessage({
       token,
       chatId,
-      text: `Пользователи EpiApp:\n${lines.join('\n')}\n\nДля отзыва доступа: /revoke TELEGRAM_ID`,
+      text: `Пользователи EpiApp:\n${lines.join('\n')}\n\nПодключённых Android-устройств: ${activeDevices.length}.\n\nДля отзыва пользователя: /revoke TELEGRAM_ID`,
       replyMarkup: mainMenuMarkup('admin', appUrl),
     });
     return;
@@ -270,7 +286,7 @@ async function handleBotMessage({ token, store, adminId, appUrl, botUsername, me
     await sendTelegramMessage({
       token,
       chatId,
-      text: removed ? `Доступ ${parsed.argument} отозван.` : `Пользователь ${parsed.argument} не найден.`,
+      text: removed ? `Доступ ${parsed.argument} отозван вместе с его Android-устройствами.` : `Пользователь ${parsed.argument} не найден.`,
       replyMarkup: mainMenuMarkup('admin', appUrl),
     });
     return;
@@ -292,6 +308,7 @@ export async function startTelegramBot({ token, store, adminId, appUrl }) {
   await telegramRequest(token, 'setMyCommands', {
     commands: [
       { command: 'start', description: 'Открыть меню EpiApp' },
+      { command: 'android', description: 'Код подключения Android APK' },
       { command: 'stats', description: 'Статистика отметок' },
       { command: 'invite_child', description: 'Пригласить ребёнка' },
       { command: 'invite_parent', description: 'Пригласить родителя' },
