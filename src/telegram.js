@@ -66,6 +66,18 @@ export function parseBotCommand(text) {
   return { command: match[1].toLowerCase(), argument: (match[2] || '').trim() };
 }
 
+export function botActionFromText(text) {
+  const value = String(text || '').trim();
+  const actions = new Map([
+    ['👶 Пригласить ребёнка', { command: 'invite_child', argument: '' }],
+    ['👨‍👩‍👧 Пригласить родителя', { command: 'invite_parent', argument: '' }],
+    ['📊 Статистика', { command: 'stats', argument: '' }],
+    ['👥 Пользователи', { command: 'users', argument: '' }],
+    ['ℹ️ Помощь', { command: 'help', argument: '' }],
+  ]);
+  return actions.get(value) || null;
+}
+
 export function buildInviteStartLink(botUsername, token) {
   if (!/^[A-Za-z0-9_]{5,64}$/.test(String(botUsername || ''))) throw new Error('Некорректное имя Telegram-бота.');
   return `https://t.me/${botUsername}?start=invite_${encodeURIComponent(token)}`;
@@ -75,9 +87,26 @@ function displayName(user) {
   return [user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.username || String(user?.id || 'пользователь');
 }
 
-function openAppMarkup(appUrl) {
+export function mainMenuMarkup(role, appUrl) {
+  const rows = [[{ text: '📱 Открыть EpiApp', web_app: { url: appUrl } }]];
+  if (role === 'admin') {
+    rows.push([
+      { text: '👶 Пригласить ребёнка' },
+      { text: '👨‍👩‍👧 Пригласить родителя' },
+    ]);
+    rows.push([
+      { text: '📊 Статистика' },
+      { text: '👥 Пользователи' },
+    ]);
+  } else if (role === 'parent') {
+    rows.push([{ text: '📊 Статистика' }]);
+  }
+  rows.push([{ text: 'ℹ️ Помощь' }]);
   return {
-    inline_keyboard: [[{ text: 'Открыть EpiApp', web_app: { url: appUrl } }]],
+    keyboard: rows,
+    resize_keyboard: true,
+    is_persistent: true,
+    input_field_placeholder: 'Выберите действие',
   };
 }
 
@@ -86,11 +115,31 @@ async function resolveRole(store, telegramId, adminId) {
   return store.getAccessUser(String(telegramId));
 }
 
+function roleName(role) {
+  if (role === 'admin') return 'администратор';
+  if (role === 'parent') return 'родитель';
+  return 'ребёнок';
+}
+
+function formatStats(stats) {
+  const rate = stats.rate === null ? '—' : `${stats.rate}%`;
+  const morning = stats.bySlot.morning.rate === null ? '—' : `${stats.bySlot.morning.rate}%`;
+  const evening = stats.bySlot.evening.rate === null ? '—' : `${stats.bySlot.evening.rate}%`;
+  return [
+    `📊 Статистика за последние ${stats.requestedDays} дней`,
+    `Отмечено: ${stats.taken} из ${stats.expected} (${rate})`,
+    `Пропущенных отметок: ${stats.missed}`,
+    `Утро: ${stats.bySlot.morning.taken}/${stats.bySlot.morning.expected} (${morning})`,
+    `Вечер: ${stats.bySlot.evening.taken}/${stats.bySlot.evening.expected} (${evening})`,
+    `Полных дней подряд: ${stats.currentStreak}`,
+  ].join('\n');
+}
+
 async function handleBotMessage({ token, store, adminId, appUrl, botUsername, message }) {
   if (!message?.from?.id || message.chat?.type !== 'private') return;
   const telegramId = String(message.from.id);
   const chatId = String(message.chat.id);
-  const parsed = parseBotCommand(message.text);
+  const parsed = parseBotCommand(message.text) || botActionFromText(message.text);
   if (!parsed) return;
 
   const telegramUser = {
@@ -107,14 +156,15 @@ async function handleBotMessage({ token, store, adminId, appUrl, botUsername, me
       await sendTelegramMessage({
         token,
         chatId,
-        text: `✅ Доступ подключён. Роль: ${user.role === 'child' ? 'ребёнок' : 'родитель'}.`,
-        replyMarkup: openAppMarkup(appUrl),
+        text: `✅ Доступ подключён. Роль: ${roleName(user.role)}.`,
+        replyMarkup: mainMenuMarkup(user.role, appUrl),
       });
       if (String(adminId) !== telegramId) {
         await sendTelegramMessage({
           token,
           chatId: String(adminId),
-          text: `✅ ${displayName(message.from)} подключён(а) к EpiApp как ${user.role === 'child' ? 'ребёнок' : 'родитель'} (Telegram ID ${telegramId}).`,
+          text: `✅ ${displayName(message.from)} подключён(а) к EpiApp как ${roleName(user.role)} (Telegram ID ${telegramId}).`,
+          replyMarkup: mainMenuMarkup('admin', appUrl),
         }).catch(() => undefined);
       }
     } catch (error) {
@@ -130,38 +180,49 @@ async function handleBotMessage({ token, store, adminId, appUrl, botUsername, me
         token,
         chatId,
         text: 'Доступ к EpiApp не выдан. Попросите администратора прислать одноразовое приглашение.',
+        replyMarkup: { remove_keyboard: true },
       });
       return;
     }
     await sendTelegramMessage({
       token,
       chatId,
-      text: `EpiApp готов. Ваша роль: ${access.role === 'admin' ? 'администратор' : access.role === 'parent' ? 'родитель' : 'ребёнок'}.`,
-      replyMarkup: openAppMarkup(appUrl),
+      text: `EpiApp готов. Ваша роль: ${roleName(access.role)}.`,
+      replyMarkup: mainMenuMarkup(access.role, appUrl),
     });
     return;
   }
 
   if (!access) {
-    await sendTelegramMessage({ token, chatId, text: 'Нет доступа. Попросите администратора прислать приглашение.' });
-    return;
-  }
-
-  if (parsed.command === 'help') {
-    const adminCommands = access.role === 'admin'
-      ? '\n\nАдминистратор:\n/invite_child — приглашение ребёнку\n/invite_parent — приглашение родителю\n/users — список пользователей\n/revoke ID — отозвать доступ'
-      : '';
     await sendTelegramMessage({
       token,
       chatId,
-      text: `Нажмите кнопку ниже, чтобы открыть EpiApp.${adminCommands}`,
-      replyMarkup: openAppMarkup(appUrl),
+      text: 'Нет доступа. Попросите администратора прислать приглашение.',
+      replyMarkup: { remove_keyboard: true },
     });
     return;
   }
 
+  if (parsed.command === 'help') {
+    let text = 'Используйте кнопки меню ниже. «Открыть EpiApp» запускает защищённое приложение.';
+    if (access.role === 'parent') text += '\n\nРодителю доступна статистика и изменение расписания/препарата в EpiApp.';
+    if (access.role === 'admin') text += '\n\nАдминистратор также может приглашать ребёнка/родителя и управлять доступом.';
+    await sendTelegramMessage({ token, chatId, text, replyMarkup: mainMenuMarkup(access.role, appUrl) });
+    return;
+  }
+
+  if (parsed.command === 'stats') {
+    if (!['parent', 'admin'].includes(access.role)) {
+      await sendTelegramMessage({ token, chatId, text: 'Статистика доступна родителям.', replyMarkup: mainMenuMarkup(access.role, appUrl) });
+      return;
+    }
+    const stats = await store.statistics(7);
+    await sendTelegramMessage({ token, chatId, text: formatStats(stats), replyMarkup: mainMenuMarkup(access.role, appUrl) });
+    return;
+  }
+
   if (access.role !== 'admin') {
-    await sendTelegramMessage({ token, chatId, text: 'Эта команда доступна только администратору.' });
+    await sendTelegramMessage({ token, chatId, text: 'Это действие доступно только администратору.', replyMarkup: mainMenuMarkup(access.role, appUrl) });
     return;
   }
 
@@ -172,7 +233,8 @@ async function handleBotMessage({ token, store, adminId, appUrl, botUsername, me
     await sendTelegramMessage({
       token,
       chatId,
-      text: `Одноразовое приглашение для роли «${role === 'child' ? 'ребёнок' : 'родитель'}». Действует 24 часа. Перешлите эту ссылку нужному человеку:\n\n${link}`,
+      text: `Одноразовое приглашение для роли «${roleName(role)}». Действует 24 часа. Перешлите это сообщение нужному человеку:\n\n${link}`,
+      replyMarkup: mainMenuMarkup('admin', appUrl),
     });
     return;
   }
@@ -181,27 +243,40 @@ async function handleBotMessage({ token, store, adminId, appUrl, botUsername, me
     const users = await store.listAccessUsers();
     const lines = [
       `admin · ${adminId} · из TELEGRAM_ADMIN_ID`,
-      ...users.map((user) => `${user.role} · ${user.telegramId} · ${[user.firstName, user.lastName].filter(Boolean).join(' ') || `@${user.username}` || 'без имени'}`),
+      ...users.map((user) => {
+        const name = [user.firstName, user.lastName].filter(Boolean).join(' ') || (user.username ? `@${user.username}` : 'без имени');
+        return `${user.role} · ${user.telegramId} · ${name}`;
+      }),
     ];
-    await sendTelegramMessage({ token, chatId, text: `Пользователи EpiApp:\n${lines.join('\n')}` });
+    await sendTelegramMessage({
+      token,
+      chatId,
+      text: `Пользователи EpiApp:\n${lines.join('\n')}\n\nДля отзыва доступа: /revoke TELEGRAM_ID`,
+      replyMarkup: mainMenuMarkup('admin', appUrl),
+    });
     return;
   }
 
   if (parsed.command === 'revoke') {
     if (!/^\d{1,20}$/.test(parsed.argument)) {
-      await sendTelegramMessage({ token, chatId, text: 'Использование: /revoke TELEGRAM_ID' });
+      await sendTelegramMessage({ token, chatId, text: 'Использование: /revoke TELEGRAM_ID', replyMarkup: mainMenuMarkup('admin', appUrl) });
       return;
     }
     if (parsed.argument === String(adminId)) {
-      await sendTelegramMessage({ token, chatId, text: 'Администратора из TELEGRAM_ADMIN_ID нельзя удалить через бота.' });
+      await sendTelegramMessage({ token, chatId, text: 'Администратора из TELEGRAM_ADMIN_ID нельзя удалить через бота.', replyMarkup: mainMenuMarkup('admin', appUrl) });
       return;
     }
     const removed = await store.revokeAccessUser(parsed.argument);
-    await sendTelegramMessage({ token, chatId, text: removed ? `Доступ ${parsed.argument} отозван.` : `Пользователь ${parsed.argument} не найден.` });
+    await sendTelegramMessage({
+      token,
+      chatId,
+      text: removed ? `Доступ ${parsed.argument} отозван.` : `Пользователь ${parsed.argument} не найден.`,
+      replyMarkup: mainMenuMarkup('admin', appUrl),
+    });
     return;
   }
 
-  await sendTelegramMessage({ token, chatId, text: 'Неизвестная команда. Используйте /help.' });
+  await sendTelegramMessage({ token, chatId, text: 'Неизвестная команда. Используйте кнопки меню.', replyMarkup: mainMenuMarkup(access.role, appUrl) });
 }
 
 export async function startTelegramBot({ token, store, adminId, appUrl }) {
@@ -216,12 +291,13 @@ export async function startTelegramBot({ token, store, adminId, appUrl }) {
 
   await telegramRequest(token, 'setMyCommands', {
     commands: [
-      { command: 'start', description: 'Открыть EpiApp' },
-      { command: 'help', description: 'Помощь' },
+      { command: 'start', description: 'Открыть меню EpiApp' },
+      { command: 'stats', description: 'Статистика отметок' },
       { command: 'invite_child', description: 'Пригласить ребёнка' },
       { command: 'invite_parent', description: 'Пригласить родителя' },
       { command: 'users', description: 'Пользователи' },
       { command: 'revoke', description: 'Отозвать доступ по Telegram ID' },
+      { command: 'help', description: 'Помощь' },
     ],
   }).catch(() => undefined);
 
