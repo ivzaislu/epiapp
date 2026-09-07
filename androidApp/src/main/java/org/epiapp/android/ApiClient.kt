@@ -2,11 +2,38 @@ package org.epiapp.android
 
 import org.json.JSONObject
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
 
 class ApiException(val statusCode: Int, message: String) : Exception(message)
 
-class ApiClient(private val baseUrl: String = BuildConfig.BASE_URL.trimEnd('/')) {
+class ApiClient(inputBaseUrl: String) {
+    companion object {
+        fun normalizeBaseUrl(input: String): String {
+            val trimmed = input.trim()
+            if (trimmed.isBlank()) throw IllegalArgumentException("Укажите адрес EpiApp-сервера.")
+            val uri = try {
+                URI(trimmed)
+            } catch (_: Exception) {
+                throw IllegalArgumentException("Некорректный адрес сервера.")
+            }
+            if (uri.scheme?.lowercase() != "https" || uri.host.isNullOrBlank()) {
+                throw IllegalArgumentException("Адрес EpiApp должен начинаться с https://")
+            }
+            if (uri.userInfo != null || uri.query != null || uri.fragment != null) {
+                throw IllegalArgumentException("Укажите только HTTPS-адрес сервера без логина, query или #fragment.")
+            }
+            val path = uri.path.orEmpty()
+            if (path.isNotEmpty() && path != "/") {
+                throw IllegalArgumentException("EpiApp должен быть опубликован в корне домена, без дополнительного пути.")
+            }
+            val authority = if (uri.port == -1) uri.host else "${uri.host}:${uri.port}"
+            return "https://$authority"
+        }
+    }
+
+    val baseUrl: String = normalizeBaseUrl(inputBaseUrl)
+
     private data class JsonResponse(
         val status: Int,
         val json: JSONObject,
@@ -49,6 +76,11 @@ class ApiClient(private val baseUrl: String = BuildConfig.BASE_URL.trimEnd('/'))
             throw ApiException(status, json.optString("error", "HTTP $status"))
         }
         return JsonResponse(status, json, cookie)
+    }
+
+    fun health(): Boolean {
+        val response = request("/healthz")
+        return response.json.optBoolean("ok", false)
     }
 
     fun pair(code: String, deviceName: String): DeviceSession {
