@@ -4,3 +4,13 @@ node_modules/
 data/*.json
 data/*.tmp
 !data/.gitkeep
+
+# Android
+.gradle/
+.idea/
+local.properties
+*.iml
+**/build/
+*.jks
+*.keystore
+androidApp/release/
