@@ -14,11 +14,11 @@ import android.provider.Settings
 import android.text.InputType
 import android.view.Gravity
 import android.view.ViewGroup
+import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.webkit.CookieManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -28,6 +28,10 @@ import java.util.Locale
 import kotlin.concurrent.thread
 
 class MainActivity : Activity() {
+    companion object {
+        private const val REQUEST_NOTIFICATIONS = 1001
+    }
+
     private lateinit var secureStore: SecureStore
     private val api = ApiClient()
     private var currentRole: String? = null
@@ -38,7 +42,13 @@ class MainActivity : Activity() {
         secureStore = SecureStore(this)
         AlarmReceiver.ensureChannels(this)
         val token = secureStore.getDeviceToken()
-        if (token == null) showPairing() else authenticateDevice(token)
+        if (token == null) {
+            AlarmScheduler.cancelAll(this)
+            ScheduleSyncScheduler.cancel(this)
+            showPairing()
+        } else {
+            authenticateDevice(token)
+        }
     }
 
     override fun onResume() {
@@ -46,7 +56,19 @@ class MainActivity : Activity() {
         if (currentRole == "child") {
             ensureAlarmPermissions()
             ScheduleStore.load(this)?.second?.let { AlarmScheduler.scheduleAll(this, it) }
+            ScheduleSyncScheduler.schedule(this)
             syncScheduleSilently()
+        }
+    }
+
+    private fun applyNativeState(state: DeviceScheduleState) {
+        currentRole = state.role
+        AlarmScheduler.applyServerState(this, state)
+        if (state.role == "child") {
+            ScheduleSyncScheduler.schedule(this)
+            ensureAlarmPermissions()
+        } else {
+            ScheduleSyncScheduler.cancel(this)
         }
     }
 
@@ -58,16 +80,13 @@ class MainActivity : Activity() {
                 val schedule = api.schedule(token)
                 runOnUiThread {
                     installCookie(session.cookie)
-                    AlarmScheduler.applyServerState(this, schedule)
-                    currentRole = session.role
-                    if (session.role == "child") ensureAlarmPermissions()
+                    applyNativeState(schedule)
                     showWeb(session.role)
                 }
             } catch (error: ApiException) {
                 runOnUiThread {
                     if (error.statusCode == 401 || error.statusCode == 403) {
-                        secureStore.clearDeviceToken()
-                        CookieManager.getInstance().removeAllCookies(null)
+                        clearDeviceAccess()
                     }
                     showPairing(error.message ?: "Не удалось подключить устройство.")
                 }
@@ -98,9 +117,7 @@ class MainActivity : Activity() {
                 val schedule = api.schedule(token)
                 runOnUiThread {
                     installCookie(session.cookie)
-                    AlarmScheduler.applyServerState(this, schedule)
-                    currentRole = session.role
-                    if (session.role == "child") ensureAlarmPermissions()
+                    applyNativeState(schedule)
                     showWeb(session.role)
                 }
             } catch (error: Exception) {
@@ -110,6 +127,16 @@ class MainActivity : Activity() {
                 }
             }
         }
+    }
+
+    private fun clearDeviceAccess() {
+        secureStore.clearDeviceToken()
+        AlarmScheduler.cancelAll(this)
+        ScheduleSyncScheduler.cancel(this)
+        ScheduleStore.clear(this)
+        CookieManager.getInstance().removeAllCookies(null)
+        CookieManager.getInstance().flush()
+        currentRole = null
     }
 
     private fun installCookie(cookie: String?) {
@@ -170,16 +197,12 @@ class MainActivity : Activity() {
         thread(name = "epiapp-schedule-sync") {
             try {
                 val state = api.schedule(token)
-                runOnUiThread {
-                    currentRole = state.role
-                    AlarmScheduler.applyServerState(this, state)
-                }
+                runOnUiThread { applyNativeState(state) }
             } catch (error: ApiException) {
                 if (error.statusCode == 401 || error.statusCode == 403) {
                     runOnUiThread {
-                        secureStore.clearDeviceToken()
-                        AlarmScheduler.cancelAll(this)
-                        CookieManager.getInstance().removeAllCookies(null)
+                        clearDeviceAccess()
+                        showPairing("Доступ этого Android-устройства отозван.")
                     }
                 }
             } catch (_: Exception) {
@@ -290,10 +313,13 @@ class MainActivity : Activity() {
     }
 
     private fun ensureAlarmPermissions() {
+        if (currentRole != "child") return
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
-            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
+            return
         }
 
         val prefs = getSharedPreferences("epiapp_permission_prompts", MODE_PRIVATE)
@@ -325,10 +351,15 @@ class MainActivity : Activity() {
                         },
                     )
                 } catch (_: Exception) {
-                    // The urgent notification still remains available even if full-screen access is denied.
+                    // The urgent notification remains available if full-screen access is denied.
                 }
             }
         }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_NOTIFICATIONS && currentRole == "child") ensureAlarmPermissions()
     }
 
     override fun onDestroy() {
