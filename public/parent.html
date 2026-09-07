@@ -27,7 +27,7 @@
 
     <div class="hero">
       <h1>Родительский кабинет</h1>
-      <p>Таблетница, расписание, статистика и Telegram-доступ семьи.</p>
+      <p>Таблетница, расписание, напоминания, статистика и Telegram-доступ семьи.</p>
       <p class="help" id="signedInAs"></p>
     </div>
 
@@ -46,6 +46,25 @@
           <div class="field"><label for="eveningTime">Время вечером</label><input id="eveningTime" type="time" required></div>
         </div>
         <div class="field"><label for="timezone">Часовой пояс</label><input id="timezone" placeholder="Europe/Berlin" required><div class="help">Например: Europe/Berlin, Europe/Moscow.</div></div>
+
+        <div class="reminder-box">
+          <label class="toggle-row" for="remindersEnabled">
+            <input id="remindersEnabled" type="checkbox">
+            <span><strong>Telegram-напоминания при опоздании</strong><span class="help">Ребёнку и обоим родителям, пока отметки нет.</span></span>
+          </label>
+          <div id="reminderFields" class="form reminder-fields">
+            <div class="row">
+              <div class="field"><label for="reminderFirstMinutes">Первое напоминание, мин</label><input id="reminderFirstMinutes" type="number" min="5" max="60" step="1"></div>
+              <div class="field"><label for="reminderUrgentMinutes">Срочное напоминание, мин</label><input id="reminderUrgentMinutes" type="number" min="10" max="120" step="1"></div>
+            </div>
+            <div class="row">
+              <div class="field"><label for="reminderRepeatMinutes">Повторять каждые, мин</label><input id="reminderRepeatMinutes" type="number" min="5" max="60" step="1"></div>
+              <div class="field"><label for="reminderStopMinutes">Повторять до, мин</label><input id="reminderStopMinutes" type="number" min="15" max="240" step="1"></div>
+            </div>
+            <div class="help">По умолчанию: 15 мин — напоминание, 30 мин — срочное, затем каждые 15 мин до 60 мин. Telegram не может обойти беззвучный режим телефона.</div>
+          </div>
+        </div>
+
         <button class="primary" type="submit">Сохранить таблетницу</button>
       </form>
       <div id="settingsAudit" class="help" style="margin-top:14px"></div>
@@ -60,6 +79,19 @@
         <div class="stat-card"><div class="help">Вечер · 30 дней</div><div class="stat-value" id="statsEvening">—</div><div class="help" id="statsEveningDetail"></div></div>
       </div>
       <div class="notice good" id="streakNotice" style="margin-top:14px">Загрузка статистики…</div>
+
+      <h3 class="section-title">График за 30 дней</h3>
+      <p class="help">Каждый столбик — один день: верхняя половина — вечер, нижняя — утро.</p>
+      <div class="chart-shell">
+        <div class="chart-y-axis"><span>100%</span><span>50%</span><span>0%</span></div>
+        <div id="adherenceChart" class="adherence-chart" role="img" aria-label="График отметок утреннего и вечернего приёма за 30 дней"></div>
+      </div>
+      <div class="chart-legend">
+        <span><i class="legend-dot done"></i> отмечено</span>
+        <span><i class="legend-dot missed"></i> нет отметки</span>
+        <span><i class="legend-dot future"></i> ещё не ожидалось</span>
+      </div>
+
       <h3 class="section-title">Последние дни</h3>
       <div id="statsHistory" class="history"><div class="empty">Загрузка…</div></div>
     </div>
