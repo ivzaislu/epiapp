@@ -33,21 +33,23 @@ class MainActivity : Activity() {
     }
 
     private lateinit var secureStore: SecureStore
-    private val api = ApiClient()
     private var currentRole: String? = null
+    private var currentServerUrl: String? = null
     private var webView: WebView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         secureStore = SecureStore(this)
         AlarmReceiver.ensureChannels(this)
+
+        val serverUrl = secureStore.getServerUrl()
         val token = secureStore.getDeviceToken()
-        if (token == null) {
+        if (serverUrl == null || token == null) {
             AlarmScheduler.cancelAll(this)
             ScheduleSyncScheduler.cancel(this)
-            showPairing()
+            showPairing(suggestedServer = serverUrl.orEmpty())
         } else {
-            authenticateDevice(token)
+            authenticateDevice(serverUrl, token)
         }
     }
 
@@ -72,37 +74,50 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun authenticateDevice(token: String) {
-        showLoading("Подключаю EpiApp…")
+    private fun authenticateDevice(serverUrl: String, token: String) {
+        currentServerUrl = serverUrl
+        showLoading("Подключаюсь к $serverUrl …")
         thread(name = "epiapp-session") {
             try {
+                val api = ApiClient(serverUrl)
                 val session = api.session(token)
                 val schedule = api.schedule(token)
                 runOnUiThread {
-                    installCookie(session.cookie) {
+                    installCookie(api.baseUrl, session.cookie) {
                         applyNativeState(schedule)
-                        showWeb(session.role)
+                        showWeb(api.baseUrl, session.role)
                     }
                 }
             } catch (error: ApiException) {
                 runOnUiThread {
-                    if (error.statusCode == 401 || error.statusCode == 403) clearDeviceAccess()
-                    showPairing(error.message ?: "Не удалось подключить устройство.")
+                    if (error.statusCode == 401 || error.statusCode == 403) {
+                        clearDeviceAccess()
+                        showPairing(error.message ?: "Доступ этого устройства отозван.", serverUrl)
+                    } else {
+                        showRetry(error.message ?: "Не удалось подключить устройство.", serverUrl, token)
+                    }
                 }
             } catch (error: Exception) {
-                runOnUiThread { showRetry(error.message ?: "Нет связи с сервером.", token) }
+                runOnUiThread { showRetry(error.message ?: "Нет связи с сервером.", serverUrl, token) }
             }
         }
     }
 
-    private fun pairDevice(code: String, status: TextView, button: Button) {
+    private fun pairDevice(serverText: String, code: String, status: TextView, button: Button) {
+        val serverUrl = try {
+            ApiClient.normalizeBaseUrl(serverText)
+        } catch (error: IllegalArgumentException) {
+            status.text = error.message
+            return
+        }
         val digits = code.filter(Char::isDigit)
         if (digits.length != 6) {
             status.text = "Введите 6 цифр из Telegram-бота."
             return
         }
+
         button.isEnabled = false
-        status.text = "Подключаю устройство…"
+        status.text = "Проверяю сервер и подключаю устройство…"
         val deviceName = listOf(Build.MANUFACTURER, Build.MODEL)
             .filter { it.isNotBlank() }
             .joinToString(" ")
@@ -110,14 +125,17 @@ class MainActivity : Activity() {
 
         thread(name = "epiapp-pair") {
             try {
+                val api = ApiClient(serverUrl)
+                if (!api.health()) throw IllegalStateException("Сервер ответил, но EpiApp healthcheck не подтверждён.")
                 val session = api.pair(digits, deviceName)
                 val token = session.deviceToken ?: throw IllegalStateException("Сервер не вернул ключ устройства.")
-                secureStore.saveDeviceToken(token)
+                secureStore.saveConnection(api.baseUrl, token)
                 val schedule = api.schedule(token)
                 runOnUiThread {
-                    installCookie(session.cookie) {
+                    currentServerUrl = api.baseUrl
+                    installCookie(api.baseUrl, session.cookie) {
                         applyNativeState(schedule)
-                        showWeb(session.role)
+                        showWeb(api.baseUrl, session.role)
                     }
                 }
             } catch (error: Exception) {
@@ -130,31 +148,39 @@ class MainActivity : Activity() {
     }
 
     private fun clearDeviceAccess() {
-        secureStore.clearDeviceToken()
+        secureStore.clearConnection()
         AlarmScheduler.cancelAll(this)
         ScheduleSyncScheduler.cancel(this)
         ScheduleStore.clear(this)
         CookieManager.getInstance().removeAllCookies(null)
         CookieManager.getInstance().flush()
         currentRole = null
+        currentServerUrl = null
     }
 
-    private fun installCookie(cookie: String?, onReady: () -> Unit) {
+    private fun installCookie(serverUrl: String, cookie: String?, onReady: () -> Unit) {
         if (cookie.isNullOrBlank()) {
             onReady()
             return
         }
         CookieManager.getInstance().apply {
             setAcceptCookie(true)
-            setCookie(BuildConfig.BASE_URL, cookie) {
+            setCookie(serverUrl, cookie) {
                 flush()
                 runOnUiThread(onReady)
             }
         }
     }
 
-    private fun showWeb(role: String) {
-        val allowedHost = Uri.parse(BuildConfig.BASE_URL).host
+    private fun sameOrigin(uri: Uri, base: Uri): Boolean =
+        uri.scheme == "https" &&
+            uri.scheme == base.scheme &&
+            uri.host.equals(base.host, ignoreCase = true) &&
+            uri.port == base.port
+
+    private fun showWeb(serverUrl: String, role: String) {
+        currentServerUrl = serverUrl
+        val baseUri = Uri.parse(serverUrl)
         val view = WebView(this)
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
         view.settings.apply {
@@ -169,7 +195,7 @@ class MainActivity : Activity() {
         view.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val uri = request.url
-                if (uri.scheme == "https" && uri.host == allowedHost) return false
+                if (sameOrigin(uri, baseUri)) return false
                 return try {
                     startActivity(Intent(Intent.ACTION_VIEW, uri))
                     true
@@ -182,7 +208,7 @@ class MainActivity : Activity() {
         webView = view
         setContentView(view)
         val path = if (role == "child") "/" else "/parent"
-        view.loadUrl(BuildConfig.BASE_URL.trimEnd('/') + path)
+        view.loadUrl(serverUrl.trimEnd('/') + path)
     }
 
     private inner class AndroidBridge {
@@ -198,16 +224,17 @@ class MainActivity : Activity() {
     }
 
     private fun syncScheduleSilently() {
+        val serverUrl = secureStore.getServerUrl() ?: return
         val token = secureStore.getDeviceToken() ?: return
         thread(name = "epiapp-schedule-sync") {
             try {
-                val state = api.schedule(token)
+                val state = ApiClient(serverUrl).schedule(token)
                 runOnUiThread { applyNativeState(state) }
             } catch (error: ApiException) {
                 if (error.statusCode == 401 || error.statusCode == 403) {
                     runOnUiThread {
                         clearDeviceAccess()
-                        showPairing("Доступ этого Android-устройства отозван.")
+                        showPairing("Доступ этого Android-устройства отозван.", serverUrl)
                     }
                 }
             } catch (_: Exception) {
@@ -216,7 +243,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun showPairing(error: String? = null) {
+    private fun showPairing(error: String? = null, suggestedServer: String = "") {
         currentRole = null
         webView?.destroy()
         webView = null
@@ -226,7 +253,7 @@ class MainActivity : Activity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(dp(26), dp(54), dp(26), dp(32))
+            setPadding(dp(26), dp(42), dp(26), dp(32))
             setBackgroundColor(Color.parseColor("#F4F7FB"))
             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         }
@@ -237,28 +264,42 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
         })
         root.addView(TextView(this).apply {
-            text = "Подключение Android"
-            textSize = 22f
+            text = "Подключение к своему серверу"
+            textSize = 21f
             setTextColor(Color.parseColor("#315BD6"))
             gravity = Gravity.CENTER
-            setPadding(0, dp(8), 0, dp(18))
+            setPadding(0, dp(8), 0, dp(16))
         })
         root.addView(TextView(this).apply {
-            text = "Откройте Telegram-бот EpiApp → «📲 Подключить Android». Введите одноразовый код ниже."
-            textSize = 16f
+            text = "В Telegram-боте вашей семьи нажмите «📲 Подключить Android». Бот покажет HTTPS-адрес сервера и одноразовый код."
+            textSize = 15f
             setTextColor(Color.parseColor("#677085"))
             gravity = Gravity.CENTER
         })
-        val input = EditText(this).apply {
+
+        val serverInput = EditText(this).apply {
+            hint = "https://epiapp.example.com"
+            setText(suggestedServer)
+            textSize = 17f
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            setSingleLine(true)
+            setPadding(dp(12), dp(14), dp(12), dp(14))
+        }
+        root.addView(serverInput, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = dp(20)
+        })
+
+        val codeInput = EditText(this).apply {
             hint = "123 456"
             textSize = 26f
             gravity = Gravity.CENTER
             inputType = InputType.TYPE_CLASS_NUMBER
-            setPadding(dp(12), dp(18), dp(12), dp(18))
+            setPadding(dp(12), dp(14), dp(12), dp(14))
         }
-        root.addView(input, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            topMargin = dp(20)
+        root.addView(codeInput, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = dp(10)
         })
+
         val status = TextView(this).apply {
             text = error.orEmpty()
             textSize = 14f
@@ -267,14 +308,17 @@ class MainActivity : Activity() {
             setPadding(0, dp(10), 0, dp(10))
         }
         root.addView(status)
+
         val button = Button(this).apply {
             text = "Подключить EpiApp"
             textSize = 17f
         }
-        button.setOnClickListener { pairDevice(input.text.toString(), status, button) }
+        button.setOnClickListener {
+            pairDevice(serverInput.text.toString(), codeInput.text.toString(), status, button)
+        }
         root.addView(button, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(58)))
         root.addView(TextView(this).apply {
-            text = "Код действует 5 минут и используется один раз. После подключения постоянный ключ хранится в Android Keystore."
+            text = "APK принимает только HTTPS. Код действует 5 минут и используется один раз. После подключения адрес сервера сохраняется на устройстве, а постоянный device-token защищается Android Keystore."
             textSize = 12f
             setTextColor(Color.parseColor("#677085"))
             gravity = Gravity.CENTER
@@ -299,19 +343,26 @@ class MainActivity : Activity() {
         setContentView(root)
     }
 
-    private fun showRetry(message: String, token: String) {
+    private fun showRetry(message: String, serverUrl: String, token: String) {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(36, 36, 36, 36)
             addView(TextView(this@MainActivity).apply {
-                text = "EpiApp временно не может связаться с сервером.\n\n$message"
+                text = "EpiApp временно не может связаться с сервером.\n\n$serverUrl\n\n$message"
                 gravity = Gravity.CENTER
                 textSize = 16f
             })
             addView(Button(this@MainActivity).apply {
                 text = "Повторить"
-                setOnClickListener { authenticateDevice(token) }
+                setOnClickListener { authenticateDevice(serverUrl, token) }
+            })
+            addView(Button(this@MainActivity).apply {
+                text = "Сменить сервер / переподключить"
+                setOnClickListener {
+                    clearDeviceAccess()
+                    showPairing(suggestedServer = serverUrl)
+                }
             })
         }
         setContentView(root)
