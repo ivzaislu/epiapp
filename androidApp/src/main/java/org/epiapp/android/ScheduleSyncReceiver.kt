@@ -42,17 +42,19 @@ object ScheduleSyncScheduler {
 
 class ScheduleSyncReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val token = SecureStore(context).getDeviceToken() ?: return
+        val secureStore = SecureStore(context)
+        val serverUrl = secureStore.getServerUrl() ?: return
+        val token = secureStore.getDeviceToken() ?: return
         val pending = goAsync()
         thread(name = "epiapp-background-sync") {
             try {
-                val state = ApiClient().schedule(token)
+                val state = ApiClient(serverUrl).schedule(token)
                 AlarmScheduler.applyServerState(context, state)
                 if (state.role == "child") ScheduleSyncScheduler.schedule(context)
                 else ScheduleSyncScheduler.cancel(context)
             } catch (error: ApiException) {
                 if (error.statusCode == 401 || error.statusCode == 403) {
-                    SecureStore(context).clearDeviceToken()
+                    secureStore.clearConnection()
                     ScheduleStore.clear(context)
                     AlarmScheduler.cancelAll(context)
                     ScheduleSyncScheduler.cancel(context)
