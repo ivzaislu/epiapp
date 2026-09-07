@@ -2,7 +2,8 @@ server {
     listen 80;
     listen [::]:80;
 
-    server_name epiapp.duckdns.org;
+    # Replace with the DNS name used in APP_BASE_URL.
+    server_name epiapp.example.com;
 
     location / {
         proxy_pass http://127.0.0.1:3000;
