@@ -111,6 +111,18 @@ async function notificationChatIds({ store, adminId }) {
   ].filter((id) => /^\d{1,20}$/.test(id)))];
 }
 
+function publicSettings(settings) {
+  return {
+    childName: settings.childName,
+    morningTime: settings.morningTime,
+    eveningTime: settings.eveningTime,
+    timezone: settings.timezone,
+    medicationName: settings.medicationName,
+    morningDose: settings.morningDose,
+    eveningDose: settings.eveningDose,
+  };
+}
+
 export function createServer(options = {}) {
   const context = {
     store: options.store || defaultStore,
@@ -157,9 +169,9 @@ export function createServer(options = {}) {
       }
 
       if (req.method === 'POST' && url.pathname === '/api/take') {
-        await requireUser(req, context, ['child']);
+        const child = await requireUser(req, context, ['child']);
         const payload = await body(req);
-        const result = await context.store.takeDose(payload.slot);
+        const result = await context.store.takeDose(payload.slot, new Date(), child);
         const notification = await notifyDose({
           token: context.botToken,
           chatIds: await notificationChatIds(context),
@@ -175,30 +187,37 @@ export function createServer(options = {}) {
         const user = await requireUser(req, context, ['parent', 'admin']);
         const state = await context.store.read();
         return json(res, 200, {
-          settings: {
-            childName: state.settings.childName,
-            morningTime: state.settings.morningTime,
-            eveningTime: state.settings.eveningTime,
-            timezone: state.settings.timezone,
-          },
+          settings: publicSettings(state.settings),
+          recentChanges: await context.store.recentSettingsChanges(5),
           telegramConfigured: Boolean(context.botToken),
           role: user.role,
         });
       }
 
       if (req.method === 'POST' && url.pathname === '/api/parent/settings') {
-        await requireUser(req, context, ['parent', 'admin']);
+        const user = await requireUser(req, context, ['parent', 'admin']);
         const current = await context.store.read();
         const input = await body(req);
+        const settings = await context.store.updateSettings({
+          ...current.settings,
+          childName: input.childName,
+          morningTime: input.morningTime,
+          eveningTime: input.eveningTime,
+          timezone: input.timezone,
+          medicationName: input.medicationName,
+          morningDose: input.morningDose,
+          eveningDose: input.eveningDose,
+        }, user);
         return json(res, 200, {
-          settings: await context.store.updateSettings({
-            ...current.settings,
-            childName: input.childName,
-            morningTime: input.morningTime,
-            eveningTime: input.eveningTime,
-            timezone: input.timezone,
-          }),
+          settings: publicSettings(settings),
+          recentChanges: await context.store.recentSettingsChanges(5),
         });
+      }
+
+      if (req.method === 'GET' && url.pathname === '/api/parent/stats') {
+        await requireUser(req, context, ['parent', 'admin']);
+        const days = Number(url.searchParams.get('days') || 7);
+        return json(res, 200, { stats: await context.store.statistics(days) });
       }
 
       if (req.method === 'POST' && url.pathname === '/api/parent/telegram/test') {
