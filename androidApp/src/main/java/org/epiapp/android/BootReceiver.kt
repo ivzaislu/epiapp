@@ -26,6 +26,7 @@ class BootReceiver : BroadcastReceiver() {
             } catch (error: ApiException) {
                 if (error.statusCode == 401 || error.statusCode == 403) {
                     SecureStore(context).clearDeviceToken()
+                    ScheduleStore.clear(context)
                     AlarmScheduler.cancelAll(context)
                     ScheduleSyncScheduler.cancel(context)
                 }
