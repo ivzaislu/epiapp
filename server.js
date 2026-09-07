@@ -244,13 +244,16 @@ export function createServer(options = {}) {
 
       if (req.method === 'GET' && url.pathname === '/api/device/schedule') {
         const { device, user } = await requireDevice(req, context);
-        const state = await context.store.childState();
+        const [childState, fullState] = await Promise.all([
+          context.store.childState(),
+          context.store.read(),
+        ]);
         return json(res, 200, {
           device,
           user,
-          schedule: nativeSchedule(state.settings),
-          today: state.today,
-          todayDoses: state.todayDoses,
+          schedule: nativeSchedule(fullState.settings),
+          today: childState.today,
+          todayDoses: childState.todayDoses,
         });
       }
 
