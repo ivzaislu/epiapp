@@ -5,6 +5,7 @@ WORKDIR /app
 COPY package.json server.js ./
 COPY src ./src
 COPY public ./public
+COPY scripts ./scripts
 
 RUN addgroup -S epiapp && adduser -S -G epiapp epiapp \
     && mkdir -p /data \
