@@ -121,7 +121,7 @@ test('invited child authenticates but cannot open parent settings', async () => 
   }
 });
 
-test('invited parent can read parent settings', async () => {
+test('invited parent can manage medication settings and read statistics', async () => {
   const store = await tempStore();
   const invite = await store.createInvite('parent', ADMIN_ID);
   await store.acceptInvite(invite.token, { id: '333333333', firstName: 'Parent' });
@@ -130,8 +130,32 @@ test('invited parent can read parent settings', async () => {
   const baseUrl = `http://127.0.0.1:${port}`;
   try {
     const cookie = await authenticate(baseUrl, '333333333');
-    const response = await fetch(`${baseUrl}/api/parent/settings`, { headers: { cookie } });
-    assert.equal(response.status, 200);
+    const read = await fetch(`${baseUrl}/api/parent/settings`, { headers: { cookie } });
+    assert.equal(read.status, 200);
+
+    const update = await fetch(`${baseUrl}/api/parent/settings`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        childName: 'Аня',
+        medicationName: 'Препарат X',
+        morningDose: '1 таблетка',
+        eveningDose: '1/2 таблетки',
+        morningTime: '08:00',
+        eveningTime: '20:00',
+        timezone: 'Europe/Berlin',
+      }),
+    });
+    assert.equal(update.status, 200);
+    const updated = await update.json();
+    assert.equal(updated.settings.medicationName, 'Препарат X');
+    assert.equal(updated.settings.eveningDose, '1/2 таблетки');
+    assert.equal(updated.recentChanges[0].actorTelegramId, '333333333');
+
+    const stats = await fetch(`${baseUrl}/api/parent/stats?days=30`, { headers: { cookie } });
+    assert.equal(stats.status, 200);
+    const statsData = await stats.json();
+    assert.equal(statsData.stats.requestedDays, 30);
   } finally {
     await close(server);
   }
