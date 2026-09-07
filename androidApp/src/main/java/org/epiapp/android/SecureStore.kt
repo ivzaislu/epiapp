@@ -16,6 +16,7 @@ class SecureStore(private val context: Context) {
         private const val PREFS = "epiapp_secure"
         private const val PREF_IV = "device_token_iv"
         private const val PREF_DATA = "device_token_data"
+        private const val PREF_SERVER_URL = "server_url"
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
     }
 
@@ -40,16 +41,21 @@ class SecureStore(private val context: Context) {
         return generator.generateKey()
     }
 
-    fun saveDeviceToken(token: String) {
+    fun saveConnection(serverUrl: String, token: String) {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
         val encrypted = cipher.doFinal(token.toByteArray(Charsets.UTF_8))
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
+            .putString(PREF_SERVER_URL, serverUrl)
             .putString(PREF_IV, Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
             .putString(PREF_DATA, Base64.encodeToString(encrypted, Base64.NO_WRAP))
             .apply()
     }
+
+    fun getServerUrl(): String? = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        .getString(PREF_SERVER_URL, null)
+        ?.takeIf { it.startsWith("https://") }
 
     fun getDeviceToken(): String? {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -64,14 +70,15 @@ class SecureStore(private val context: Context) {
             )
             String(cipher.doFinal(Base64.decode(dataText, Base64.NO_WRAP)), Charsets.UTF_8)
         } catch (_: Exception) {
-            clearDeviceToken()
+            clearConnection()
             null
         }
     }
 
-    fun clearDeviceToken() {
+    fun clearConnection() {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
+            .remove(PREF_SERVER_URL)
             .remove(PREF_IV)
             .remove(PREF_DATA)
             .apply()
