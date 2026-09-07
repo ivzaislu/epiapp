@@ -206,7 +206,7 @@ async function handleBotMessage({ token, store, adminId, appUrl, botUsername, me
   }
 
   if (parsed.command === 'help') {
-    let text = 'Используйте кнопки меню ниже. «Открыть EpiApp» запускает защищённое приложение. «Подключить Android» выдаёт одноразовый код для APK.';
+    let text = 'Используйте кнопки меню ниже. «Открыть EpiApp» запускает защищённое приложение. «Подключить Android» показывает адрес вашего сервера и одноразовый код для универсального APK.';
     if (access.role === 'parent') text += '\n\nРодителю доступна статистика и изменение расписания/препарата в EpiApp.';
     if (access.role === 'admin') text += '\n\nАдминистратор также может приглашать ребёнка/родителя и управлять доступом.';
     await sendTelegramMessage({ token, chatId, text, replyMarkup: mainMenuMarkup(access.role, appUrl) });
@@ -219,7 +219,7 @@ async function handleBotMessage({ token, store, adminId, appUrl, botUsername, me
     await sendTelegramMessage({
       token,
       chatId,
-      text: `📲 Код подключения EpiApp для Android:\n\n${formatted}\n\nДействует 5 минут и используется один раз. Введите его только в официальном APK EpiApp. Не пересылайте код другим людям.`,
+      text: `📲 Подключение EpiApp для Android\n\nСервер:\n${appUrl}\n\nОдноразовый код:\n${formatted}\n\nВ универсальном APK введите этот HTTPS-адрес и код. Код действует 5 минут и используется один раз. Не пересылайте его другим людям.`,
       replyMarkup: mainMenuMarkup(access.role, appUrl),
     });
     return;
@@ -308,7 +308,7 @@ export async function startTelegramBot({ token, store, adminId, appUrl }) {
   await telegramRequest(token, 'setMyCommands', {
     commands: [
       { command: 'start', description: 'Открыть меню EpiApp' },
-      { command: 'android', description: 'Код подключения Android APK' },
+      { command: 'android', description: 'Подключить универсальный Android APK' },
       { command: 'stats', description: 'Статистика отметок' },
       { command: 'invite_child', description: 'Пригласить ребёнка' },
       { command: 'invite_parent', description: 'Пригласить родителя' },
