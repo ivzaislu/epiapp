@@ -10,6 +10,9 @@ class BootReceiver : BroadcastReceiver() {
         val stored = ScheduleStore.load(context)
         if (stored != null && stored.first == "child") {
             AlarmScheduler.scheduleAll(context, stored.second)
+            ScheduleSyncScheduler.schedule(context)
+        } else {
+            ScheduleSyncScheduler.cancel(context)
         }
 
         val token = SecureStore(context).getDeviceToken() ?: return
@@ -18,13 +21,16 @@ class BootReceiver : BroadcastReceiver() {
             try {
                 val state = ApiClient().schedule(token)
                 AlarmScheduler.applyServerState(context, state)
+                if (state.role == "child") ScheduleSyncScheduler.schedule(context)
+                else ScheduleSyncScheduler.cancel(context)
             } catch (error: ApiException) {
                 if (error.statusCode == 401 || error.statusCode == 403) {
                     SecureStore(context).clearDeviceToken()
                     AlarmScheduler.cancelAll(context)
+                    ScheduleSyncScheduler.cancel(context)
                 }
             } catch (_: Exception) {
-                // Cached schedule already restored; the next app launch will sync again.
+                // Cached schedule already restored; the background sync will retry later.
             } finally {
                 pending.finish()
             }
