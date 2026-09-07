@@ -67,9 +67,12 @@ install_application() {
   install -d -m 0755 -o root -g root "${APP_DIR}"
 
   if [[ "$(readlink -f "${SOURCE_DIR}")" != "$(readlink -f "${APP_DIR}")" ]]; then
-    rm -rf "${APP_DIR}/public" "${APP_DIR}/src"
+    rm -rf "${APP_DIR}/public" "${APP_DIR}/src" "${APP_DIR}/scripts"
     cp -a "${SOURCE_DIR}/public" "${APP_DIR}/public"
     cp -a "${SOURCE_DIR}/src" "${APP_DIR}/src"
+    if [[ -d "${SOURCE_DIR}/scripts" ]]; then
+      cp -a "${SOURCE_DIR}/scripts" "${APP_DIR}/scripts"
+    fi
     install -m 0644 -o root -g root "${SOURCE_DIR}/server.js" "${APP_DIR}/server.js"
     install -m 0644 -o root -g root "${SOURCE_DIR}/package.json" "${APP_DIR}/package.json"
     install -m 0644 -o root -g root "${SOURCE_DIR}/.env.example" "${APP_DIR}/.env.example"
@@ -149,7 +152,7 @@ read_port() {
 read_app_url() {
   local app_url
   app_url="$(sed -n 's/^APP_BASE_URL=//p' "${ENV_FILE}" | tail -n 1)"
-  printf '%s' "${app_url:-https://epiapp.duckdns.org}"
+  printf '%s' "${app_url:-not-configured}"
 }
 
 healthcheck() {
@@ -188,12 +191,16 @@ print_summary() {
   if ! grep -Eq '^TELEGRAM_BOT_TOKEN=.+$' "${ENV_FILE}"; then
     printf 'IMPORTANT: set TELEGRAM_BOT_TOKEN in %s and restart %s.\n' "${ENV_FILE}" "${SERVICE_NAME}"
   fi
+  if ! grep -Eq '^APP_BASE_URL=https://[^/]+/?$' "${ENV_FILE}"; then
+    printf 'IMPORTANT: set APP_BASE_URL=https://your-domain in %s and restart %s.\n' "${ENV_FILE}" "${SERVICE_NAME}"
+  fi
 
   printf '\nUseful commands:\n'
   printf '  sudo systemctl status %s\n' "${SERVICE_NAME}"
   printf '  sudo journalctl -u %s -f\n' "${SERVICE_NAME}"
   printf '  sudo nano %s\n' "${ENV_FILE}"
   printf '  sudo systemctl restart %s\n' "${SERVICE_NAME}"
+  printf '  cd %s && sudo env EPIAPP_ENV_FILE=%s node scripts/doctor.mjs\n' "${APP_DIR}" "${ENV_FILE}"
 }
 
 main() {
