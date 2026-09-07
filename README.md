@@ -34,6 +34,52 @@ PARENT_PIN=4826 npm start
 
 Данные сохраняются в `data/epiapp.json`. Путь можно переопределить через `DATA_FILE`.
 
+## Установка на Linux-сервер
+
+Готовый installer рассчитан на сервер с **systemd** и уже установленным **Node.js 20+**. Он не запускает сторонние install-скрипты от root и не меняет репозитории ОС.
+
+Из клона ветки `v1`:
+
+```bash
+chmod +x install.sh
+sudo ./install.sh
+```
+
+Installer:
+
+- создаёт системного пользователя и группу `epiapp`;
+- копирует код в `/opt/epiapp`;
+- создаёт постоянное хранилище `/var/lib/epiapp`;
+- создаёт `/etc/epiapp/epiapp.env`, не перезаписывая его при повторной установке;
+- при первой установке генерирует случайный 6-значный `PARENT_PIN` и выводит его в консоль;
+- создаёт и включает `epiapp.service`;
+- запускает сервис и проверяет `/healthz` локально.
+
+После установки основные команды:
+
+```bash
+sudo systemctl status epiapp
+sudo journalctl -u epiapp -f
+sudo nano /etc/epiapp/epiapp.env
+sudo systemctl restart epiapp
+```
+
+Чтобы включить Telegram, добавьте токен в `/etc/epiapp/epiapp.env`:
+
+```dotenv
+TELEGRAM_BOT_TOKEN=123456:your-bot-token
+```
+
+и перезапустите службу:
+
+```bash
+sudo systemctl restart epiapp
+```
+
+Пример всех переменных находится в `.env.example`.
+
+> Для реального доступа через интернет нужен HTTPS/reverse proxy (например, Nginx или Caddy). Сам `install.sh` намеренно не открывает firewall и не получает TLS-сертификаты, потому что домен и схема публикации сервера зависят от конкретной инфраструктуры.
+
 ## Telegram
 
 1. Создайте бота через официальный `@BotFather` в Telegram и получите bot token.
