@@ -79,15 +79,14 @@ class MainActivity : Activity() {
                 val session = api.session(token)
                 val schedule = api.schedule(token)
                 runOnUiThread {
-                    installCookie(session.cookie)
-                    applyNativeState(schedule)
-                    showWeb(session.role)
+                    installCookie(session.cookie) {
+                        applyNativeState(schedule)
+                        showWeb(session.role)
+                    }
                 }
             } catch (error: ApiException) {
                 runOnUiThread {
-                    if (error.statusCode == 401 || error.statusCode == 403) {
-                        clearDeviceAccess()
-                    }
+                    if (error.statusCode == 401 || error.statusCode == 403) clearDeviceAccess()
                     showPairing(error.message ?: "Не удалось подключить устройство.")
                 }
             } catch (error: Exception) {
@@ -116,9 +115,10 @@ class MainActivity : Activity() {
                 secureStore.saveDeviceToken(token)
                 val schedule = api.schedule(token)
                 runOnUiThread {
-                    installCookie(session.cookie)
-                    applyNativeState(schedule)
-                    showWeb(session.role)
+                    installCookie(session.cookie) {
+                        applyNativeState(schedule)
+                        showWeb(session.role)
+                    }
                 }
             } catch (error: Exception) {
                 runOnUiThread {
@@ -139,12 +139,17 @@ class MainActivity : Activity() {
         currentRole = null
     }
 
-    private fun installCookie(cookie: String?) {
-        if (cookie.isNullOrBlank()) return
+    private fun installCookie(cookie: String?, onReady: () -> Unit) {
+        if (cookie.isNullOrBlank()) {
+            onReady()
+            return
+        }
         CookieManager.getInstance().apply {
             setAcceptCookie(true)
-            setCookie(BuildConfig.BASE_URL, cookie)
-            flush()
+            setCookie(BuildConfig.BASE_URL, cookie) {
+                flush()
+                runOnUiThread(onReady)
+            }
         }
     }
 
