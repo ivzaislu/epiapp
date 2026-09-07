@@ -8,18 +8,29 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
+  <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
   <title>EpiApp</title>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell" id="accessGate">
+    <section class="pin-gate">
+      <div class="panel">
+        <h1>Доступ к EpiApp</h1>
+        <p class="help" id="accessMessage">Проверяю Telegram-аккаунт…</p>
+      </div>
+    </section>
+  </main>
+
+  <main class="shell hidden" id="appShell">
     <header class="topbar">
       <div class="brand"><span class="brand-mark">✓</span><span>EpiApp</span></div>
-      <a class="link-button" href="/parent">Для родителей</a>
+      <a class="link-button hidden" id="parentLink" href="/parent">Для родителей</a>
     </header>
 
     <section class="hero">
       <h1 id="greeting">Сегодня всё просто.</h1>
       <p id="todayLabel">Отмечай лекарство после того, как выпил его.</p>
+      <p class="help" id="signedInAs"></p>
     </section>
 
     <section class="grid dose-grid">
