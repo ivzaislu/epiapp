@@ -4,15 +4,19 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { assertSlot, sanitizeSettings } from './validation.js';
 
 const DEFAULT_STATE = {
-  version: 2,
+  version: 3,
   settings: {
     childName: 'Ребёнок',
     morningTime: '08:00',
     eveningTime: '20:00',
     timezone: 'Europe/Berlin',
+    medicationName: '',
+    morningDose: '',
+    eveningDose: '',
     telegramChatIds: [],
   },
   doses: [],
+  audit: [],
   access: {
     users: [],
     invites: [],
@@ -48,6 +52,13 @@ function normalizeAccess(parsed) {
   return { users, invites };
 }
 
+function normalizeAudit(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((entry) => entry && entry.type === 'settings_updated' && typeof entry.at === 'string')
+    .slice(-200);
+}
+
 export function dateKey(date, timeZone) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone,
@@ -57,6 +68,23 @@ export function dateKey(date, timeZone) {
   }).formatToParts(date);
   const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
   return `${map.year}-${map.month}-${map.day}`;
+}
+
+function addDaysKey(key, amount) {
+  const [year, month, day] = key.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + amount, 12));
+  return date.toISOString().slice(0, 10);
+}
+
+function localTimeKey(date, timeZone) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+  const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${map.hour}:${map.minute}`;
 }
 
 export class DuplicateDoseError extends Error {
@@ -88,9 +116,10 @@ export class Store {
       return {
         ...clone(DEFAULT_STATE),
         ...parsed,
-        version: 2,
+        version: 3,
         settings: sanitizeSettings(parsed.settings ?? {}, DEFAULT_STATE.settings),
         doses: Array.isArray(parsed.doses) ? parsed.doses : [],
+        audit: normalizeAudit(parsed.audit),
         access: normalizeAccess(parsed.access),
       };
     } catch (error) {
@@ -117,14 +146,35 @@ export class Store {
     return task;
   }
 
-  async updateSettings(input) {
+  async updateSettings(input, actor = null, now = new Date()) {
     return this.mutate(async (state) => {
-      state.settings = sanitizeSettings(input, state.settings);
+      const previous = state.settings;
+      const next = sanitizeSettings(input, previous);
+      const fields = ['childName', 'morningTime', 'eveningTime', 'timezone', 'medicationName', 'morningDose', 'eveningDose'];
+      const changedFields = fields.filter((field) => previous[field] !== next[field]);
+      state.settings = next;
+      if (changedFields.length) {
+        state.audit.push({
+          id: randomUUID(),
+          type: 'settings_updated',
+          at: now.toISOString(),
+          actorTelegramId: String(actor?.telegramId || ''),
+          actorRole: String(actor?.role || ''),
+          changedFields,
+        });
+        if (state.audit.length > 200) state.audit = state.audit.slice(-200);
+      }
       return clone(state.settings);
     });
   }
 
-  async takeDose(slot, now = new Date()) {
+  async recentSettingsChanges(limit = 5) {
+    const state = await this.read();
+    const safeLimit = Math.max(1, Math.min(20, Number(limit) || 5));
+    return clone(state.audit.slice(-safeLimit).reverse());
+  }
+
+  async takeDose(slot, now = new Date(), actor = null) {
     assertSlot(slot);
     return this.mutate(async (state) => {
       const localDate = dateKey(now, state.settings.timezone);
@@ -136,6 +186,7 @@ export class Store {
         slot,
         localDate,
         takenAt: now.toISOString(),
+        takenByTelegramId: String(actor?.telegramId || ''),
       };
       state.doses.push(dose);
       if (state.doses.length > 730) state.doses = state.doses.slice(-730);
@@ -159,9 +210,89 @@ export class Store {
         morningTime: state.settings.morningTime,
         eveningTime: state.settings.eveningTime,
         timezone: state.settings.timezone,
+        medicationName: state.settings.medicationName,
+        morningDose: state.settings.morningDose,
+        eveningDose: state.settings.eveningDose,
       },
       todayDoses,
       recentDoses: recent,
+    };
+  }
+
+  async statistics(days = 7, now = new Date()) {
+    const state = await this.read();
+    const windowDays = Math.max(1, Math.min(90, Number(days) || 7));
+    const today = dateKey(now, state.settings.timezone);
+    const windowStart = addDaysKey(today, -(windowDays - 1));
+    const trackingCandidates = [
+      ...state.doses.map((dose) => dose.localDate).filter((key) => /^\d{4}-\d{2}-\d{2}$/.test(String(key))),
+      ...state.audit.map((entry) => {
+        const at = new Date(entry.at);
+        return Number.isNaN(at.getTime()) ? null : dateKey(at, state.settings.timezone);
+      }).filter(Boolean),
+    ];
+    const trackingStart = trackingCandidates.length ? trackingCandidates.sort()[0] : today;
+    const periodStart = trackingStart > windowStart ? trackingStart : windowStart;
+    const currentTime = localTimeKey(now, state.settings.timezone);
+    const doseMap = new Map(state.doses.map((dose) => [`${dose.localDate}:${dose.slot}`, dose]));
+    const rows = [];
+
+    for (let key = periodStart; key <= today; key = addDaysKey(key, 1)) {
+      const slotRows = {};
+      for (const slot of ['morning', 'evening']) {
+        const dose = doseMap.get(`${key}:${slot}`) || null;
+        const scheduled = slot === 'morning' ? state.settings.morningTime : state.settings.eveningTime;
+        const expected = key < today || Boolean(dose) || (key === today && currentTime >= scheduled);
+        slotRows[slot] = {
+          expected,
+          taken: Boolean(dose),
+          takenAt: dose?.takenAt || null,
+          scheduled,
+        };
+      }
+      const expected = Number(slotRows.morning.expected) + Number(slotRows.evening.expected);
+      const taken = Number(slotRows.morning.taken && slotRows.morning.expected) + Number(slotRows.evening.taken && slotRows.evening.expected);
+      rows.push({
+        localDate: key,
+        expected,
+        taken,
+        complete: expected === 2 && taken === 2,
+        slots: slotRows,
+      });
+    }
+
+    const expected = rows.reduce((sum, row) => sum + row.expected, 0);
+    const taken = rows.reduce((sum, row) => sum + row.taken, 0);
+    const bySlot = Object.fromEntries(['morning', 'evening'].map((slot) => {
+      const slotExpected = rows.filter((row) => row.slots[slot].expected).length;
+      const slotTaken = rows.filter((row) => row.slots[slot].expected && row.slots[slot].taken).length;
+      return [slot, {
+        expected: slotExpected,
+        taken: slotTaken,
+        rate: slotExpected ? Math.round((slotTaken / slotExpected) * 100) : null,
+      }];
+    }));
+
+    let currentStreak = 0;
+    for (let index = rows.length - 1; index >= 0; index -= 1) {
+      const row = rows[index];
+      if (row.localDate === today && row.expected < 2) continue;
+      if (row.expected === 2 && row.taken === 2) currentStreak += 1;
+      else if (row.expected > 0) break;
+    }
+
+    return {
+      requestedDays: windowDays,
+      periodStart,
+      periodEnd: today,
+      expected,
+      taken,
+      missed: Math.max(0, expected - taken),
+      rate: expected ? Math.round((taken / expected) * 100) : null,
+      completedDays: rows.filter((row) => row.complete).length,
+      currentStreak,
+      bySlot,
+      days: rows,
     };
   }
 
