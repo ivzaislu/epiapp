@@ -81,21 +81,13 @@ install_application() {
   find "${APP_DIR}" -type f -exec chmod 0644 {} +
 }
 
-generate_parent_pin() {
-  local random_number
-  random_number="$(od -An -N4 -tu4 /dev/urandom | tr -d ' ')"
-  printf '%06d' "$(( random_number % 1000000 ))"
-}
-
 install_environment() {
   install -d -m 0750 -o root -g "${SERVICE_GROUP}" "${CONFIG_DIR}"
   install -d -m 0750 -o "${SERVICE_USER}" -g "${SERVICE_GROUP}" "${DATA_DIR}"
 
-  GENERATED_PIN=""
   if [[ ! -f "${ENV_FILE}" ]]; then
-    GENERATED_PIN="$(generate_parent_pin)"
     log "Creating ${ENV_FILE}"
-    sed "s/^PARENT_PIN=change-me$/PARENT_PIN=${GENERATED_PIN}/" "${SOURCE_DIR}/.env.example" > "${ENV_FILE}"
+    install -m 0640 -o root -g "${SERVICE_GROUP}" "${SOURCE_DIR}/.env.example" "${ENV_FILE}"
   else
     log "Keeping existing ${ENV_FILE}"
   fi
@@ -154,6 +146,12 @@ read_port() {
   printf '%s' "${port:-3000}"
 }
 
+read_app_url() {
+  local app_url
+  app_url="$(sed -n 's/^APP_BASE_URL=//p' "${ENV_FILE}" | tail -n 1)"
+  printf '%s' "${app_url:-https://epiapp.duckdns.org}"
+}
+
 healthcheck() {
   local port attempt
   port="$(read_port)"
@@ -173,19 +171,22 @@ healthcheck() {
 }
 
 print_summary() {
-  local port
+  local port app_url
   port="$(read_port)"
+  app_url="$(read_app_url)"
 
   printf '\nEpiApp installed successfully.\n'
-  printf '  Child UI:   http://SERVER_IP:%s/\n' "${port}"
-  printf '  Parent UI:  http://SERVER_IP:%s/parent\n' "${port}"
-  printf '  Env file:   %s\n' "${ENV_FILE}"
-  printf '  Data dir:   %s\n' "${DATA_DIR}"
-  printf '  Service:    %s\n' "${SERVICE_NAME}"
+  printf '  App URL:      %s\n' "${app_url}"
+  printf '  Local health: http://127.0.0.1:%s/healthz\n' "${port}"
+  printf '  Env file:     %s\n' "${ENV_FILE}"
+  printf '  Data dir:     %s\n' "${DATA_DIR}"
+  printf '  Service:      %s\n' "${SERVICE_NAME}"
 
-  if [[ -n "${GENERATED_PIN:-}" ]]; then
-    printf '  Parent PIN: %s\n' "${GENERATED_PIN}"
-    printf '              Save this PIN now; it is also stored in %s.\n' "${ENV_FILE}"
+  if ! grep -Eq '^TELEGRAM_ADMIN_ID=[0-9]{1,20}$' "${ENV_FILE}"; then
+    printf '\nIMPORTANT: set TELEGRAM_ADMIN_ID=<your numeric Telegram ID> in %s and restart %s.\n' "${ENV_FILE}" "${SERVICE_NAME}"
+  fi
+  if ! grep -Eq '^TELEGRAM_BOT_TOKEN=.+$' "${ENV_FILE}"; then
+    printf 'IMPORTANT: set TELEGRAM_BOT_TOKEN in %s and restart %s.\n' "${ENV_FILE}" "${SERVICE_NAME}"
   fi
 
   printf '\nUseful commands:\n'
@@ -193,7 +194,6 @@ print_summary() {
   printf '  sudo journalctl -u %s -f\n' "${SERVICE_NAME}"
   printf '  sudo nano %s\n' "${ENV_FILE}"
   printf '  sudo systemctl restart %s\n' "${SERVICE_NAME}"
-  printf '\nIf this server is reachable from the Internet, put EpiApp behind HTTPS/reverse proxy before real use.\n'
 }
 
 main() {
