@@ -38,6 +38,16 @@ export function sanitizeName(value) {
   return clean;
 }
 
+export function sanitizeOptionalText(value, fieldName, maxLength) {
+  if (value === undefined || value === null) return '';
+  if (typeof value !== 'string') throw new ValidationError(`${fieldName} должно быть текстом.`);
+  const clean = value.trim().replace(/\s+/g, ' ');
+  if (clean.length > maxLength) {
+    throw new ValidationError(`${fieldName} слишком длинное (максимум ${maxLength} символов).`);
+  }
+  return clean;
+}
+
 export function sanitizeChatIds(value) {
   if (!Array.isArray(value)) throw new ValidationError('Список Telegram-чатов должен быть массивом.');
   const unique = [];
@@ -58,6 +68,9 @@ export function sanitizeSettings(input, current = {}) {
     morningTime: assertTime(input.morningTime ?? current.morningTime ?? '08:00', 'Утреннее время'),
     eveningTime: assertTime(input.eveningTime ?? current.eveningTime ?? '20:00', 'Вечернее время'),
     timezone: assertTimezone(input.timezone ?? current.timezone ?? 'Europe/Berlin'),
+    medicationName: sanitizeOptionalText(input.medicationName ?? current.medicationName ?? '', 'Название препарата', 100),
+    morningDose: sanitizeOptionalText(input.morningDose ?? current.morningDose ?? '', 'Утренняя доза', 80),
+    eveningDose: sanitizeOptionalText(input.eveningDose ?? current.eveningDose ?? '', 'Вечерняя доза', 80),
     telegramChatIds: sanitizeChatIds(input.telegramChatIds ?? current.telegramChatIds ?? []),
   };
 }
