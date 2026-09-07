@@ -29,13 +29,19 @@ require_systemd() {
   command -v systemctl >/dev/null 2>&1 || fail "systemctl not found. This installer requires a Linux system with systemd."
 }
 
-require_node20() {
-  command -v node >/dev/null 2>&1 || fail "Node.js 20+ is required. Install Node.js first, then run this installer again."
+require_supported_node() {
+  command -v node >/dev/null 2>&1 || fail "Node.js 18.19+ is required. Install Node.js first, then run this installer again."
 
-  local major
+  local major minor
   major="$(node -p 'Number(process.versions.node.split(".")[0])')"
-  [[ "${major}" =~ ^[0-9]+$ ]] || fail "Could not detect the installed Node.js version."
-  (( major >= 20 )) || fail "Node.js 20+ is required; found $(node --version)."
+  minor="$(node -p 'Number(process.versions.node.split(".")[1])')"
+  [[ "${major}" =~ ^[0-9]+$ && "${minor}" =~ ^[0-9]+$ ]] || fail "Could not detect the installed Node.js version."
+
+  if (( major < 18 || (major == 18 && minor < 19) )); then
+    fail "Node.js 18.19+ is required; found $(node --version)."
+  fi
+
+  log "Using $(node --version)"
 }
 
 ensure_service_user() {
@@ -121,8 +127,6 @@ RestartSec=3
 TimeoutStopSec=15
 UMask=0027
 
-# Basic systemd hardening. The app only needs read-only code, network access,
-# and write access to its persistent data directory.
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
@@ -193,7 +197,7 @@ print_summary() {
 main() {
   require_root
   require_systemd
-  require_node20
+  require_supported_node
 
   [[ -f "${SOURCE_DIR}/server.js" ]] || fail "server.js not found next to install.sh"
   [[ -f "${SOURCE_DIR}/.env.example" ]] || fail ".env.example not found next to install.sh"
