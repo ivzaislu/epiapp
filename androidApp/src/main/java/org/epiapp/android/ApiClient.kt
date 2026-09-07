@@ -42,7 +42,7 @@ class ApiClient(private val baseUrl: String = BuildConfig.BASE_URL.trimEnd('/'))
         } catch (_: Exception) {
             JSONObject()
         }
-        val cookie = connection.getHeaderField("Set-Cookie")?.substringBefore(';')
+        val cookie = connection.getHeaderField("Set-Cookie")
         connection.disconnect()
 
         if (status !in 200..299) {
