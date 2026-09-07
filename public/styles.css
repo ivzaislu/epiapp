@@ -145,9 +145,34 @@ a { color: inherit; }
 .section-title { margin: 20px 0 6px; font-size: 15px; }
 .stats-row .history-meta { line-height: 1.5; }
 
+.reminder-box { border: 1px solid var(--border); border-radius: 16px; padding: 14px; background: #fbfcff; }
+.toggle-row { display: flex; align-items: flex-start; gap: 11px; cursor: pointer; }
+.toggle-row input { width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--primary); flex: 0 0 auto; }
+.toggle-row span { display: grid; gap: 3px; }
+.reminder-fields { margin-top: 14px; transition: opacity .2s ease; }
+.disabled-fields { opacity: .45; }
+
+.chart-shell { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 8px; margin-top: 12px; }
+.chart-y-axis { height: 190px; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; padding: 0 0 26px; color: var(--muted); font-size: 10px; }
+.adherence-chart { min-height: 190px; display: flex; align-items: flex-end; gap: 5px; overflow-x: auto; padding: 0 2px 4px; border-bottom: 1px solid var(--border); background: linear-gradient(to bottom, transparent 0, transparent 49.7%, #eef1f6 50%, transparent 50.3%, transparent 100%); }
+.chart-day { min-width: 14px; flex: 1 0 14px; height: 186px; display: grid; grid-template-rows: 156px 26px; gap: 4px; align-items: end; }
+.chart-bar { height: 156px; display: flex; flex-direction: column; justify-content: flex-end; border-radius: 5px; overflow: hidden; background: #f1f3f7; border: 1px solid #e7ebf1; }
+.chart-segment { height: 50%; min-height: 2px; }
+.chart-segment.done { background: var(--success); }
+.chart-segment.missed { background: #d9766b; }
+.chart-segment.future { background: #e8ebf1; }
+.chart-label { min-height: 18px; font-size: 8px; color: var(--muted); writing-mode: vertical-rl; transform: rotate(180deg); text-align: center; justify-self: center; }
+.chart-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; color: var(--muted); font-size: 11px; }
+.chart-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend-dot { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+.legend-dot.done { background: var(--success); }
+.legend-dot.missed { background: #d9766b; }
+.legend-dot.future { background: #e8ebf1; border: 1px solid #d8dde6; }
+
 @media (min-width: 650px) {
   .dose-grid { grid-template-columns: 1fr 1fr; }
   .dose-card { min-height: 260px; display: flex; flex-direction: column; }
   .dose-card .primary { margin-top: auto; }
   .stats-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .chart-day { min-width: 16px; flex-basis: 16px; }
 }
