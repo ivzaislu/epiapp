@@ -134,8 +134,20 @@ a { color: inherit; }
 .pin-gate h1 { margin: 0 0 8px; }
 .hidden { display: none !important; }
 
+.pillbox-summary { background: linear-gradient(145deg, #fff, #f2f6ff); }
+.pillbox-label { color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.pillbox-name { margin: 6px 0 5px; font-size: 22px; font-weight: 850; letter-spacing: -.02em; }
+.dose-prescription { margin: -4px 0 18px; padding: 11px 13px; border-radius: 13px; background: var(--surface-soft); font-weight: 800; }
+
+.stats-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.stat-card { border: 1px solid var(--border); border-radius: 16px; padding: 14px; background: #fbfcff; }
+.stat-value { margin: 4px 0; font-size: 28px; line-height: 1; font-weight: 850; letter-spacing: -.04em; }
+.section-title { margin: 20px 0 6px; font-size: 15px; }
+.stats-row .history-meta { line-height: 1.5; }
+
 @media (min-width: 650px) {
   .dose-grid { grid-template-columns: 1fr 1fr; }
-  .dose-card { min-height: 240px; display: flex; flex-direction: column; }
+  .dose-card { min-height: 260px; display: flex; flex-direction: column; }
   .dose-card .primary { margin-top: auto; }
+  .stats-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
