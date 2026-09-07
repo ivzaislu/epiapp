@@ -4,9 +4,10 @@
     header {
         X-Content-Type-Options nosniff
         Referrer-Policy no-referrer
-        X-Frame-Options SAMEORIGIN
         -Server
     }
 
-    reverse_proxy epiapp:3000
+    reverse_proxy epiapp:3000 {
+        header_up X-Real-IP {remote_host}
+    }
 }
