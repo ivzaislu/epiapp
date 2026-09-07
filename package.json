@@ -1,14 +1,16 @@
 {
   "name": "epiapp",
-  "version": "1.1.0",
+  "version": "1.2.0-selfhost",
   "private": true,
   "type": "module",
-  "description": "Medication check-in app with Telegram-authenticated family access and parent notifications",
+  "description": "Self-hosted family medication check-in app with Telegram access and universal Android companion",
   "scripts": {
     "dev": "node --watch server.js",
     "start": "node server.js",
     "test": "node --test",
-    "check": "node --check server.js && node --check src/auth.js && node --check src/reminders.js && node --check src/store.js && node --check src/telegram.js && node --check src/validation.js && node --check public/auth.js && node --check public/app.js && node --check public/parent.js && node --check public/sw.js"
+    "check": "node --check server.js && node --check src/auth.js && node --check src/reminders.js && node --check src/store.js && node --check src/telegram.js && node --check src/validation.js && node --check public/auth.js && node --check public/app.js && node --check public/parent.js && node --check public/sw.js && node --check scripts/doctor.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "doctor:offline": "node scripts/doctor.mjs --offline"
   },
   "engines": {
     "node": ">=18.19.0"
