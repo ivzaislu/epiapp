@@ -33,12 +33,19 @@
       <p class="help" id="signedInAs"></p>
     </section>
 
+    <section class="panel pillbox-summary">
+      <div class="pillbox-label">Назначенная таблетница</div>
+      <div class="pillbox-name" id="medicationName">Препарат не указан</div>
+      <div class="help">Данные внесены родителями. EpiApp не изменяет назначенную схему.</div>
+    </section>
+
     <section class="grid dose-grid">
       <article class="dose-card" data-slot="morning">
         <div class="dose-head">
           <div class="dose-title"><div class="dose-icon">☀️</div><div><h2>Утро</h2><div class="dose-time" id="morningTime">08:00</div></div></div>
           <span class="status" id="morningStatus">Не отмечено</span>
         </div>
+        <div class="dose-prescription" id="morningDose">Доза не указана</div>
         <button class="primary take-button" data-slot="morning">Я выпил(а) лекарство</button>
       </article>
 
@@ -47,6 +54,7 @@
           <div class="dose-title"><div class="dose-icon">🌙</div><div><h2>Вечер</h2><div class="dose-time" id="eveningTime">20:00</div></div></div>
           <span class="status" id="eveningStatus">Не отмечено</span>
         </div>
+        <div class="dose-prescription" id="eveningDose">Доза не указана</div>
         <button class="primary take-button" data-slot="evening">Я выпил(а) лекарство</button>
       </article>
     </section>
@@ -60,7 +68,7 @@
   <div class="modal-backdrop" id="confirmModal" aria-hidden="true">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
       <h2 id="confirmTitle">Ты уже выпил(а) лекарство?</h2>
-      <p>Нажимай «Да» только после приёма. Отметка сразу сохранится и родителю может прийти уведомление.</p>
+      <p id="confirmDoseText">Нажимай «Да» только после приёма. Отметка сразу сохранится и родителю может прийти уведомление.</p>
       <div class="modal-actions">
         <button class="secondary" id="cancelConfirm">Нет</button>
         <button class="primary" id="acceptConfirm">Да, отметить</button>
