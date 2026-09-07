@@ -51,6 +51,12 @@ function renderAudit(changes = []) {
   $('#settingsAudit').textContent = `Последнее изменение: ${formatAuditDate(latest.at)} · ${who}`;
 }
 
+function syncReminderFields() {
+  const enabled = $('#remindersEnabled').checked;
+  $('#reminderFields').classList.toggle('disabled-fields', !enabled);
+  $('#reminderFields').querySelectorAll('input').forEach((input) => { input.disabled = !enabled; });
+}
+
 function fillSettings(data) {
   settings = data.settings;
   $('#childName').value = settings.childName;
@@ -60,6 +66,12 @@ function fillSettings(data) {
   $('#morningTime').value = settings.morningTime;
   $('#eveningTime').value = settings.eveningTime;
   $('#timezone').value = settings.timezone;
+  $('#remindersEnabled').checked = settings.remindersEnabled !== false;
+  $('#reminderFirstMinutes').value = settings.reminderFirstMinutes ?? 15;
+  $('#reminderUrgentMinutes').value = settings.reminderUrgentMinutes ?? 30;
+  $('#reminderRepeatMinutes').value = settings.reminderRepeatMinutes ?? 15;
+  $('#reminderStopMinutes').value = settings.reminderStopMinutes ?? 60;
+  syncReminderFields();
   renderAudit(data.recentChanges || []);
   const notice = $('#telegramNotice');
   notice.classList.toggle('good', data.telegramConfigured);
@@ -92,6 +104,40 @@ function slotDayText(slot) {
   return '✓ отмечено';
 }
 
+function chartStatus(slot) {
+  if (!slot.expected) return 'future';
+  return slot.taken ? 'done' : 'missed';
+}
+
+function shortDateLabel(key) {
+  const [, month, day] = key.split('-');
+  return `${day}.${month}`;
+}
+
+function renderChart(stats30) {
+  const chart = $('#adherenceChart');
+  const days = stats30.days || [];
+  if (!days.length) {
+    chart.innerHTML = '<div class="empty">Пока недостаточно данных для графика.</div>';
+    return;
+  }
+
+  chart.innerHTML = days.map((day, index) => {
+    const morning = chartStatus(day.slots.morning);
+    const evening = chartStatus(day.slots.evening);
+    const showLabel = index === 0 || index === days.length - 1 || index % 5 === 0;
+    const title = `${day.localDate}: утро — ${slotDayText(day.slots.morning)}, вечер — ${slotDayText(day.slots.evening)}${day.rate === null ? '' : `, ${day.rate}%`}`;
+    return `
+      <div class="chart-day" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">
+        <div class="chart-bar">
+          <div class="chart-segment evening ${evening}"></div>
+          <div class="chart-segment morning ${morning}"></div>
+        </div>
+        <div class="chart-label">${showLabel ? shortDateLabel(day.localDate) : ''}</div>
+      </div>`;
+  }).join('');
+}
+
 function renderStats(stats7, stats30) {
   $('#stats7Rate').textContent = percentage(stats7.rate);
   $('#stats7Detail').textContent = `${stats7.taken} из ${stats7.expected} · пропущено ${stats7.missed}`;
@@ -102,6 +148,7 @@ function renderStats(stats7, stats30) {
   $('#statsEvening').textContent = percentage(stats30.bySlot.evening.rate);
   $('#statsEveningDetail').textContent = `${stats30.bySlot.evening.taken} из ${stats30.bySlot.evening.expected}`;
   $('#streakNotice').textContent = `Полных дней подряд: ${stats30.currentStreak}. Полностью отмеченных дней в периоде: ${stats30.completedDays}.`;
+  renderChart(stats30);
 
   const days = stats30.days.slice(-14).reverse();
   if (!days.length) {
@@ -126,6 +173,8 @@ async function loadStats() {
   renderStats(week.stats, month.stats);
 }
 
+$('#remindersEnabled').addEventListener('change', syncReminderFields);
+
 $('#settingsForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   try {
@@ -140,11 +189,16 @@ $('#settingsForm').addEventListener('submit', async (event) => {
         morningTime: $('#morningTime').value,
         eveningTime: $('#eveningTime').value,
         timezone: $('#timezone').value,
+        remindersEnabled: $('#remindersEnabled').checked,
+        reminderFirstMinutes: Number($('#reminderFirstMinutes').value || 15),
+        reminderUrgentMinutes: Number($('#reminderUrgentMinutes').value || 30),
+        reminderRepeatMinutes: Number($('#reminderRepeatMinutes').value || 15),
+        reminderStopMinutes: Number($('#reminderStopMinutes').value || 60),
       }),
     });
     settings = data.settings;
-    renderAudit(data.recentChanges || []);
-    toast('Таблетница и расписание сохранены.');
+    fillSettings({ ...data, telegramConfigured: true });
+    toast('Таблетница, расписание и напоминания сохранены.');
     await Promise.all([loadToday(), loadStats()]);
   } catch (error) { toast(error.message, true); }
 });
