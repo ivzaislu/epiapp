@@ -22,6 +22,7 @@ const DATA_FILE = process.env.DATA_FILE || join(ROOT, 'data', 'epiapp.json');
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '127.0.0.1';
 const defaultStore = new Store(DATA_FILE);
+const pairingAttempts = new Map();
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -104,6 +105,42 @@ async function requireUser(req, context, roles = ['child', 'parent', 'admin']) {
   return user;
 }
 
+function bearerToken(req) {
+  const value = String(req.headers.authorization || '');
+  const match = value.match(/^Bearer\s+(.+)$/i);
+  if (!match) throw new AuthError('Требуется ключ подключённого устройства.');
+  return match[1].trim();
+}
+
+async function requireDevice(req, context) {
+  configuredAccess(context.botToken, context.adminId);
+  const device = await context.store.authenticateDevice(bearerToken(req));
+  const user = await resolveAccessUser(device.telegramId, context);
+  if (!user) throw new AuthError('Доступ владельца устройства отозван.', 403);
+  return { device, user };
+}
+
+function pairingClientKey(req) {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return forwarded || String(req.headers['x-real-ip'] || '') || req.socket.remoteAddress || 'unknown';
+}
+
+function enforcePairingRateLimit(req, now = Date.now()) {
+  const key = pairingClientKey(req);
+  const windowMs = 10 * 60 * 1000;
+  const maxAttempts = 8;
+  const previous = pairingAttempts.get(key) || [];
+  const recent = previous.filter((time) => now - time < windowMs);
+  if (recent.length >= maxAttempts) throw new AuthError('Слишком много попыток подключения. Попробуйте позже.', 429);
+  recent.push(now);
+  pairingAttempts.set(key, recent);
+  if (pairingAttempts.size > 1000) {
+    for (const [entryKey, times] of pairingAttempts.entries()) {
+      if (!times.some((time) => now - time < windowMs)) pairingAttempts.delete(entryKey);
+    }
+  }
+}
+
 async function notificationChatIds({ store, adminId }) {
   const users = await store.listAccessUsers();
   return [...new Set([
@@ -121,6 +158,20 @@ function publicSettings(settings) {
     medicationName: settings.medicationName,
     morningDose: settings.morningDose,
     eveningDose: settings.eveningDose,
+    remindersEnabled: settings.remindersEnabled,
+    reminderFirstMinutes: settings.reminderFirstMinutes,
+    reminderUrgentMinutes: settings.reminderUrgentMinutes,
+    reminderRepeatMinutes: settings.reminderRepeatMinutes,
+    reminderStopMinutes: settings.reminderStopMinutes,
+  };
+}
+
+function nativeSchedule(settings) {
+  return {
+    childName: settings.childName,
+    morningTime: settings.morningTime,
+    eveningTime: settings.eveningTime,
+    timezone: settings.timezone,
     remindersEnabled: settings.remindersEnabled,
     reminderFirstMinutes: settings.reminderFirstMinutes,
     reminderUrgentMinutes: settings.reminderUrgentMinutes,
@@ -158,6 +209,49 @@ export function createServer(options = {}) {
             username: telegram.user.username || user.username || '',
           },
         }, { 'set-cookie': buildSessionCookie(session) });
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/device/pair') {
+        configuredAccess(context.botToken, context.adminId);
+        enforcePairingRateLimit(req);
+        const payload = await body(req);
+        const paired = await context.store.pairDevice(payload.code, { deviceName: payload.deviceName });
+        const user = await resolveAccessUser(paired.device.telegramId, context);
+        if (!user) {
+          await context.store.revokeDevice(paired.device.id);
+          throw new AuthError('Доступ владельца к EpiApp уже отозван.', 403);
+        }
+        const session = createSessionToken(user.telegramId, context.botToken);
+        const state = await context.store.read();
+        return json(res, 201, {
+          deviceToken: paired.deviceToken,
+          device: paired.device,
+          user,
+          schedule: nativeSchedule(state.settings),
+        }, { 'set-cookie': buildSessionCookie(session) });
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/device/session') {
+        const { device, user } = await requireDevice(req, context);
+        const session = createSessionToken(user.telegramId, context.botToken);
+        const state = await context.store.read();
+        return json(res, 200, {
+          device,
+          user,
+          schedule: nativeSchedule(state.settings),
+        }, { 'set-cookie': buildSessionCookie(session) });
+      }
+
+      if (req.method === 'GET' && url.pathname === '/api/device/schedule') {
+        const { device, user } = await requireDevice(req, context);
+        const state = await context.store.childState();
+        return json(res, 200, {
+          device,
+          user,
+          schedule: nativeSchedule(state.settings),
+          today: state.today,
+          todayDoses: state.todayDoses,
+        });
       }
 
       if (req.method === 'GET' && url.pathname === '/api/auth/me') {
