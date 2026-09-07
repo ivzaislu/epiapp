@@ -364,8 +364,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === normalize(process.argv
 
   const botToken = process.env.TELEGRAM_BOT_TOKEN || '';
   const adminId = String(process.env.TELEGRAM_ADMIN_ID || '').trim();
-  const appUrl = process.env.APP_BASE_URL || 'https://epiapp.duckdns.org';
-  if (botToken && adminId) {
+  const appUrl = String(process.env.APP_BASE_URL || '').trim();
+  if (botToken && adminId && appUrl) {
     startTelegramBot({ token: botToken, store: defaultStore, adminId, appUrl })
       .then(({ username }) => console.log(`EpiApp Telegram bot: @${username}`))
       .catch((error) => console.error('Telegram bot failed to start:', error));
@@ -378,6 +378,6 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === normalize(process.argv
     });
     console.log('EpiApp reminders: enabled scheduler (settings-controlled)');
   } else {
-    console.warn('EpiApp Telegram access is disabled: configure TELEGRAM_BOT_TOKEN and TELEGRAM_ADMIN_ID.');
+    console.warn('EpiApp Telegram access is disabled: configure TELEGRAM_BOT_TOKEN, TELEGRAM_ADMIN_ID and APP_BASE_URL.');
   }
 }
