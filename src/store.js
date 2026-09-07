@@ -4,7 +4,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { assertSlot, sanitizeSettings } from './validation.js';
 
 const DEFAULT_STATE = {
-  version: 3,
+  version: 4,
   settings: {
     childName: 'Ребёнок',
     morningTime: '08:00',
@@ -13,10 +13,16 @@ const DEFAULT_STATE = {
     medicationName: '',
     morningDose: '',
     eveningDose: '',
+    remindersEnabled: true,
+    reminderFirstMinutes: 15,
+    reminderUrgentMinutes: 30,
+    reminderRepeatMinutes: 15,
+    reminderStopMinutes: 60,
     telegramChatIds: [],
   },
   doses: [],
   audit: [],
+  reminderDeliveries: [],
   access: {
     users: [],
     invites: [],
@@ -57,6 +63,18 @@ function normalizeAudit(value) {
   return value
     .filter((entry) => entry && entry.type === 'settings_updated' && typeof entry.at === 'string')
     .slice(-200);
+}
+
+function normalizeReminderDeliveries(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((entry) => entry
+      && /^\d{4}-\d{2}-\d{2}$/.test(String(entry.localDate || ''))
+      && ['morning', 'evening'].includes(entry.slot)
+      && typeof entry.stageKey === 'string'
+      && /^\d{1,20}$/.test(String(entry.chatId || ''))
+      && typeof entry.sentAt === 'string')
+    .slice(-1000);
 }
 
 export function dateKey(date, timeZone) {
@@ -116,10 +134,11 @@ export class Store {
       return {
         ...clone(DEFAULT_STATE),
         ...parsed,
-        version: 3,
+        version: 4,
         settings: sanitizeSettings(parsed.settings ?? {}, DEFAULT_STATE.settings),
         doses: Array.isArray(parsed.doses) ? parsed.doses : [],
         audit: normalizeAudit(parsed.audit),
+        reminderDeliveries: normalizeReminderDeliveries(parsed.reminderDeliveries),
         access: normalizeAccess(parsed.access),
       };
     } catch (error) {
@@ -150,7 +169,10 @@ export class Store {
     return this.mutate(async (state) => {
       const previous = state.settings;
       const next = sanitizeSettings(input, previous);
-      const fields = ['childName', 'morningTime', 'eveningTime', 'timezone', 'medicationName', 'morningDose', 'eveningDose'];
+      const fields = [
+        'childName', 'morningTime', 'eveningTime', 'timezone', 'medicationName', 'morningDose', 'eveningDose',
+        'remindersEnabled', 'reminderFirstMinutes', 'reminderUrgentMinutes', 'reminderRepeatMinutes', 'reminderStopMinutes',
+      ];
       const changedFields = fields.filter((field) => previous[field] !== next[field]);
       state.settings = next;
       if (changedFields.length) {
@@ -256,6 +278,7 @@ export class Store {
         localDate: key,
         expected,
         taken,
+        rate: expected ? Math.round((taken / expected) * 100) : null,
         complete: expected === 2 && taken === 2,
         slots: slotRows,
       });
@@ -294,6 +317,35 @@ export class Store {
       bySlot,
       days: rows,
     };
+  }
+
+  async recordReminderDelivery({ localDate, slot, stageKey, chatId, sentAt = new Date() }) {
+    assertSlot(slot);
+    const normalizedChatId = telegramId(chatId);
+    return this.mutate(async (state) => {
+      const exists = state.reminderDeliveries.some((entry) => (
+        entry.localDate === localDate
+        && entry.slot === slot
+        && entry.stageKey === stageKey
+        && String(entry.chatId) === normalizedChatId
+      ));
+      if (exists) return false;
+
+      const cutoff = sentAt.getTime() - 14 * 86400000;
+      state.reminderDeliveries = state.reminderDeliveries.filter((entry) => {
+        const time = Date.parse(entry.sentAt || '');
+        return !Number.isFinite(time) || time >= cutoff;
+      });
+      state.reminderDeliveries.push({
+        localDate,
+        slot,
+        stageKey: String(stageKey),
+        chatId: normalizedChatId,
+        sentAt: sentAt.toISOString(),
+      });
+      if (state.reminderDeliveries.length > 1000) state.reminderDeliveries = state.reminderDeliveries.slice(-1000);
+      return true;
+    });
   }
 
   async getAccessUser(id) {
