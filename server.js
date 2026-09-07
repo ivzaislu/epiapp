@@ -121,8 +121,9 @@ async function requireDevice(req, context) {
 }
 
 function pairingClientKey(req) {
+  const realIp = String(req.headers['x-real-ip'] || '').trim();
   const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-  return forwarded || String(req.headers['x-real-ip'] || '') || req.socket.remoteAddress || 'unknown';
+  return realIp || forwarded || req.socket.remoteAddress || 'unknown';
 }
 
 function enforcePairingRateLimit(req, now = Date.now()) {
