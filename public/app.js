@@ -28,8 +28,11 @@ function render(next) {
     ? `${next.settings.childName}, сегодня всё просто.`
     : `${next.settings.childName}: отметки сегодня`;
   $('#todayLabel').textContent = currentUser?.role === 'child'
-    ? 'Отмечай лекарство только после того, как выпил(а) его.'
+    ? 'Сверь препарат и дозу с таблетницей и отмечай только после приёма.'
     : 'Просмотр статуса приёма. Отметку делает только аккаунт ребёнка.';
+  $('#medicationName').textContent = next.settings.medicationName || 'Препарат не указан';
+  $('#morningDose').textContent = next.settings.morningDose || 'Доза не указана';
+  $('#eveningDose').textContent = next.settings.eveningDose || 'Доза не указана';
   $('#morningTime').textContent = next.settings.morningTime;
   $('#eveningTime').textContent = next.settings.eveningTime;
 
@@ -65,9 +68,14 @@ async function loadState() {
 }
 
 function openConfirm(slot) {
-  if (currentUser?.role !== 'child') return;
+  if (currentUser?.role !== 'child' || !state) return;
   pendingSlot = slot;
   $('#confirmTitle').textContent = slot === 'morning' ? 'Утреннее лекарство уже выпито?' : 'Вечернее лекарство уже выпито?';
+  const dose = slot === 'morning' ? state.settings.morningDose : state.settings.eveningDose;
+  const parts = [state.settings.medicationName, dose].filter(Boolean);
+  $('#confirmDoseText').textContent = parts.length
+    ? `${parts.join(' · ')}. Нажимай «Да» только после приёма.`
+    : 'Нажимай «Да» только после приёма. Отметка сразу сохранится.';
   $('#confirmModal').classList.add('open');
   $('#confirmModal').setAttribute('aria-hidden', 'false');
 }
