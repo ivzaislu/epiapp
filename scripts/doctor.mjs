@@ -5,6 +5,7 @@ import { dirname, resolve } from 'node:path';
 
 const args = process.argv.slice(2);
 const offline = args.includes('--offline');
+const dockerMode = args.includes('--docker') || process.env.EPIAPP_DEPLOYMENT === 'docker';
 const envIndex = args.indexOf('--env');
 const explicitEnv = envIndex >= 0 ? args[envIndex + 1] : null;
 
@@ -88,11 +89,17 @@ const origin = validateOrigin(appBaseUrl);
 if (origin) pass('APP_BASE_URL', origin);
 else fail('APP_BASE_URL', 'Must be a public HTTPS origin without a path, query or fragment.');
 
-if (appDomain) {
-  if (origin && new URL(origin).host === appDomain) pass('APP_DOMAIN', appDomain);
-  else if (origin) warn('APP_DOMAIN', `APP_DOMAIN=${appDomain} does not match ${new URL(origin).host}.`);
-} else {
-  warn('APP_DOMAIN', 'Not set. This is required by the bundled Docker Compose/Caddy stack.');
+if (dockerMode) {
+  if (!appDomain) {
+    fail('APP_DOMAIN', 'Required for the bundled Docker Compose/Caddy deployment.');
+  } else if (origin && new URL(origin).host === appDomain) {
+    pass('APP_DOMAIN', appDomain);
+  } else if (origin) {
+    fail('APP_DOMAIN', `APP_DOMAIN=${appDomain} does not match ${new URL(origin).host}.`);
+  }
+} else if (appDomain) {
+  if (origin && new URL(origin).host === appDomain) pass('APP_DOMAIN', `${appDomain} (optional outside Docker/Caddy).`);
+  else if (origin) warn('APP_DOMAIN', `Optional value ${appDomain} does not match ${new URL(origin).host}.`);
 }
 
 if (Number.isInteger(port) && port > 0 && port <= 65535) pass('PORT', String(port));
