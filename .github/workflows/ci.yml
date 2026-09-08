@@ -53,7 +53,7 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Validate doctor command
+      - name: Validate Docker doctor command
         env:
           TELEGRAM_BOT_TOKEN: 123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ_123456
           TELEGRAM_ADMIN_ID: '123456789'
@@ -62,7 +62,7 @@ jobs:
           HOST: 127.0.0.1
           PORT: '3000'
           DATA_FILE: /tmp/epiapp.json
-        run: npm run doctor:offline
+        run: npm run doctor:docker:offline
 
       - name: Validate Compose configuration
         run: |
