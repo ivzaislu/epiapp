@@ -72,16 +72,18 @@ Caddy сам запросит сертификат для `APP_DOMAIN`. Если
 
 ## Диагностика
 
-Так как `.env` лежит в корне checkout:
+Для Docker/Caddy используйте специальный режим doctor, который дополнительно требует `APP_DOMAIN` и проверяет его соответствие `APP_BASE_URL`:
 
 ```bash
-npm run doctor
+npm run doctor:docker
 ```
+
+Обычный `npm run doctor` рассчитан также на systemd/Nginx-инсталляции и поэтому не считает отсутствие `APP_DOMAIN` проблемой.
 
 Или без локального Node.js:
 
 ```bash
-docker compose run --rm --no-deps epiapp node scripts/doctor.mjs --env /dev/null
+docker compose run --rm --no-deps epiapp node scripts/doctor.mjs --docker --env /dev/null
 ```
 
 Второй вариант использует environment контейнера; сетевой public healthcheck должен уже работать.
