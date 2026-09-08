@@ -39,6 +39,55 @@ jobs:
       - name: Installer syntax check
         run: bash -n install.sh
 
+  selfhost:
+    name: Self-host Docker stack
+    if: github.ref_name == 'epiappapk' || github.head_ref == 'epiappapk'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate doctor command
+        env:
+          TELEGRAM_BOT_TOKEN: 123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ_123456
+          TELEGRAM_ADMIN_ID: '123456789'
+          APP_BASE_URL: https://epiapp.example.com
+          APP_DOMAIN: epiapp.example.com
+          HOST: 127.0.0.1
+          PORT: '3000'
+          DATA_FILE: /tmp/epiapp.json
+        run: npm run doctor:offline
+
+      - name: Validate Compose configuration
+        run: |
+          cp .env.example .env
+          docker compose config >/dev/null
+
+      - name: Build production Docker image
+        run: docker build -t epiapp-ci .
+
+      - name: Smoke-test Docker healthcheck
+        run: |
+          docker run -d --name epiapp-ci-run epiapp-ci
+          for attempt in $(seq 1 30); do
+            if docker exec epiapp-ci-run node -e "fetch('http://127.0.0.1:3000/healthz').then(r=>r.json()).then(v=>process.exit(v.ok===true?0:1)).catch(()=>process.exit(1))"; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs epiapp-ci-run
+          exit 1
+
+      - name: Cleanup Docker smoke test
+        if: always()
+        run: docker rm -f epiapp-ci-run >/dev/null 2>&1 || true
+
   android:
     name: Android debug APK
     if: github.ref_name == 'epiappapk' || github.head_ref == 'epiappapk'
