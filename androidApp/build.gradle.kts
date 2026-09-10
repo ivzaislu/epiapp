@@ -12,6 +12,28 @@ val keystoreProperties = Properties().apply {
     }
 }
 
+fun signingValue(propertyName: String, environmentName: String): String? =
+    keystoreProperties.getProperty(propertyName)?.takeIf { it.isNotBlank() }
+        ?: System.getenv(environmentName)?.takeIf { it.isNotBlank() }
+
+val releaseStoreFilePath = signingValue("storeFile", "EPIAPP_KEYSTORE_FILE")
+val releaseStorePassword = signingValue("storePassword", "EPIAPP_KEYSTORE_PASSWORD")
+val releaseKeyAlias = signingValue("keyAlias", "EPIAPP_KEY_ALIAS")
+val releaseKeyPassword = signingValue("keyPassword", "EPIAPP_KEY_PASSWORD")
+val releaseSigningRequested = listOf(
+    releaseStoreFilePath,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+).any { it != null }
+
+if (releaseSigningRequested) {
+    require(!releaseStoreFilePath.isNullOrBlank()) { "Missing Android release signing storeFile / EPIAPP_KEYSTORE_FILE" }
+    require(!releaseStorePassword.isNullOrBlank()) { "Missing Android release signing storePassword / EPIAPP_KEYSTORE_PASSWORD" }
+    require(!releaseKeyAlias.isNullOrBlank()) { "Missing Android release signing keyAlias / EPIAPP_KEY_ALIAS" }
+    require(!releaseKeyPassword.isNullOrBlank()) { "Missing Android release signing keyPassword / EPIAPP_KEY_PASSWORD" }
+}
+
 android {
     namespace = "org.epiapp.android"
     compileSdk = 35
@@ -24,13 +46,13 @@ android {
         versionName = "0.2.2"
     }
 
-    if (keystorePropertiesFile.exists()) {
+    if (releaseSigningRequested) {
         signingConfigs {
             create("release") {
-                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
-                storePassword = keystoreProperties.getProperty("storePassword")
-                keyAlias = keystoreProperties.getProperty("keyAlias")
-                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = rootProject.file(releaseStoreFilePath!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
             }
         }
     }
@@ -38,7 +60,7 @@ android {
     buildTypes {
         getByName("release") {
             isMinifyEnabled = false
-            if (keystorePropertiesFile.exists()) {
+            if (releaseSigningRequested) {
                 signingConfig = signingConfigs.getByName("release")
             }
         }
