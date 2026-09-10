@@ -10,8 +10,11 @@ data/*.tmp
 .idea/
 local.properties
 keystore.properties
+private/
 *.iml
 **/build/
 *.jks
 *.keystore
+*.p12
+*.pfx
 androidApp/release/
