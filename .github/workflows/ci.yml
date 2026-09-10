@@ -36,8 +36,10 @@ jobs:
       - name: JavaScript syntax checks
         run: npm run check
 
-      - name: Installer syntax check
-        run: bash -n install.sh
+      - name: Installer and signing script syntax checks
+        run: |
+          bash -n install.sh
+          bash -n scripts/create-android-release-key.sh
 
   selfhost:
     name: Self-host Docker stack
@@ -89,7 +91,7 @@ jobs:
         run: docker rm -f epiapp-ci-run >/dev/null 2>&1 || true
 
   android:
-    name: Android debug APK
+    name: Android APKs
     if: github.ref_name == 'epiappapk' || github.head_ref == 'epiappapk'
     runs-on: ubuntu-latest
 
@@ -116,6 +118,15 @@ jobs:
 
       - name: Build debug APK
         run: gradle --no-daemon :androidApp:assembleDebug
+
+      - name: Generate ephemeral CI signing key
+        run: ./scripts/create-android-release-key.sh
+
+      - name: Build signed release APK with ephemeral key
+        run: gradle --no-daemon :androidApp:assembleRelease
+
+      - name: Verify signed release APK
+        run: apksigner verify --verbose --print-certs androidApp/build/outputs/apk/release/androidApp-release.apk
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
