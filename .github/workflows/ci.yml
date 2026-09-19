@@ -6,6 +6,7 @@ on:
       - v1
       - v-1.1
       - epiappapk
+      - main
   pull_request:
   workflow_dispatch:
 
@@ -43,7 +44,7 @@ jobs:
 
   selfhost:
     name: Self-host Docker stack
-    if: github.ref_name == 'epiappapk' || github.head_ref == 'epiappapk'
+    if: github.ref_name == 'epiappapk' || github.ref_name == 'main' || github.head_ref == 'epiappapk' || github.base_ref == 'main'
     runs-on: ubuntu-latest
 
     steps:
@@ -92,7 +93,7 @@ jobs:
 
   android:
     name: Android APKs
-    if: github.ref_name == 'epiappapk' || github.head_ref == 'epiappapk'
+    if: github.ref_name == 'epiappapk' || github.ref_name == 'main' || github.head_ref == 'epiappapk' || github.base_ref == 'main'
     runs-on: ubuntu-latest
 
     steps:
