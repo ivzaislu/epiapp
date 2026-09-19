@@ -271,3 +271,109 @@ details[open] > .settings-section-summary::after { transform: rotate(180deg); }
   .panel-summary { padding: 16px; }
   .panel-body { padding: 0 16px 16px; }
 }
+
+
+/* Refined parent settings and compact child history */
+.history-panel { overflow: hidden; }
+.history-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+.history-heading h2 { margin-bottom: 3px; }
+.history-count {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.panel-summary-main,
+.settings-summary-main {
+  min-width: 0;
+  display: flex !important;
+  align-items: center;
+  gap: 12px;
+}
+.panel-summary-main > span:last-child,
+.settings-summary-main > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.panel-icon,
+.settings-icon {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  background: var(--surface-soft);
+  color: var(--primary);
+}
+.panel-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  font-size: 19px;
+}
+.settings-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  font-size: 16px;
+}
+.settings-panel > .panel-body {
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
+}
+.settings-section {
+  background: #fff;
+  box-shadow: 0 5px 18px rgba(36, 53, 92, .04);
+}
+.settings-section[open] {
+  border-color: #cfd9ef;
+  box-shadow: 0 8px 24px rgba(36, 53, 92, .065);
+}
+.settings-section-summary {
+  padding: 12px 14px;
+}
+.settings-section-body {
+  padding-top: 14px;
+  background: #fcfdff;
+}
+.settings-section-body .field input {
+  min-height: 46px;
+  background: #fff;
+}
+.settings-save {
+  display: grid;
+  gap: 8px;
+  padding-top: 2px;
+}
+.settings-save .primary {
+  box-shadow: 0 10px 22px rgba(49,91,214,.18);
+}
+.settings-audit {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f7f9fd;
+  border: 1px solid #edf0f6;
+}
+@media (max-width: 420px) {
+  .panel-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+  }
+  .settings-icon {
+    width: 32px;
+    height: 32px;
+  }
+}
