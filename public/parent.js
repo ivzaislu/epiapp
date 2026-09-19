@@ -60,6 +60,50 @@ function syncReminderFields() {
   $('#reminderFields').querySelectorAll('input').forEach((input) => { input.disabled = !enabled; });
 }
 
+function setAndroidParentSoundStatus(enabled) {
+  const status = $('#parentLoudAlertsStatus');
+  if (!status) return;
+  status.textContent = enabled
+    ? 'Срочные уведомления: громкий alarm-звук + вибрация.'
+    : 'Тихий режим: без громкого звука, уведомление и вибрация остаются.';
+  status.classList.toggle('quiet', !enabled);
+}
+
+function initAndroidParentNotificationSettings() {
+  const card = $('#androidParentNotificationSettings');
+  const checkbox = $('#parentLoudAlertsEnabled');
+  const bridge = window.EpiAndroid;
+
+  if (!card || !checkbox || !bridge || typeof bridge.getParentNotificationPreferences !== 'function') return;
+
+  try {
+    const preferences = JSON.parse(String(bridge.getParentNotificationPreferences()));
+    const enabled = preferences.loudUrgentAlerts !== false;
+    checkbox.checked = enabled;
+    setAndroidParentSoundStatus(enabled);
+    card.classList.remove('hidden');
+  } catch {
+    return;
+  }
+
+  checkbox.addEventListener('change', () => {
+    const enabled = checkbox.checked;
+    try {
+      bridge.setParentLoudAlertsEnabled(enabled);
+      setAndroidParentSoundStatus(enabled);
+      toast(
+        enabled
+          ? 'Громкий звук срочных уведомлений включён на этом телефоне.'
+          : 'Громкий звук отключён. Срочные уведомления останутся с вибрацией.',
+      );
+    } catch {
+      checkbox.checked = !enabled;
+      setAndroidParentSoundStatus(checkbox.checked);
+      toast('Не удалось изменить настройку Android-уведомлений.', true);
+    }
+  });
+}
+
 function fillSettings(data) {
   settings = data.settings;
   $('#childName').value = settings.childName;
@@ -258,6 +302,7 @@ async function start() {
     fillSettings(data);
     $('#accessGate').classList.add('hidden');
     $('#parentApp').classList.remove('hidden');
+    initAndroidParentNotificationSettings();
     await Promise.all([loadToday(), loadStats()]);
   } catch (error) {
     $('#accessMessage').textContent = error.message || 'Доступ закрыт.';
