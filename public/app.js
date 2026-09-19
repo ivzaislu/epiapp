@@ -161,7 +161,7 @@ async function start() {
     $('#appShell').classList.remove('hidden');
     await loadState();
     setInterval(() => loadState().catch(() => undefined), 30000);
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js?v=8').catch(() => undefined);
   } catch (error) {
     $('#accessMessage').textContent = error.message || 'Доступ закрыт.';
   }
