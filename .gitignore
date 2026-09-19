@@ -1,0 +1,20 @@
+node_modules/
+.env
+.DS_Store
+data/*.json
+data/*.tmp
+!data/.gitkeep
+
+# Android
+.gradle/
+.idea/
+local.properties
+keystore.properties
+private/
+*.iml
+**/build/
+*.jks
+*.keystore
+*.p12
+*.pfx
+androidApp/release/
