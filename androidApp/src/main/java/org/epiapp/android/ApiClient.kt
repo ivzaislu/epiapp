@@ -118,12 +118,16 @@ class ApiClient(inputBaseUrl: String) {
             bearer = deviceToken,
         )
         val doses = response.json.optJSONObject("todayDoses") ?: JSONObject()
+        val morning = doses.optJSONObject("morning")
+        val evening = doses.optJSONObject("evening")
         return DeviceScheduleState(
             role = response.json.getJSONObject("user").getString("role"),
             schedule = NativeSchedule.fromJson(response.json.getJSONObject("schedule")),
             today = response.json.optString("today", ""),
-            morningTaken = doses.has("morning") && !doses.isNull("morning"),
-            eveningTaken = doses.has("evening") && !doses.isNull("evening"),
+            morningTaken = morning != null,
+            eveningTaken = evening != null,
+            morningTakenAt = morning?.optString("takenAt")?.takeIf { it.isNotBlank() },
+            eveningTakenAt = evening?.optString("takenAt")?.takeIf { it.isNotBlank() },
         )
     }
 }

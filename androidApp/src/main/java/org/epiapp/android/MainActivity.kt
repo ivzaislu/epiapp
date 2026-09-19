@@ -41,12 +41,15 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         secureStore = SecureStore(this)
         AlarmReceiver.ensureChannels(this)
+        ParentStatusNotifier.ensureChannels(this)
         AppUpdater.checkForUpdates(this)
 
         val serverUrl = secureStore.getServerUrl()
         val token = secureStore.getDeviceToken()
         if (serverUrl == null || token == null) {
             AlarmScheduler.cancelAll(this)
+            ParentStatusScheduler.cancelAll(this)
+            ParentStatusNotifier.clear(this)
             ScheduleSyncScheduler.cancel(this)
             showPairing(suggestedServer = serverUrl.orEmpty())
         } else {
@@ -58,9 +61,12 @@ class MainActivity : Activity() {
         super.onResume()
         AppUpdater.resumePendingInstall(this)
         AppUpdater.checkForUpdates(this)
-        if (currentRole == "child") {
-            ensureAlarmPermissions()
-            ScheduleStore.load(this)?.second?.let { AlarmScheduler.scheduleAll(this, it) }
+        if (currentRole in setOf("child", "parent", "admin")) {
+            ensureNativeNotificationPermissions()
+            ScheduleStore.load(this)?.let { (role, schedule) ->
+                if (role == "child") AlarmScheduler.scheduleAll(this, schedule)
+                else if (role == "parent" || role == "admin") ParentStatusScheduler.scheduleAll(this, schedule)
+            }
             ScheduleSyncScheduler.schedule(this)
             syncScheduleSilently()
         }
@@ -69,9 +75,9 @@ class MainActivity : Activity() {
     private fun applyNativeState(state: DeviceScheduleState) {
         currentRole = state.role
         AlarmScheduler.applyServerState(this, state)
-        if (state.role == "child") {
+        if (state.role in setOf("child", "parent", "admin")) {
             ScheduleSyncScheduler.schedule(this)
-            ensureAlarmPermissions()
+            ensureNativeNotificationPermissions()
         } else {
             ScheduleSyncScheduler.cancel(this)
         }
@@ -153,6 +159,8 @@ class MainActivity : Activity() {
     private fun clearDeviceAccess() {
         secureStore.clearConnection()
         AlarmScheduler.cancelAll(this)
+        ParentStatusScheduler.cancelAll(this)
+        ParentStatusNotifier.clear(this)
         ScheduleSyncScheduler.cancel(this)
         ScheduleStore.clear(this)
         CookieManager.getInstance().removeAllCookies(null)
@@ -376,8 +384,8 @@ class MainActivity : Activity() {
         setContentView(root)
     }
 
-    private fun ensureAlarmPermissions() {
-        if (currentRole != "child") return
+    private fun ensureNativeNotificationPermissions() {
+        if (currentRole !in setOf("child", "parent", "admin")) return
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -404,7 +412,7 @@ class MainActivity : Activity() {
             }
         }
 
-        if (Build.VERSION.SDK_INT >= 34) {
+        if (currentRole == "child" && Build.VERSION.SDK_INT >= 34) {
             val notifications = getSystemService(NotificationManager::class.java)
             if (!notifications.canUseFullScreenIntent() && !prefs.getBoolean("asked_full_screen", false)) {
                 prefs.edit().putBoolean("asked_full_screen", true).apply()
@@ -423,7 +431,9 @@ class MainActivity : Activity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_NOTIFICATIONS && currentRole == "child") ensureAlarmPermissions()
+        if (requestCode == REQUEST_NOTIFICATIONS && currentRole in setOf("child", "parent", "admin")) {
+            ensureNativeNotificationPermissions()
+        }
     }
 
     override fun onDestroy() {

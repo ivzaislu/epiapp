@@ -49,7 +49,28 @@ object AlarmScheduler {
         if (state.morningTaken) context.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_MORNING)
         if (state.eveningTaken) context.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_EVENING)
 
-        if (state.role == "child") scheduleAll(context, state.schedule) else cancelAll(context)
+        when (state.role) {
+            "child" -> {
+                ParentStatusScheduler.cancelAll(context)
+                ParentStatusNotifier.clear(context)
+                scheduleAll(context, state.schedule)
+            }
+            "parent", "admin" -> {
+                cancelAll(context)
+                ParentStatusNotifier.processServerState(context, state)
+                ParentStatusScheduler.scheduleAll(
+                    context,
+                    state.schedule,
+                    morningTaken = state.morningTaken,
+                    eveningTaken = state.eveningTaken,
+                )
+            }
+            else -> {
+                cancelAll(context)
+                ParentStatusScheduler.cancelAll(context)
+                ParentStatusNotifier.clear(context)
+            }
+        }
     }
 
     fun markTaken(context: Context, slot: String) {
@@ -98,7 +119,7 @@ object AlarmScheduler {
         }
     }
 
-    private fun stages(schedule: NativeSchedule): List<Pair<Int, Boolean>> {
+    internal fun reminderStages(schedule: NativeSchedule): List<Pair<Int, Boolean>> {
         val result = mutableListOf<Pair<Int, Boolean>>()
         if (schedule.reminderFirstMinutes < schedule.reminderUrgentMinutes) {
             result += schedule.reminderFirstMinutes to false
@@ -125,7 +146,7 @@ object AlarmScheduler {
         val taken = isTakenToday(context, schedule, slot)
         val baseCode = if (slot == "morning") 100 else 200
 
-        stages(schedule).forEachIndexed { index, (stageMinute, urgent) ->
+        reminderStages(schedule).forEachIndexed { index, (stageMinute, urgent) ->
             var target = ZonedDateTime.of(now.toLocalDate(), time, zone).plusMinutes(stageMinute.toLong())
             if (taken || !target.isAfter(now)) target = target.plusDays(1)
             scheduleAlarm(
