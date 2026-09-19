@@ -155,7 +155,7 @@ class NotificationFlowTest {
 
     @Test
     fun parentNormalChannelHasStandardSoundAndVibration() {
-        val channel = notifications.getNotificationChannel("epiapp_parent_status")
+        val channel = notifications.getNotificationChannel(ParentStatusNotifier.CHANNEL_STATUS)
         assertNotNull(channel)
         assertEquals(NotificationManager.IMPORTANCE_DEFAULT, channel.importance)
         assertTrue(channel.shouldVibrate())
@@ -174,7 +174,7 @@ class NotificationFlowTest {
 
         val notification = notification(ParentStatusNotifier.MISSED_MORNING)
         assertNotNull(notification)
-        assertEquals("epiapp_parent_status", notification!!.channelId)
+        assertEquals(ParentStatusNotifier.CHANNEL_STATUS, notification!!.channelId)
         assertTrue(notification.extras.getCharSequence(Notification.EXTRA_TEXT).toString().contains("15"))
     }
 
@@ -242,7 +242,7 @@ class NotificationFlowTest {
 
         val notification = notification(ParentStatusNotifier.TAKEN_MORNING)
         assertNotNull(notification)
-        assertEquals("epiapp_parent_status", notification!!.channelId)
+        assertEquals(ParentStatusNotifier.CHANNEL_STATUS, notification!!.channelId)
         assertTrue(notification.extras.getCharSequence(Notification.EXTRA_TITLE).toString().contains("приём отмечен"))
     }
 

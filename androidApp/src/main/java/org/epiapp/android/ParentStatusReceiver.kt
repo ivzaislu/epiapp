@@ -37,7 +37,7 @@ object ParentNotificationPreferences {
 }
 
 object ParentStatusNotifier {
-    private const val CHANNEL_STATUS = "epiapp_parent_status"
+    internal const val CHANNEL_STATUS = "epiapp_parent_status_v2"
     private const val CHANNEL_ALERT_LOUD = "epiapp_parent_alert_loud_v2"
     private const val CHANNEL_ALERT_QUIET = "epiapp_parent_alert_quiet_v2"
     private const val PREFS = "epiapp_parent_notifications"
