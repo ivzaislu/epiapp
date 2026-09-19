@@ -9,8 +9,8 @@
 ```bash
 git status --short
 git fetch origin
-git checkout epiappapk
-git pull --ff-only origin epiappapk
+git checkout main
+git pull --ff-only origin main
 docker compose up -d --build
 ```
 
@@ -31,8 +31,8 @@ npm run doctor
 cd ~/epiapp
 git status --short
 git fetch origin
-git checkout epiappapk
-git pull --ff-only origin epiappapk
+git checkout main
+git pull --ff-only origin main
 sudo ./install.sh
 ```
 
