@@ -8,21 +8,28 @@ import kotlin.concurrent.thread
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val stored = ScheduleStore.load(context)
-        when (stored?.first) {
-            "child" -> {
-                AlarmScheduler.scheduleAll(context, stored.second)
-                ParentStatusScheduler.cancelAll(context)
-                ScheduleSyncScheduler.schedule(context)
-            }
-            "parent", "admin" -> {
-                AlarmScheduler.cancelAll(context)
-                ParentStatusScheduler.scheduleAll(context, stored.second)
-                ScheduleSyncScheduler.schedule(context)
-            }
-            else -> {
-                AlarmScheduler.cancelAll(context)
-                ParentStatusScheduler.cancelAll(context)
-                ScheduleSyncScheduler.cancel(context)
+        if (stored == null) {
+            AlarmScheduler.cancelAll(context)
+            ParentStatusScheduler.cancelAll(context)
+            ScheduleSyncScheduler.cancel(context)
+        } else {
+            val (role, schedule) = stored
+            when (role) {
+                "child" -> {
+                    AlarmScheduler.scheduleAll(context, schedule)
+                    ParentStatusScheduler.cancelAll(context)
+                    ScheduleSyncScheduler.schedule(context)
+                }
+                "parent", "admin" -> {
+                    AlarmScheduler.cancelAll(context)
+                    ParentStatusScheduler.scheduleAll(context, schedule)
+                    ScheduleSyncScheduler.schedule(context)
+                }
+                else -> {
+                    AlarmScheduler.cancelAll(context)
+                    ParentStatusScheduler.cancelAll(context)
+                    ScheduleSyncScheduler.cancel(context)
+                }
             }
         }
 
