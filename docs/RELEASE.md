@@ -123,8 +123,8 @@ Debug APK подписан тестовым debug key, поэтому первы
 Перед каждым публичным Android release увеличивайте:
 
 ```kotlin
-versionCode = 5
-versionName = "0.3.0"
+versionCode = 6
+versionName = "0.4.0"
 ```
 
 `versionCode` должен монотонно расти.
@@ -155,7 +155,7 @@ ANDROID_KEY_PASSWORD
 
 `ANDROID_KEYSTORE_BASE64` должен содержать base64-представление вашего приватного keystore без переносов строк. Сам keystore и пароли в репозиторий не коммитятся.
 
-Официальная сборка запускается вручную через **Actions → CI → Run workflow**, выбрав ветку `epiappapk`. В этом режиме job `Signed Android release APK`:
+После перехода проекта на `main` официальный release workflow собирает код из `main` с постоянным signing key из GitHub Actions Secrets:
 
 - восстанавливает keystore только во временный каталог GitHub runner;
 - проверяет, что пароль и alias открывают ключ;
@@ -164,6 +164,23 @@ ANDROID_KEY_PASSWORD
 - публикует только подписанный APK и `SHA256SUMS.txt` как artifact;
 - не публикует keystore, пароли или base64-секрет.
 
-Первый официальный release EpiApp использует `versionCode = 5` и `versionName = "0.3.0"`.
+Release с встроенным онлайн-обновлением использует `versionCode = 6` и `versionName = "0.4.0"`.
 
 Если на телефоне сейчас установлена debug-сборка, APK с постоянной release-подписью не установится поверх неё, потому что подпись другая. Для перехода на постоянный release-канал потребуется **один последний раз** удалить debug APK, установить официальный release APK и заново выполнить pairing. Все последующие release APK, подписанные тем же ключом и с большим `versionCode`, смогут обновляться поверх установленного приложения.
+
+
+## Канал обновлений GitHub Releases
+
+Начиная с Android `0.4.0`, приложение использует GitHub Releases как официальный канал обновлений.
+
+Каждый публичный release содержит:
+
+```text
+EpiApp-<version>-release.apk
+SHA256SUMS.txt
+update.json
+```
+
+`update.json` содержит `versionCode`, `versionName`, имя APK asset и его SHA-256. Android-клиент дополнительно проверяет реальный package name, реальный versionCode скачанного APK и signing certificate. Поэтому метаданных GitHub недостаточно, чтобы подменить штатное обновление APK, пока приватный release signing key остаётся защищён.
+
+Версия `0.3.0` была первым APK с постоянной release-подписью. Версия `0.4.0` становится первой версией со встроенным updater. Следующие официальные Android release должны иметь строго больший `versionCode` и использовать тот же signing key.
