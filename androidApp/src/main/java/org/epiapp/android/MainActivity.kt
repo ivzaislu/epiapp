@@ -458,7 +458,7 @@ class MainActivity : Activity() {
             return
         }
 
-        if (currentRole == "child") showNotificationSettingsPrompt()
+        showNotificationSettingsPrompt()
     }
 
     private fun showNotificationSettingsPrompt() {

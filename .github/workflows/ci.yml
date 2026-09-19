@@ -124,8 +124,24 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Android notification unit tests
+        run: gradle --no-daemon :androidApp:testDebugUnitTest
+
       - name: Build debug APK
         run: gradle --no-daemon :androidApp:assembleDebug
+
+      - name: Verify notification permissions in debug APK
+        run: |
+          set -euo pipefail
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt -print | sort -V | tail -n1)"
+          test -x "$AAPT" || { echo "::error::aapt not found"; exit 1; }
+          PERMISSIONS="$("$AAPT" dump permissions androidApp/build/outputs/apk/debug/androidApp-debug.apk)"
+          printf '%s
+' "$PERMISSIONS"
+          grep -q 'android.permission.POST_NOTIFICATIONS' <<<"$PERMISSIONS"
+          grep -q 'android.permission.SCHEDULE_EXACT_ALARM' <<<"$PERMISSIONS"
+          grep -q 'android.permission.USE_FULL_SCREEN_INTENT' <<<"$PERMISSIONS"
+          grep -q 'android.permission.RECEIVE_BOOT_COMPLETED' <<<"$PERMISSIONS"
 
       - name: Generate ephemeral CI signing key
         run: bash scripts/create-android-release-key.sh

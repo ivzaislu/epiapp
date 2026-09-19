@@ -45,10 +45,10 @@ object ParentStatusNotifier {
     private const val KEY_LAST_MORNING = "last_morning_taken_at"
     private const val KEY_LAST_EVENING = "last_evening_taken_at"
 
-    private const val TAKEN_MORNING = 9301
-    private const val TAKEN_EVENING = 9302
-    private const val MISSED_MORNING = 9401
-    private const val MISSED_EVENING = 9402
+    internal const val TAKEN_MORNING = 9301
+    internal const val TAKEN_EVENING = 9302
+    internal const val MISSED_MORNING = 9401
+    internal const val MISSED_EVENING = 9402
 
     fun ensureChannels(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
@@ -61,6 +61,13 @@ object ParentStatusNotifier {
                 ).apply {
                     description = "Отметки ребёнка и обычные предупреждения для родителей"
                     enableVibration(true)
+                    setSound(
+                        RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build(),
+                    )
                 },
             )
         }
