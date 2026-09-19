@@ -140,3 +140,30 @@ versionName = "0.3.0"
 ## Self-host и APK
 
 APK универсален на уровне сервера: один и тот же подписанный release APK можно подключить к разным EpiApp-инсталляциям. Пользователь при первом запуске вводит HTTPS origin своего сервера и pairing code из своего Telegram-бота.
+
+
+## GitHub Actions: официальный подписанный APK
+
+Для официальной сборки репозитория используются четыре GitHub Actions Secret:
+
+```text
+ANDROID_KEYSTORE_BASE64
+ANDROID_STORE_PASSWORD
+ANDROID_KEY_ALIAS
+ANDROID_KEY_PASSWORD
+```
+
+`ANDROID_KEYSTORE_BASE64` должен содержать base64-представление вашего приватного keystore без переносов строк. Сам keystore и пароли в репозиторий не коммитятся.
+
+Workflow `.github/workflows/android-release.yml` запускается вручную через **Actions → Android Release → Run workflow**. Он:
+
+- восстанавливает keystore только во временный каталог GitHub runner;
+- проверяет, что пароль и alias открывают ключ;
+- собирает release APK;
+- проверяет APK через `apksigner`;
+- публикует только подписанный APK и `SHA256SUMS.txt` как artifact;
+- не публикует keystore, пароли или base64-секрет.
+
+Первый официальный release EpiApp использует `versionCode = 5` и `versionName = "0.3.0"`.
+
+Если на телефоне сейчас установлена debug-сборка, APK с постоянной release-подписью не установится поверх неё, потому что подпись другая. Для перехода на постоянный release-канал потребуется **один последний раз** удалить debug APK, установить официальный release APK и заново выполнить pairing. Все последующие release APK, подписанные тем же ключом и с большим `versionCode`, смогут обновляться поверх установленного приложения.
