@@ -155,7 +155,7 @@ ANDROID_KEY_PASSWORD
 
 `ANDROID_KEYSTORE_BASE64` должен содержать base64-представление вашего приватного keystore без переносов строк. Сам keystore и пароли в репозиторий не коммитятся.
 
-Workflow `.github/workflows/android-release.yml` запускается вручную через **Actions → Android Release → Run workflow**. Он:
+Официальная сборка запускается вручную через **Actions → CI → Run workflow**, выбрав ветку `epiappapk`. В этом режиме job `Signed Android release APK`:
 
 - восстанавливает keystore только во временный каталог GitHub runner;
 - проверяет, что пароль и alias открывают ключ;
