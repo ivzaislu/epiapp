@@ -41,6 +41,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         secureStore = SecureStore(this)
         AlarmReceiver.ensureChannels(this)
+        AppUpdater.checkForUpdates(this)
 
         val serverUrl = secureStore.getServerUrl()
         val token = secureStore.getDeviceToken()
@@ -55,6 +56,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        AppUpdater.resumePendingInstall(this)
         if (currentRole == "child") {
             ensureAlarmPermissions()
             ScheduleStore.load(this)?.second?.let { AlarmScheduler.scheduleAll(this, it) }
@@ -220,6 +222,11 @@ class MainActivity : Activity() {
         @JavascriptInterface
         fun refreshSchedule() {
             syncScheduleSilently()
+        }
+
+        @JavascriptInterface
+        fun checkForUpdates() {
+            runOnUiThread { AppUpdater.checkForUpdates(this@MainActivity, force = true) }
         }
     }
 
