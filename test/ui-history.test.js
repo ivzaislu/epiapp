@@ -32,3 +32,23 @@ test('child history hides toggle when there are four or fewer items', () => {
   assert.equal(view.hiddenCount, 0);
   assert.equal(view.canToggle, false);
 });
+
+
+test('child history toggle transitions from More to Collapse and back', () => {
+  const items = doses(7);
+  let expanded = false;
+
+  let view = childHistoryView(items, expanded);
+  assert.equal(view.visible.length, 4);
+  assert.equal(view.buttonLabel, 'Ещё 3');
+
+  expanded = !expanded;
+  view = childHistoryView(items, expanded);
+  assert.equal(view.visible.length, 7);
+  assert.equal(view.buttonLabel, 'Свернуть');
+
+  expanded = !expanded;
+  view = childHistoryView(items, expanded);
+  assert.equal(view.visible.length, 4);
+  assert.equal(view.buttonLabel, 'Ещё 3');
+});
