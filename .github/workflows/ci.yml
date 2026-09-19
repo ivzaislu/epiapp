@@ -136,8 +136,7 @@ jobs:
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt -print | sort -V | tail -n1)"
           test -x "$AAPT" || { echo "::error::aapt not found"; exit 1; }
           PERMISSIONS="$("$AAPT" dump permissions androidApp/build/outputs/apk/debug/androidApp-debug.apk)"
-          printf '%s
-' "$PERMISSIONS"
+          printf '%s\\n' "$PERMISSIONS"
           grep -q 'android.permission.POST_NOTIFICATIONS' <<<"$PERMISSIONS"
           grep -q 'android.permission.SCHEDULE_EXACT_ALARM' <<<"$PERMISSIONS"
           grep -q 'android.permission.USE_FULL_SCREEN_INTENT' <<<"$PERMISSIONS"
