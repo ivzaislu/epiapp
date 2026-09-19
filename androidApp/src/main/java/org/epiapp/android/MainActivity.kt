@@ -57,6 +57,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         AppUpdater.resumePendingInstall(this)
+        AppUpdater.checkForUpdates(this)
         if (currentRole == "child") {
             ensureAlarmPermissions()
             ScheduleStore.load(this)?.second?.let { AlarmScheduler.scheduleAll(this, it) }
