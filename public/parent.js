@@ -1,8 +1,11 @@
 import { ensureTelegramSession, roleLabel } from './auth.js';
+import { childHistoryView } from './history.js?v=8';
 
 const $ = (selector) => document.querySelector(selector);
 let currentUser = null;
 let settings = null;
+let statsHistoryExpanded = false;
+let statsHistoryDays = [];
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({
@@ -155,12 +158,27 @@ function renderStats(stats7, stats30) {
   $('#streakNotice').textContent = `Полных дней подряд: ${stats30.currentStreak}. Полностью отмеченных дней в периоде: ${stats30.completedDays}.`;
   renderChart(stats30);
 
-  const days = stats30.days.slice(-14).reverse();
-  if (!days.length) {
-    $('#statsHistory').innerHTML = '<div class="empty">Пока недостаточно данных.</div>';
+  statsHistoryDays = stats30.days.slice(-14).reverse();
+  renderStatsHistory();
+}
+
+function renderStatsHistory() {
+  const history = $('#statsHistory');
+  const toggle = $('#statsHistoryToggle');
+  const meta = $('#statsHistoryMeta');
+  const count = $('#statsHistoryCount');
+
+  if (!statsHistoryDays.length) {
+    history.innerHTML = '<div class="empty">Пока недостаточно данных.</div>';
+    toggle.classList.add('hidden');
+    toggle.setAttribute('aria-expanded', 'false');
+    meta.textContent = 'Пока недостаточно данных';
+    count.textContent = '0';
     return;
   }
-  $('#statsHistory').innerHTML = days.map((day) => `
+
+  const view = childHistoryView(statsHistoryDays, statsHistoryExpanded);
+  history.innerHTML = view.visible.map((day) => `
     <div class="history-row stats-row">
       <div>
         <div class="history-main">${escapeHtml(day.localDate)}</div>
@@ -168,6 +186,14 @@ function renderStats(stats7, stats30) {
       </div>
       <span class="status ${day.complete ? 'done' : ''}">${day.taken}/${day.expected}</span>
     </div>`).join('');
+
+  count.textContent = String(view.total);
+  meta.textContent = view.expanded
+    ? `Показаны все ${view.total} дней`
+    : `Показаны последние ${view.shownCount} из ${view.total}`;
+  toggle.classList.toggle('hidden', !view.canToggle);
+  toggle.setAttribute('aria-expanded', String(view.expanded));
+  toggle.textContent = view.buttonLabel;
 }
 
 async function loadStats() {
@@ -177,6 +203,11 @@ async function loadStats() {
   ]);
   renderStats(week.stats, month.stats);
 }
+
+$('#statsHistoryToggle').addEventListener('click', () => {
+  statsHistoryExpanded = !statsHistoryExpanded;
+  renderStatsHistory();
+});
 
 $('#remindersEnabled').addEventListener('change', syncReminderFields);
 

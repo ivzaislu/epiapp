@@ -52,3 +52,16 @@ test('child history toggle transitions from More to Collapse and back', () => {
   assert.equal(view.visible.length, 4);
   assert.equal(view.buttonLabel, 'Ещё 3');
 });
+
+
+test('parent recent days use the same four-item collapsed behavior', () => {
+  const days = doses(14);
+  const collapsed = childHistoryView(days, false);
+  assert.equal(collapsed.visible.length, 4);
+  assert.equal(collapsed.hiddenCount, 10);
+  assert.equal(collapsed.buttonLabel, 'Ещё 10');
+
+  const expanded = childHistoryView(days, true);
+  assert.equal(expanded.visible.length, 14);
+  assert.equal(expanded.buttonLabel, 'Свернуть');
+});

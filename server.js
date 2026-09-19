@@ -67,10 +67,16 @@ async function serveStatic(req, res, pathname) {
   try {
     const info = await stat(filePath);
     if (!info.isFile()) return false;
+    const extension = extname(filePath);
+    const cacheControl = extension === '.html'
+      ? 'no-store'
+      : ['.js', '.css'].includes(extension)
+        ? 'no-cache, must-revalidate'
+        : 'public, max-age=3600';
     res.writeHead(200, {
-      'content-type': MIME[extname(filePath)] || 'application/octet-stream',
+      'content-type': MIME[extension] || 'application/octet-stream',
       'content-length': info.size,
-      'cache-control': extname(filePath) === '.html' ? 'no-store' : 'public, max-age=3600',
+      'cache-control': cacheControl,
       'x-content-type-options': 'nosniff',
       'referrer-policy': 'no-referrer',
     });

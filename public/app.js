@@ -1,5 +1,5 @@
 import { ensureTelegramSession, roleLabel } from './auth.js';
-import { childHistoryView } from './history.js';
+import { childHistoryView } from './history.js?v=8';
 
 const $ = (selector) => document.querySelector(selector);
 const slotLabels = { morning: 'утренний', evening: 'вечерний' };
