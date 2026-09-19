@@ -213,3 +213,18 @@ test('Android APK pairs once, creates a secure web session and loses access afte
     await close(server);
   }
 });
+
+
+test('versioned JavaScript is revalidated instead of served stale', async () => {
+  const server = createServer();
+  const port = await listen(server);
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/app.js?v=8`, { method: 'HEAD' });
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type') || '', /^text\/javascript/);
+    assert.equal(response.headers.get('cache-control'), 'no-cache, must-revalidate');
+  } finally {
+    await close(server);
+  }
+});
