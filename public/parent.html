@@ -31,16 +31,22 @@
       <p class="help" id="signedInAs"></p>
     </div>
 
-    <details class="panel collapsible-panel" open>
+    <details class="panel collapsible-panel settings-panel" open>
       <summary class="panel-summary">
-        <span><strong>Таблетница и расписание</strong><span class="summary-help">Основные данные, время и напоминания</span></span>
+        <span class="panel-summary-main">
+          <span class="panel-icon" aria-hidden="true">💊</span>
+          <span><strong>Таблетница и расписание</strong><span class="summary-help">Основные данные, время и напоминания</span></span>
+        </span>
       </summary>
       <div class="panel-body">
         <p class="help">Здесь хранится только схема, которую вы сами внесли. EpiApp не назначает препарат и не изменяет дозу.</p>
         <form class="form settings-form" id="settingsForm">
           <details class="settings-section" open>
             <summary class="settings-section-summary">
-              <span><strong>Основное</strong><span class="summary-help" id="settingsMedicationSummary">Имя, препарат и дозы</span></span>
+              <span class="settings-summary-main">
+                <span class="settings-icon" aria-hidden="true">👤</span>
+                <span><strong>Основное</strong><span class="summary-help" id="settingsMedicationSummary">Имя, препарат и дозы</span></span>
+              </span>
             </summary>
             <div class="settings-section-body">
               <div class="field"><label for="childName">Имя ребёнка</label><input id="childName" maxlength="50" required></div>
@@ -54,7 +60,10 @@
 
           <details class="settings-section">
             <summary class="settings-section-summary">
-              <span><strong>Расписание</strong><span class="summary-help" id="settingsScheduleSummary">Время утром и вечером</span></span>
+              <span class="settings-summary-main">
+                <span class="settings-icon" aria-hidden="true">⏰</span>
+                <span><strong>Расписание</strong><span class="summary-help" id="settingsScheduleSummary">Время утром и вечером</span></span>
+              </span>
             </summary>
             <div class="settings-section-body">
               <div class="row">
@@ -67,7 +76,10 @@
 
           <details class="settings-section">
             <summary class="settings-section-summary">
-              <span><strong>Напоминания</strong><span class="summary-help" id="settingsReminderSummary">Telegram при опоздании</span></span>
+              <span class="settings-summary-main">
+                <span class="settings-icon" aria-hidden="true">🔔</span>
+                <span><strong>Напоминания</strong><span class="summary-help" id="settingsReminderSummary">Telegram при опоздании</span></span>
+              </span>
             </summary>
             <div class="settings-section-body">
               <div class="reminder-box">
@@ -90,7 +102,10 @@
             </div>
           </details>
 
-          <button class="primary" type="submit">Сохранить таблетницу</button>
+          <div class="settings-save">
+            <button class="primary" type="submit">Сохранить изменения</button>
+            <div class="help">Изменения применятся к расписанию и напоминаниям после сохранения.</div>
+          </div>
         </form>
         <div id="settingsAudit" class="help settings-audit"></div>
       </div>
@@ -98,7 +113,10 @@
 
     <details class="panel collapsible-panel" open>
       <summary class="panel-summary">
-        <span><strong>Статистика</strong><span class="summary-help">7 и 30 дней, график и последние дни</span></span>
+        <span class="panel-summary-main">
+          <span class="panel-icon" aria-hidden="true">📊</span>
+          <span><strong>Статистика</strong><span class="summary-help">7 и 30 дней, график и последние дни</span></span>
+        </span>
       </summary>
       <div class="panel-body">
       <div class="stats-grid" id="statsGrid">
@@ -128,7 +146,10 @@
 
     <details class="panel collapsible-panel">
       <summary class="panel-summary">
-        <span><strong>Telegram-доступ</strong><span class="summary-help">Уведомления, роли и тест доставки</span></span>
+        <span class="panel-summary-main">
+          <span class="panel-icon" aria-hidden="true">✈️</span>
+          <span><strong>Telegram-доступ</strong><span class="summary-help">Уведомления, роли и тест доставки</span></span>
+        </span>
       </summary>
       <div class="panel-body">
       <div id="telegramNotice" class="notice">Проверяю Telegram…</div>
@@ -140,7 +161,10 @@
 
     <details class="panel collapsible-panel" open>
       <summary class="panel-summary">
-        <span><strong>Сегодня</strong><span class="summary-help">Утренний и вечерний статус</span></span>
+        <span class="panel-summary-main">
+          <span class="panel-icon" aria-hidden="true">✓</span>
+          <span><strong>Сегодня</strong><span class="summary-help">Утренний и вечерний статус</span></span>
+        </span>
       </summary>
       <div class="panel-body">
       <div id="todaySummary" class="history"><div class="empty">Загрузка…</div></div>
