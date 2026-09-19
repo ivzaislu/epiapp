@@ -180,3 +180,94 @@ a { color: inherit; }
   .stats-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .chart-day { min-width: 16px; flex-basis: 16px; }
 }
+
+
+/* Compact history and collapsible settings */
+.expand-button {
+  width: 100%;
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: #fbfcff;
+  color: var(--primary);
+  padding: 11px 14px;
+  font-weight: 800;
+}
+.expand-button:hover { background: var(--surface-soft); }
+
+.collapsible-panel { padding: 0; overflow: clip; }
+.panel-summary,
+.settings-section-summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+.panel-summary::-webkit-details-marker,
+.settings-section-summary::-webkit-details-marker { display: none; }
+
+.panel-summary {
+  min-height: 62px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.panel-summary > span,
+.settings-section-summary > span { min-width: 0; display: grid; gap: 3px; }
+.panel-summary strong { font-size: 18px; }
+.summary-help {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  font-weight: 500;
+}
+.panel-summary::after,
+.settings-section-summary::after {
+  content: "⌄";
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  transition: transform .18s ease;
+}
+details[open] > .panel-summary::after,
+details[open] > .settings-section-summary::after { transform: rotate(180deg); }
+
+.panel-body {
+  padding: 0 20px 20px;
+  border-top: 1px solid #eef1f5;
+}
+.settings-form { margin-top: 14px; }
+.settings-section {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #fbfcff;
+  overflow: clip;
+}
+.settings-section-summary {
+  min-height: 54px;
+  padding: 13px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.settings-section-summary strong { font-size: 14px; }
+.settings-section-body {
+  padding: 2px 14px 14px;
+  display: grid;
+  gap: 14px;
+  border-top: 1px solid #eef1f5;
+}
+.settings-section .reminder-box {
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.settings-audit { margin-top: 14px; }
+
+@media (max-width: 420px) {
+  .panel-summary { padding: 16px; }
+  .panel-body { padding: 0 16px 16px; }
+}
