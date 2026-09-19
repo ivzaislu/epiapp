@@ -67,10 +67,14 @@ function render(next) {
 function renderHistory(next = state) {
   const history = $('#history');
   const toggle = $('#historyToggle');
+  const meta = $('#historyMeta');
+  const count = $('#historyCount');
   if (!next?.recentDoses?.length) {
     history.innerHTML = '<div class="empty">Пока нет отметок.</div>';
     toggle.classList.add('hidden');
     toggle.setAttribute('aria-expanded', 'false');
+    meta.textContent = 'Пока нет отметок';
+    count.textContent = '0';
     return;
   }
 
@@ -83,9 +87,14 @@ function renderHistory(next = state) {
     </div>`).join('');
 
   const hiddenCount = Math.max(0, doses.length - 4);
+  const shownCount = visible.length;
+  count.textContent = String(doses.length);
+  meta.textContent = historyExpanded
+    ? `Показаны все ${doses.length}`
+    : `Показаны последние ${shownCount} из ${doses.length}`;
   toggle.classList.toggle('hidden', hiddenCount === 0);
   toggle.setAttribute('aria-expanded', String(historyExpanded));
-  toggle.textContent = historyExpanded ? 'Скрыть' : `Ещё ${hiddenCount}`;
+  toggle.textContent = historyExpanded ? 'Свернуть' : `Ещё ${hiddenCount}`;
 }
 
 async function loadState() {
