@@ -3,6 +3,7 @@ package org.epiapp.android
 import android.Manifest
 import android.app.Activity
 import android.app.AlarmManager
+import android.app.AlertDialog
 import android.app.NotificationManager
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -30,6 +31,7 @@ import kotlin.concurrent.thread
 class MainActivity : Activity() {
     companion object {
         private const val REQUEST_NOTIFICATIONS = 1001
+        private const val PREF_NOTIFICATION_SETTINGS_PROMPTED = "notification_settings_prompted"
     }
 
     private lateinit var secureStore: SecureStore
@@ -431,9 +433,47 @@ class MainActivity : Activity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_NOTIFICATIONS && currentRole in setOf("child", "parent", "admin")) {
+        if (requestCode != REQUEST_NOTIFICATIONS || currentRole !in setOf("child", "parent", "admin")) return
+
+        val granted = grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            if (currentRole == "child") {
+                ScheduleStore.load(this)?.second?.let { AlarmScheduler.scheduleAll(this, it) }
+            }
             ensureNativeNotificationPermissions()
+            return
         }
+
+        if (currentRole == "child") showNotificationSettingsPrompt()
+    }
+
+    private fun showNotificationSettingsPrompt() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return
+
+        val prefs = getSharedPreferences("epiapp_permission_prompts", MODE_PRIVATE)
+        if (prefs.getBoolean(PREF_NOTIFICATION_SETTINGS_PROMPTED, false)) return
+        prefs.edit().putBoolean(PREF_NOTIFICATION_SETTINGS_PROMPTED, true).apply()
+
+        AlertDialog.Builder(this)
+            .setTitle("Разрешите уведомления EpiApp")
+            .setMessage(
+                "Без разрешения Android не покажет и не озвучит напоминания о приёме. " +
+                    "Откройте настройки EpiApp и включите уведомления.",
+            )
+            .setPositiveButton("Открыть настройки") { _, _ ->
+                try {
+                    startActivity(
+                        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                            putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                        },
+                    )
+                } catch (_: Exception) {
+                    // The app remains usable; permission can be enabled later in Android settings.
+                }
+            }
+            .setNegativeButton("Позже", null)
+            .show()
     }
 
     override fun onDestroy() {

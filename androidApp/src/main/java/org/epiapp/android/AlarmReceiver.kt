@@ -12,8 +12,8 @@ import android.media.RingtoneManager
 
 class AlarmReceiver : BroadcastReceiver() {
     companion object {
-        const val CHANNEL_REMINDER = "epiapp_reminder"
-        const val CHANNEL_ALARM = "epiapp_alarm"
+        const val CHANNEL_REMINDER = "epiapp_child_reminder_v2"
+        const val CHANNEL_ALARM = "epiapp_child_alarm_v2"
 
         fun ensureChannels(context: Context) {
             val manager = context.getSystemService(NotificationManager::class.java)
@@ -21,11 +21,19 @@ class AlarmReceiver : BroadcastReceiver() {
                 manager.createNotificationChannel(
                     NotificationChannel(
                         CHANNEL_REMINDER,
-                        "EpiApp reminders",
-                        NotificationManager.IMPORTANCE_DEFAULT,
+                        "EpiApp — напоминания ребёнку",
+                        NotificationManager.IMPORTANCE_HIGH,
                     ).apply {
-                        description = "Обычные напоминания о времени отметки"
+                        description = "Время приёма и повторные напоминания EpiApp"
                         enableVibration(true)
+                        setSound(
+                            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
+                            AudioAttributes.Builder()
+                                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                .build(),
+                        )
+                        lockscreenVisibility = Notification.VISIBILITY_PUBLIC
                     },
                 )
             }
@@ -38,7 +46,7 @@ class AlarmReceiver : BroadcastReceiver() {
                 manager.createNotificationChannel(
                     NotificationChannel(
                         CHANNEL_ALARM,
-                        "EpiApp urgent alarms",
+                        "EpiApp — срочные напоминания ребёнку",
                         NotificationManager.IMPORTANCE_HIGH,
                     ).apply {
                         description = "Срочные полноэкранные будильники EpiApp"
@@ -69,6 +77,7 @@ class AlarmReceiver : BroadcastReceiver() {
         val notificationId = intent.getIntExtra(AlarmScheduler.EXTRA_NOTIFICATION_ID, if (slot == "morning") 100 else 200)
         if (urgent) showUrgent(context, slot, stageMinute, childName, notificationId)
         else showReminder(context, slot, stageMinute, childName, notificationId)
+        AlarmScheduler.markReminderDelivered(context, schedule, slot, stageMinute)
 
         // The fired PendingIntent is gone; scheduleAll keeps later stages today and prepares tomorrow.
         AlarmScheduler.scheduleAll(context, schedule)
@@ -82,10 +91,17 @@ class AlarmReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val label = if (slot == "morning") "утреннего" else "вечернего"
+        val title = if (lateMinutes <= 0) "EpiApp — время приёма" else "EpiApp — пора проверить приём"
+        val text = if (lateMinutes <= 0) {
+            "$childName: наступило время $label приёма. После приёма отметь его в EpiApp."
+        } else {
+            "$childName: нет отметки $label приёма уже $lateMinutes мин."
+        }
         val notification = Notification.Builder(context, CHANNEL_REMINDER)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("EpiApp — пора проверить приём")
-            .setContentText("$childName: нет отметки $label приёма уже $lateMinutes мин.")
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(Notification.BigTextStyle().bigText(text))
             .setContentIntent(open)
             .setAutoCancel(true)
             .setCategory(Notification.CATEGORY_REMINDER)
