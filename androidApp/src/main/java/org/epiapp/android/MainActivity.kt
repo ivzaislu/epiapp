@@ -25,6 +25,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
+import org.json.JSONObject
 import java.util.Locale
 import kotlin.concurrent.thread
 
@@ -238,6 +239,19 @@ class MainActivity : Activity() {
         @JavascriptInterface
         fun checkForUpdates() {
             runOnUiThread { AppUpdater.checkForUpdates(this@MainActivity, force = true) }
+        }
+
+        @JavascriptInterface
+        fun getParentNotificationPreferences(): String = JSONObject().apply {
+            put(
+                "loudUrgentAlerts",
+                ParentNotificationPreferences.loudUrgentEnabled(this@MainActivity),
+            )
+        }.toString()
+
+        @JavascriptInterface
+        fun setParentLoudAlertsEnabled(enabled: Boolean) {
+            ParentNotificationPreferences.setLoudUrgentEnabled(this@MainActivity, enabled)
         }
     }
 

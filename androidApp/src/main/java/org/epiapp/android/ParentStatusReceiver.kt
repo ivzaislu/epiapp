@@ -8,6 +8,8 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.RingtoneManager
 import android.os.Build
 import java.time.Instant
 import java.time.LocalTime
@@ -17,9 +19,27 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.concurrent.thread
 
+object ParentNotificationPreferences {
+    private const val PREFS = "epiapp_parent_notification_preferences"
+    private const val KEY_LOUD_URGENT = "loud_urgent_alerts"
+
+    fun loudUrgentEnabled(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_LOUD_URGENT, true)
+
+    fun setLoudUrgentEnabled(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_LOUD_URGENT, enabled)
+            .apply()
+        ParentStatusNotifier.ensureChannels(context)
+    }
+}
+
 object ParentStatusNotifier {
     private const val CHANNEL_STATUS = "epiapp_parent_status"
-    private const val CHANNEL_ALERT = "epiapp_parent_alert"
+    private const val CHANNEL_ALERT_LOUD = "epiapp_parent_alert_loud_v2"
+    private const val CHANNEL_ALERT_QUIET = "epiapp_parent_alert_quiet_v2"
     private const val PREFS = "epiapp_parent_notifications"
     private const val KEY_INITIALIZED = "initialized"
     private const val KEY_LAST_MORNING = "last_morning_taken_at"
@@ -44,15 +64,35 @@ object ParentStatusNotifier {
                 },
             )
         }
-        if (manager.getNotificationChannel(CHANNEL_ALERT) == null) {
+        if (manager.getNotificationChannel(CHANNEL_ALERT_LOUD) == null) {
+            val sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+            val audio = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
             manager.createNotificationChannel(
                 NotificationChannel(
-                    CHANNEL_ALERT,
-                    "EpiApp parent alerts",
+                    CHANNEL_ALERT_LOUD,
+                    "EpiApp — срочные родительские уведомления",
                     NotificationManager.IMPORTANCE_HIGH,
                 ).apply {
-                    description = "Срочные предупреждения родителям, когда отметки о приёме всё ещё нет"
+                    description = "Срочные предупреждения родителю с громким alarm-звуком"
                     enableVibration(true)
+                    setSound(sound, audio)
+                    lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                },
+            )
+        }
+        if (manager.getNotificationChannel(CHANNEL_ALERT_QUIET) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_ALERT_QUIET,
+                    "EpiApp — тихие срочные уведомления",
+                    NotificationManager.IMPORTANCE_HIGH,
+                ).apply {
+                    description = "Срочные предупреждения родителю без громкого звука"
+                    enableVibration(true)
+                    setSound(null, null)
                     lockscreenVisibility = Notification.VISIBILITY_PUBLIC
                 },
             )
@@ -111,7 +151,11 @@ object ParentStatusNotifier {
         } else {
             "${state.schedule.childName}: нет отметки ${label} приёма уже ${lateMinutes} мин."
         }
-        val channel = if (urgent) CHANNEL_ALERT else CHANNEL_STATUS
+        val channel = when {
+            !urgent -> CHANNEL_STATUS
+            ParentNotificationPreferences.loudUrgentEnabled(context) -> CHANNEL_ALERT_LOUD
+            else -> CHANNEL_ALERT_QUIET
+        }
         val notification = Notification.Builder(context, channel)
             .setSmallIcon(if (urgent) android.R.drawable.ic_dialog_alert else android.R.drawable.ic_dialog_info)
             .setContentTitle(title)
