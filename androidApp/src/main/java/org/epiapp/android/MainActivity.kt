@@ -3,6 +3,7 @@ package org.epiapp.android
 import android.Manifest
 import android.app.Activity
 import android.app.AlarmManager
+import android.app.AlertDialog
 import android.app.NotificationManager
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -30,6 +31,7 @@ import kotlin.concurrent.thread
 class MainActivity : Activity() {
     companion object {
         private const val REQUEST_NOTIFICATIONS = 1001
+        private const val PREF_NOTIFICATION_SETTINGS_PROMPTED = "notification_settings_prompted"
     }
 
     private lateinit var secureStore: SecureStore
@@ -41,12 +43,15 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         secureStore = SecureStore(this)
         AlarmReceiver.ensureChannels(this)
+        ParentStatusNotifier.ensureChannels(this)
         AppUpdater.checkForUpdates(this)
 
         val serverUrl = secureStore.getServerUrl()
         val token = secureStore.getDeviceToken()
         if (serverUrl == null || token == null) {
             AlarmScheduler.cancelAll(this)
+            ParentStatusScheduler.cancelAll(this)
+            ParentStatusNotifier.clear(this)
             ScheduleSyncScheduler.cancel(this)
             showPairing(suggestedServer = serverUrl.orEmpty())
         } else {
@@ -58,9 +63,12 @@ class MainActivity : Activity() {
         super.onResume()
         AppUpdater.resumePendingInstall(this)
         AppUpdater.checkForUpdates(this)
-        if (currentRole == "child") {
-            ensureAlarmPermissions()
-            ScheduleStore.load(this)?.second?.let { AlarmScheduler.scheduleAll(this, it) }
+        if (currentRole in setOf("child", "parent", "admin")) {
+            ensureNativeNotificationPermissions()
+            ScheduleStore.load(this)?.let { (role, schedule) ->
+                if (role == "child") AlarmScheduler.scheduleAll(this, schedule)
+                else if (role == "parent" || role == "admin") ParentStatusScheduler.scheduleAll(this, schedule)
+            }
             ScheduleSyncScheduler.schedule(this)
             syncScheduleSilently()
         }
@@ -69,9 +77,9 @@ class MainActivity : Activity() {
     private fun applyNativeState(state: DeviceScheduleState) {
         currentRole = state.role
         AlarmScheduler.applyServerState(this, state)
-        if (state.role == "child") {
+        if (state.role in setOf("child", "parent", "admin")) {
             ScheduleSyncScheduler.schedule(this)
-            ensureAlarmPermissions()
+            ensureNativeNotificationPermissions()
         } else {
             ScheduleSyncScheduler.cancel(this)
         }
@@ -153,6 +161,8 @@ class MainActivity : Activity() {
     private fun clearDeviceAccess() {
         secureStore.clearConnection()
         AlarmScheduler.cancelAll(this)
+        ParentStatusScheduler.cancelAll(this)
+        ParentStatusNotifier.clear(this)
         ScheduleSyncScheduler.cancel(this)
         ScheduleStore.clear(this)
         CookieManager.getInstance().removeAllCookies(null)
@@ -376,8 +386,8 @@ class MainActivity : Activity() {
         setContentView(root)
     }
 
-    private fun ensureAlarmPermissions() {
-        if (currentRole != "child") return
+    private fun ensureNativeNotificationPermissions() {
+        if (currentRole !in setOf("child", "parent", "admin")) return
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -404,7 +414,7 @@ class MainActivity : Activity() {
             }
         }
 
-        if (Build.VERSION.SDK_INT >= 34) {
+        if (currentRole == "child" && Build.VERSION.SDK_INT >= 34) {
             val notifications = getSystemService(NotificationManager::class.java)
             if (!notifications.canUseFullScreenIntent() && !prefs.getBoolean("asked_full_screen", false)) {
                 prefs.edit().putBoolean("asked_full_screen", true).apply()
@@ -423,7 +433,47 @@ class MainActivity : Activity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_NOTIFICATIONS && currentRole == "child") ensureAlarmPermissions()
+        if (requestCode != REQUEST_NOTIFICATIONS || currentRole !in setOf("child", "parent", "admin")) return
+
+        val granted = grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            if (currentRole == "child") {
+                ScheduleStore.load(this)?.second?.let { AlarmScheduler.scheduleAll(this, it) }
+            }
+            ensureNativeNotificationPermissions()
+            return
+        }
+
+        if (currentRole == "child") showNotificationSettingsPrompt()
+    }
+
+    private fun showNotificationSettingsPrompt() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return
+
+        val prefs = getSharedPreferences("epiapp_permission_prompts", MODE_PRIVATE)
+        if (prefs.getBoolean(PREF_NOTIFICATION_SETTINGS_PROMPTED, false)) return
+        prefs.edit().putBoolean(PREF_NOTIFICATION_SETTINGS_PROMPTED, true).apply()
+
+        AlertDialog.Builder(this)
+            .setTitle("Разрешите уведомления EpiApp")
+            .setMessage(
+                "Без разрешения Android не покажет и не озвучит напоминания о приёме. " +
+                    "Откройте настройки EpiApp и включите уведомления.",
+            )
+            .setPositiveButton("Открыть настройки") { _, _ ->
+                try {
+                    startActivity(
+                        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                            putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                        },
+                    )
+                } catch (_: Exception) {
+                    // The app remains usable; permission can be enabled later in Android settings.
+                }
+            }
+            .setNegativeButton("Позже", null)
+            .show()
     }
 
     override fun onDestroy() {

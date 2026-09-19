@@ -21,8 +21,8 @@ object ScheduleSyncScheduler {
         )
         manager.setInexactRepeating(
             AlarmManager.ELAPSED_REALTIME_WAKEUP,
-            SystemClock.elapsedRealtime() + AlarmManager.INTERVAL_HALF_HOUR,
-            AlarmManager.INTERVAL_HALF_HOUR,
+            SystemClock.elapsedRealtime() + AlarmManager.INTERVAL_FIFTEEN_MINUTES,
+            AlarmManager.INTERVAL_FIFTEEN_MINUTES,
             pending,
         )
     }
@@ -50,13 +50,15 @@ class ScheduleSyncReceiver : BroadcastReceiver() {
             try {
                 val state = ApiClient(serverUrl).schedule(token)
                 AlarmScheduler.applyServerState(context, state)
-                if (state.role == "child") ScheduleSyncScheduler.schedule(context)
+                if (state.role in setOf("child", "parent", "admin")) ScheduleSyncScheduler.schedule(context)
                 else ScheduleSyncScheduler.cancel(context)
             } catch (error: ApiException) {
                 if (error.statusCode == 401 || error.statusCode == 403) {
                     secureStore.clearConnection()
                     ScheduleStore.clear(context)
                     AlarmScheduler.cancelAll(context)
+                    ParentStatusScheduler.cancelAll(context)
+                    ParentStatusNotifier.clear(context)
                     ScheduleSyncScheduler.cancel(context)
                 }
             } catch (_: Exception) {

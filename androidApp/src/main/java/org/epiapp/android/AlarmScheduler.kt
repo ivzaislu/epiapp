@@ -6,6 +6,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -35,6 +36,8 @@ object AlarmScheduler {
 
     private fun takenKey(slot: String) = "taken_$slot"
 
+    private fun deliveredKey(slot: String, stageMinute: Int) = "delivered_${slot}_${stageMinute}"
+
     private fun notificationId(slot: String) = if (slot == "morning") NOTIFICATION_MORNING else NOTIFICATION_EVENING
 
     fun applyServerState(context: Context, state: DeviceScheduleState) {
@@ -49,7 +52,28 @@ object AlarmScheduler {
         if (state.morningTaken) context.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_MORNING)
         if (state.eveningTaken) context.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_EVENING)
 
-        if (state.role == "child") scheduleAll(context, state.schedule) else cancelAll(context)
+        when (state.role) {
+            "child" -> {
+                ParentStatusScheduler.cancelAll(context)
+                ParentStatusNotifier.clear(context)
+                scheduleAll(context, state.schedule)
+            }
+            "parent", "admin" -> {
+                cancelAll(context)
+                ParentStatusNotifier.processServerState(context, state)
+                ParentStatusScheduler.scheduleAll(
+                    context,
+                    state.schedule,
+                    morningTaken = state.morningTaken,
+                    eveningTaken = state.eveningTaken,
+                )
+            }
+            else -> {
+                cancelAll(context)
+                ParentStatusScheduler.cancelAll(context)
+                ParentStatusNotifier.clear(context)
+            }
+        }
     }
 
     fun markTaken(context: Context, slot: String) {
@@ -63,6 +87,19 @@ object AlarmScheduler {
 
     fun isTakenToday(context: Context, schedule: NativeSchedule, slot: String): Boolean =
         prefs(context).getString(takenKey(slot), null) == today(schedule)
+
+    fun markReminderDelivered(context: Context, schedule: NativeSchedule, slot: String, stageMinute: Int) {
+        prefs(context).edit()
+            .putString(deliveredKey(slot, stageMinute), today(schedule))
+            .apply()
+    }
+
+    private fun wasReminderDeliveredToday(
+        context: Context,
+        schedule: NativeSchedule,
+        slot: String,
+        stageMinute: Int,
+    ): Boolean = prefs(context).getString(deliveredKey(slot, stageMinute), null) == today(schedule)
 
     fun scheduleAll(context: Context, schedule: NativeSchedule) {
         cancelPendingAlarms(context)
@@ -98,7 +135,7 @@ object AlarmScheduler {
         }
     }
 
-    private fun stages(schedule: NativeSchedule): List<Pair<Int, Boolean>> {
+    internal fun reminderStages(schedule: NativeSchedule): List<Pair<Int, Boolean>> {
         val result = mutableListOf<Pair<Int, Boolean>>()
         if (schedule.reminderFirstMinutes < schedule.reminderUrgentMinutes) {
             result += schedule.reminderFirstMinutes to false
@@ -111,7 +148,7 @@ object AlarmScheduler {
         if (result.none { it.first == schedule.reminderStopMinutes } && schedule.reminderStopMinutes >= schedule.reminderUrgentMinutes) {
             result += schedule.reminderStopMinutes to true
         }
-        return result.distinctBy { it.first }.sortedBy { it.first }.take(40)
+        return result.distinctBy { it.first }.sortedBy { it.first }.take(39)
     }
 
     private fun scheduleSlot(context: Context, schedule: NativeSchedule, slot: String, timeText: String) {
@@ -125,9 +162,18 @@ object AlarmScheduler {
         val taken = isTakenToday(context, schedule, slot)
         val baseCode = if (slot == "morning") 100 else 200
 
-        stages(schedule).forEachIndexed { index, (stageMinute, urgent) ->
+        val stages = listOf(0 to false) + reminderStages(schedule)
+        stages.forEachIndexed { index, (stageMinute, urgent) ->
             var target = ZonedDateTime.of(now.toLocalDate(), time, zone).plusMinutes(stageMinute.toLong())
-            if (taken || !target.isAfter(now)) target = target.plusDays(1)
+            val deliveredToday = wasReminderDeliveredToday(context, schedule, slot, stageMinute)
+
+            if (taken || deliveredToday) {
+                target = target.plusDays(1)
+            } else if (!target.isAfter(now)) {
+                val minutesLate = Duration.between(target, now).toMinutes()
+                target = if (minutesLate <= 10) now.plusSeconds(2) else target.plusDays(1)
+            }
+
             scheduleAlarm(
                 context = context,
                 requestCode = baseCode + index,

@@ -53,7 +53,12 @@ data class DeviceScheduleState(
     val today: String,
     val morningTaken: Boolean,
     val eveningTaken: Boolean,
-)
+    val morningTakenAt: String? = null,
+    val eveningTakenAt: String? = null,
+) {
+    fun isTaken(slot: String): Boolean = if (slot == "morning") morningTaken else eveningTaken
+    fun takenAt(slot: String): String? = if (slot == "morning") morningTakenAt else eveningTakenAt
+}
 
 object ScheduleStore {
     private const val PREFS = "epiapp_schedule"
