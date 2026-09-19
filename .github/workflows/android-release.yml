@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: android-release-${ github.ref }
+  group: android-release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -38,8 +38,8 @@ jobs:
       - name: Check whether this version is already published
         id: release_state
         env:
-          GH_TOKEN: ${ secrets.GITHUB_TOKEN }
-          TAG: ${ steps.version.outputs.tag }
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -euo pipefail
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
@@ -78,10 +78,10 @@ jobs:
       - name: Restore and validate signing key
         if: steps.release_state.outputs.exists != 'true'
         env:
-          ANDROID_KEYSTORE_BASE64: ${ secrets.ANDROID_KEYSTORE_BASE64 }
-          ANDROID_STORE_PASSWORD: ${ secrets.ANDROID_STORE_PASSWORD }
-          ANDROID_KEY_ALIAS: ${ secrets.ANDROID_KEY_ALIAS }
-          ANDROID_KEY_PASSWORD: ${ secrets.ANDROID_KEY_PASSWORD }
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           test -n "$ANDROID_KEYSTORE_BASE64" || { echo "::error::ANDROID_KEYSTORE_BASE64 is not configured"; exit 1; }
@@ -102,17 +102,17 @@ jobs:
       - name: Build signed release APK
         if: steps.release_state.outputs.exists != 'true'
         env:
-          EPIAPP_KEYSTORE_FILE: ${ runner.temp }/epiapp-release.keystore
-          EPIAPP_KEYSTORE_PASSWORD: ${ secrets.ANDROID_STORE_PASSWORD }
-          EPIAPP_KEY_ALIAS: ${ secrets.ANDROID_KEY_ALIAS }
-          EPIAPP_KEY_PASSWORD: ${ secrets.ANDROID_KEY_PASSWORD }
+          EPIAPP_KEYSTORE_FILE: ${{ runner.temp }}/epiapp-release.keystore
+          EPIAPP_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          EPIAPP_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          EPIAPP_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: gradle --no-daemon :androidApp:assembleRelease
 
       - name: Verify and prepare release assets
         if: steps.release_state.outputs.exists != 'true'
         env:
-          VERSION_NAME: ${ steps.version.outputs.name }
-          VERSION_CODE: ${ steps.version.outputs.code }
+          VERSION_NAME: ${{ steps.version.outputs.name }}
+          VERSION_CODE: ${{ steps.version.outputs.code }}
         run: |
           set -euo pipefail
           APK="androidApp/build/outputs/apk/release/androidApp-release.apk"
@@ -133,9 +133,9 @@ jobs:
         if: steps.release_state.outputs.exists != 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: EpiApp-${ steps.version.outputs.name }-release
+          name: EpiApp-${{ steps.version.outputs.name }}-release
           path: |
-            dist/EpiApp-${ steps.version.outputs.name }-release.apk
+            dist/EpiApp-${{ steps.version.outputs.name }}-release.apk
             dist/SHA256SUMS.txt
             dist/update.json
             dist/SIGNING_CERT.txt
@@ -145,9 +145,9 @@ jobs:
       - name: Publish GitHub Release
         if: steps.release_state.outputs.exists != 'true'
         env:
-          GH_TOKEN: ${ secrets.GITHUB_TOKEN }
-          TAG: ${ steps.version.outputs.tag }
-          VERSION_NAME: ${ steps.version.outputs.name }
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION_NAME: ${{ steps.version.outputs.name }}
         run: |
           set -euo pipefail
           gh release create "$TAG" \
