@@ -7,7 +7,7 @@
 ```bash
 git clone https://github.com/ivzaislu/epiapp.git
 cd epiapp
-git checkout epiappapk
+git checkout main
 sudo ./install.sh
 ```
 
