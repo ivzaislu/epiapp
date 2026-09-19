@@ -59,8 +59,14 @@
       </article>
     </section>
 
-    <section class="panel">
-      <h2>Последние отметки</h2>
+    <section class="panel history-panel">
+      <div class="history-heading">
+        <div>
+          <h2>Последние отметки</h2>
+          <div class="help" id="historyMeta">Показываю последние 4 отметки</div>
+        </div>
+        <span class="history-count" id="historyCount">0</span>
+      </div>
       <div class="history" id="history"><div class="empty">Загрузка…</div></div>
       <button class="expand-button hidden" id="historyToggle" type="button" aria-expanded="false">Ещё</button>
     </section>
