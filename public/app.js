@@ -6,6 +6,7 @@ const androidTakenNotified = new Set();
 let pendingSlot = null;
 let state = null;
 let currentUser = null;
+let historyExpanded = false;
 
 function toast(message, error = false) {
   const el = $('#toast');
@@ -60,16 +61,31 @@ function render(next) {
     if (canTake && dose) notifyAndroidTaken(slot);
   }
 
+  renderHistory(next);
+}
+
+function renderHistory(next = state) {
   const history = $('#history');
-  if (!next.recentDoses.length) {
+  const toggle = $('#historyToggle');
+  if (!next?.recentDoses?.length) {
     history.innerHTML = '<div class="empty">Пока нет отметок.</div>';
+    toggle.classList.add('hidden');
+    toggle.setAttribute('aria-expanded', 'false');
     return;
   }
-  history.innerHTML = next.recentDoses.slice(0, 12).map((dose) => `
+
+  const doses = next.recentDoses;
+  const visible = historyExpanded ? doses : doses.slice(0, 4);
+  history.innerHTML = visible.map((dose) => `
     <div class="history-row">
       <div><div class="history-main">${slotLabels[dose.slot]} приём</div><div class="history-meta">${formatTakenAt(dose.takenAt, next.settings.timezone)}</div></div>
       <span class="status done">✓ Выпито</span>
     </div>`).join('');
+
+  const hiddenCount = Math.max(0, doses.length - 4);
+  toggle.classList.toggle('hidden', hiddenCount === 0);
+  toggle.setAttribute('aria-expanded', String(historyExpanded));
+  toggle.textContent = historyExpanded ? 'Скрыть' : `Ещё ${hiddenCount}`;
 }
 
 async function loadState() {
@@ -99,6 +115,10 @@ function closeConfirm() {
 }
 
 document.querySelectorAll('.take-button').forEach((button) => button.addEventListener('click', () => openConfirm(button.dataset.slot)));
+$('#historyToggle').addEventListener('click', () => {
+  historyExpanded = !historyExpanded;
+  renderHistory();
+});
 $('#cancelConfirm').addEventListener('click', closeConfirm);
 $('#confirmModal').addEventListener('click', (event) => { if (event.target.id === 'confirmModal') closeConfirm(); });
 $('#acceptConfirm').addEventListener('click', async () => {
