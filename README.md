@@ -14,6 +14,7 @@ EpiApp — self-hosted семейное приложение для отметк
 - статистика и график для родителей;
 - Telegram-уведомления и эскалация при отсутствии отметки;
 - универсальный Android APK, не привязанный к домену одной семьи;
+- встроенная проверка обновлений через официальный GitHub Release с проверкой SHA-256 и той же release-подписи;
 - Android exact alarms, full-screen alarm, звук/вибрация и восстановление после reboot;
 - одноразовый Android pairing code + server-side hashed device-token + Android Keystore;
 - Docker Compose + Caddy для простого self-host с automatic HTTPS;
@@ -49,7 +50,6 @@ EpiApp — self-hosted семейное приложение для отметк
 ```bash
 git clone https://github.com/ivzaislu/epiapp.git
 cd epiapp
-git checkout epiappapk
 cp .env.example .env
 nano .env
 ```
@@ -146,7 +146,7 @@ Android debug build:
 gradle --no-daemon :androidApp:assembleDebug
 ```
 
-CI ветки `epiappapk` проверяет Node 18.19.1, 20, 22 и реальную Android debug APK сборку.
+CI ветки `main` проверяет Node 18.19.1, 20, 22, Docker self-host stack, Android debug APK и подписываемость release APK.
 
 ## Данные
 
