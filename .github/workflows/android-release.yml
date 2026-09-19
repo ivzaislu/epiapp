@@ -1,29 +1,63 @@
 name: Android Release
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: android-release-${ github.ref }
+  cancel-in-progress: false
 
 jobs:
   release:
-    name: Signed Android release APK
+    name: Publish signed Android release
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout release branch
+      - name: Checkout main
         uses: actions/checkout@v4
-        with:
-          ref: epiappapk
+
+      - name: Read Android version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION_NAME="$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' androidApp/build.gradle.kts | head -n1)"
+          VERSION_CODE="$(sed -n 's/.*versionCode = \([0-9][0-9]*\).*/\1/p' androidApp/build.gradle.kts | head -n1)"
+          test -n "$VERSION_NAME"
+          test -n "$VERSION_CODE"
+          echo "name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Check whether this version is already published
+        id: release_state
+        env:
+          GH_TOKEN: ${ secrets.GITHUB_TOKEN }
+          TAG: ${ steps.version.outputs.tag }
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release $TAG already exists; nothing to republish."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up Java 17
+        if: steps.release_state.outputs.exists != 'true'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Prepare Android SDK 35
+        if: steps.release_state.outputs.exists != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -36,16 +70,18 @@ jobs:
           "$SDKMANAGER" 'platforms;android-35' 'build-tools;35.0.0'
 
       - name: Set up Gradle 8.9
+        if: steps.release_state.outputs.exists != 'true'
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
       - name: Restore and validate signing key
+        if: steps.release_state.outputs.exists != 'true'
         env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_BASE64: ${ secrets.ANDROID_KEYSTORE_BASE64 }
+          ANDROID_STORE_PASSWORD: ${ secrets.ANDROID_STORE_PASSWORD }
+          ANDROID_KEY_ALIAS: ${ secrets.ANDROID_KEY_ALIAS }
+          ANDROID_KEY_PASSWORD: ${ secrets.ANDROID_KEY_PASSWORD }
         run: |
           set -euo pipefail
           test -n "$ANDROID_KEYSTORE_BASE64" || { echo "::error::ANDROID_KEYSTORE_BASE64 is not configured"; exit 1; }
@@ -63,46 +99,66 @@ jobs:
 
           echo "Signing key opened successfully."
 
-      - name: Read Android version
-        id: version
-        run: |
-          set -euo pipefail
-          VERSION_NAME="$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' androidApp/build.gradle.kts | head -n1)"
-          VERSION_CODE="$(sed -n 's/.*versionCode = \([0-9][0-9]*\).*/\1/p' androidApp/build.gradle.kts | head -n1)"
-          test -n "$VERSION_NAME"
-          test -n "$VERSION_CODE"
-          echo "name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
-          echo "code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
-          echo "Building EpiApp $VERSION_NAME (versionCode $VERSION_CODE)."
-
       - name: Build signed release APK
+        if: steps.release_state.outputs.exists != 'true'
         env:
-          EPIAPP_KEYSTORE_FILE: ${{ runner.temp }}/epiapp-release.keystore
-          EPIAPP_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
-          EPIAPP_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          EPIAPP_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          EPIAPP_KEYSTORE_FILE: ${ runner.temp }/epiapp-release.keystore
+          EPIAPP_KEYSTORE_PASSWORD: ${ secrets.ANDROID_STORE_PASSWORD }
+          EPIAPP_KEY_ALIAS: ${ secrets.ANDROID_KEY_ALIAS }
+          EPIAPP_KEY_PASSWORD: ${ secrets.ANDROID_KEY_PASSWORD }
         run: gradle --no-daemon :androidApp:assembleRelease
 
-      - name: Verify release signature
+      - name: Verify and prepare release assets
+        if: steps.release_state.outputs.exists != 'true'
+        env:
+          VERSION_NAME: ${ steps.version.outputs.name }
+          VERSION_CODE: ${ steps.version.outputs.code }
         run: |
           set -euo pipefail
           APK="androidApp/build/outputs/apk/release/androidApp-release.apk"
+          APK_NAME="EpiApp-$VERSION_NAME-release.apk"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -n1)"
           test -x "$APKSIGNER" || { echo "::error::apksigner not found"; exit 1; }
-          "$APKSIGNER" verify --verbose --print-certs "$APK"
-          mkdir -p dist
-          cp "$APK" "dist/EpiApp-${{ steps.version.outputs.name }}-release.apk"
-          sha256sum "dist/EpiApp-${{ steps.version.outputs.name }}-release.apk" | tee dist/SHA256SUMS.txt
 
-      - name: Upload signed release APK
+          mkdir -p dist
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee dist/SIGNING_CERT.txt
+          cp "$APK" "dist/$APK_NAME"
+
+          APK_SHA="$(sha256sum "dist/$APK_NAME" | awk '{print $1}')"
+          printf '%s  %s\n' "$APK_SHA" "$APK_NAME" > dist/SHA256SUMS.txt
+          printf '{"versionCode":%s,"versionName":"%s","apkAsset":"%s","sha256":"%s"}\n' \
+            "$VERSION_CODE" "$VERSION_NAME" "$APK_NAME" "$APK_SHA" > dist/update.json
+
+      - name: Upload signed release build artifact
+        if: steps.release_state.outputs.exists != 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: EpiApp-${{ steps.version.outputs.name }}-release
+          name: EpiApp-${ steps.version.outputs.name }-release
           path: |
-            dist/EpiApp-${{ steps.version.outputs.name }}-release.apk
+            dist/EpiApp-${ steps.version.outputs.name }-release.apk
             dist/SHA256SUMS.txt
+            dist/update.json
+            dist/SIGNING_CERT.txt
           if-no-files-found: error
           retention-days: 90
+
+      - name: Publish GitHub Release
+        if: steps.release_state.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${ secrets.GITHUB_TOKEN }
+          TAG: ${ steps.version.outputs.tag }
+          VERSION_NAME: ${ steps.version.outputs.name }
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" \
+            "dist/EpiApp-$VERSION_NAME-release.apk" \
+            "dist/SHA256SUMS.txt" \
+            "dist/update.json" \
+            "dist/SIGNING_CERT.txt" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "EpiApp $VERSION_NAME" \
+            --generate-notes
 
       - name: Remove restored keystore
         if: always()
