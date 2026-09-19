@@ -71,6 +71,11 @@ function fillSettings(data) {
   $('#reminderUrgentMinutes').value = settings.reminderUrgentMinutes ?? 30;
   $('#reminderRepeatMinutes').value = settings.reminderRepeatMinutes ?? 15;
   $('#reminderStopMinutes').value = settings.reminderStopMinutes ?? 60;
+  $('#settingsMedicationSummary').textContent = [settings.childName, settings.medicationName || 'препарат не указан'].filter(Boolean).join(' · ');
+  $('#settingsScheduleSummary').textContent = `${settings.morningTime} / ${settings.eveningTime} · ${settings.timezone}`;
+  $('#settingsReminderSummary').textContent = settings.remindersEnabled === false
+    ? 'Выключены'
+    : `Включены · первое через ${settings.reminderFirstMinutes ?? 15} мин`;
   syncReminderFields();
   renderAudit(data.recentChanges || []);
   const notice = $('#telegramNotice');
