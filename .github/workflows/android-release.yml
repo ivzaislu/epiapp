@@ -15,11 +15,11 @@ concurrency:
 
 jobs:
   release:
-    name: Publish signed Android release
+    name: Build signed Android release
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout main
+      - name: Checkout selected ref
         uses: actions/checkout@v4
 
       - name: Read Android version
@@ -143,7 +143,7 @@ jobs:
           retention-days: 90
 
       - name: Publish GitHub Release
-        if: steps.release_state.outputs.exists != 'true'
+        if: steps.release_state.outputs.exists != 'true' && github.ref_name == 'main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.version.outputs.tag }}
