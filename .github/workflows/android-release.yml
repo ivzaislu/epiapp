@@ -5,6 +5,17 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      target_ref:
+        description: Git ref to build (for example main or 0.4.1.1)
+        required: true
+        default: main
+        type: string
+      publish_release:
+        description: Publish a GitHub Release after a successful build
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -19,8 +30,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout main
+      - name: Checkout selected ref
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.target_ref || github.ref }}
 
       - name: Read Android version
         id: version
@@ -143,7 +156,7 @@ jobs:
           retention-days: 90
 
       - name: Publish GitHub Release
-        if: steps.release_state.outputs.exists != 'true'
+        if: steps.release_state.outputs.exists != 'true' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_release == true && inputs.target_ref == 'main'))
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.version.outputs.tag }}
