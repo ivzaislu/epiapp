@@ -1,4 +1,5 @@
 import { ensureTelegramSession, roleLabel } from './auth.js';
+import { childHistoryView } from './history.js';
 
 const $ = (selector) => document.querySelector(selector);
 const slotLabels = { morning: 'утренний', evening: 'вечерний' };
@@ -78,23 +79,18 @@ function renderHistory(next = state) {
     return;
   }
 
-  const doses = next.recentDoses;
-  const visible = historyExpanded ? doses : doses.slice(0, 4);
-  history.innerHTML = visible.map((dose) => `
+  const view = childHistoryView(next.recentDoses, historyExpanded);
+  history.innerHTML = view.visible.map((dose) => `
     <div class="history-row">
       <div><div class="history-main">${slotLabels[dose.slot]} приём</div><div class="history-meta">${formatTakenAt(dose.takenAt, next.settings.timezone)}</div></div>
       <span class="status done">✓ Выпито</span>
     </div>`).join('');
 
-  const hiddenCount = Math.max(0, doses.length - 4);
-  const shownCount = visible.length;
-  count.textContent = String(doses.length);
-  meta.textContent = historyExpanded
-    ? `Показаны все ${doses.length}`
-    : `Показаны последние ${shownCount} из ${doses.length}`;
-  toggle.classList.toggle('hidden', hiddenCount === 0);
-  toggle.setAttribute('aria-expanded', String(historyExpanded));
-  toggle.textContent = historyExpanded ? 'Свернуть' : `Ещё ${hiddenCount}`;
+  count.textContent = String(view.total);
+  meta.textContent = view.metaLabel;
+  toggle.classList.toggle('hidden', !view.canToggle);
+  toggle.setAttribute('aria-expanded', String(view.expanded));
+  toggle.textContent = view.buttonLabel;
 }
 
 async function loadState() {
