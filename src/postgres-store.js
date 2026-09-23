@@ -30,13 +30,23 @@ export class PostgresStore extends Store {
 
   async ensureSchema() {
     if (!this.schemaPromise) {
-      this.schemaPromise = this.pool.query(`
-        CREATE TABLE IF NOT EXISTS ${this.tableSql} (
-          id SMALLINT PRIMARY KEY CHECK (id = 1),
-          state JSONB NOT NULL,
-          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        )
-      `).catch((error) => {
+      this.schemaPromise = (async () => {
+        const client = await this.pool.connect();
+        const schemaLockKey = `${this.lockKey}:schema`;
+        try {
+          await client.query('SELECT pg_advisory_lock(hashtext($1))', [schemaLockKey]);
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS ${this.tableSql} (
+              id SMALLINT PRIMARY KEY CHECK (id = 1),
+              state JSONB NOT NULL,
+              updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+          `);
+        } finally {
+          try { await client.query('SELECT pg_advisory_unlock(hashtext($1))', [schemaLockKey]); } catch {}
+          client.release();
+        }
+      })().catch((error) => {
         this.schemaPromise = null;
         throw error;
       });
