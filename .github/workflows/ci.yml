@@ -7,6 +7,7 @@ on:
       - v-1.1
       - epiappapk
       - main
+      - northflank
   pull_request:
   workflow_dispatch:
 
@@ -31,6 +32,9 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
+      - name: Install Node dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+
       - name: Unit tests
         run: npm test
 
@@ -42,9 +46,45 @@ jobs:
           bash -n install.sh
           bash -n scripts/create-android-release-key.sh
 
+  postgres:
+    name: PostgreSQL store
+    if: github.ref_name == 'northflank' || github.head_ref == 'northflank'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: epiapp
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d epiapp"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Node dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: PostgreSQL integration tests
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/epiapp
+        run: node --test test/postgres-store.test.js
+
   selfhost:
     name: Self-host Docker stack
-    if: github.ref_name == 'epiappapk' || github.ref_name == 'main' || github.head_ref == 'epiappapk' || github.base_ref == 'main'
+    if: github.ref_name == 'epiappapk' || github.ref_name == 'main' || github.ref_name == 'northflank' || github.head_ref == 'epiappapk' || github.head_ref == 'northflank' || github.base_ref == 'main'
     runs-on: ubuntu-latest
 
     steps:
@@ -93,7 +133,7 @@ jobs:
 
   android:
     name: Android APKs
-    if: github.ref_name == 'epiappapk' || github.ref_name == 'main' || github.head_ref == 'epiappapk' || github.base_ref == 'main'
+    if: github.ref_name == 'epiappapk' || github.ref_name == 'main' || github.ref_name == 'northflank' || github.head_ref == 'epiappapk' || github.head_ref == 'northflank' || github.base_ref == 'main'
     runs-on: ubuntu-latest
 
     steps:

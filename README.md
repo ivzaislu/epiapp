@@ -158,3 +158,8 @@ Docker:  /data/epiapp.json inside epiapp-data volume
 ```
 
 Регулярные backup обязательны для production self-host.
+
+
+## Northflank
+
+Экспериментальная облачная ветка: `northflank`. План развёртывания и ограничения: [docs/NORTHFLANK.md](docs/NORTHFLANK.md).

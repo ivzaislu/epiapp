@@ -13,6 +13,7 @@ import {
 } from './src/auth.js';
 import { startReminderScheduler } from './src/reminders.js';
 import { Store } from './src/store.js';
+import { PostgresStore } from './src/postgres-store.js';
 import { notifyDose, sendTelegramMessage, startTelegramBot } from './src/telegram.js';
 import { ValidationError } from './src/validation.js';
 
@@ -21,8 +22,21 @@ const PUBLIC_DIR = join(ROOT, 'public');
 const DATA_FILE = process.env.DATA_FILE || join(ROOT, 'data', 'epiapp.json');
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '127.0.0.1';
-const defaultStore = new Store(DATA_FILE);
+const DATABASE_URL = String(process.env.DATABASE_URL || process.env.POSTGRES_URI || '').trim();
+const defaultStore = DATABASE_URL ? new PostgresStore(DATABASE_URL) : new Store(DATA_FILE);
 const pairingAttempts = new Map();
+
+export function resolvePublicAppUrl(env = process.env) {
+  const explicit = String(env.APP_BASE_URL || '').trim().replace(/\/$/, '');
+  if (explicit) return explicit;
+
+  const northflankHost = String(env.NF_HOSTS || '')
+    .split(',')
+    .map((value) => value.trim())
+    .find(Boolean);
+  if (!northflankHost) return '';
+  return `https://${northflankHost.replace(/^https?:\/\//i, '').replace(/\/$/, '')}`;
+}
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -198,6 +212,7 @@ export function createServer(options = {}) {
     const url = new URL(req.url, 'http://localhost');
     try {
       if (req.method === 'GET' && url.pathname === '/healthz') {
+        await context.store.read();
         return json(res, 200, { ok: true });
       }
 
@@ -366,11 +381,13 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === normalize(process.argv
   const server = createServer();
   server.listen(PORT, HOST, () => {
     console.log(`EpiApp: http://${HOST}:${PORT}`);
+    console.log(`EpiApp storage: ${DATABASE_URL ? 'PostgreSQL' : DATA_FILE}`);
+    if (!process.env.APP_BASE_URL && appUrl) console.log(`EpiApp public URL: ${appUrl} (from NF_HOSTS)`);
   });
 
   const botToken = process.env.TELEGRAM_BOT_TOKEN || '';
   const adminId = String(process.env.TELEGRAM_ADMIN_ID || '').trim();
-  const appUrl = String(process.env.APP_BASE_URL || '').trim();
+  const appUrl = resolvePublicAppUrl();
   if (botToken && adminId && appUrl) {
     startTelegramBot({ token: botToken, store: defaultStore, adminId, appUrl })
       .then(({ username }) => console.log(`EpiApp Telegram bot: @${username}`))

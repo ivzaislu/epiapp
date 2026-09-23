@@ -8,13 +8,17 @@
     "dev": "node --watch server.js",
     "start": "node server.js",
     "test": "node --test",
-    "check": "node --check server.js && node --check src/auth.js && node --check src/reminders.js && node --check src/store.js && node --check src/telegram.js && node --check src/validation.js && node --check public/auth.js && node --check public/app.js && node --check public/history.js && node --check public/parent.js && node --check public/sw.js && node --check scripts/doctor.mjs",
+    "check": "node --check server.js && node --check src/auth.js && node --check src/reminders.js && node --check src/store.js && node --check src/postgres-store.js && node --check src/telegram.js && node --check src/validation.js && node --check public/auth.js && node --check public/app.js && node --check public/history.js && node --check public/parent.js && node --check public/sw.js && node --check scripts/doctor.mjs && node --check scripts/import-json-to-postgres.mjs",
     "doctor": "node scripts/doctor.mjs",
     "doctor:offline": "node scripts/doctor.mjs --offline",
     "doctor:docker": "node scripts/doctor.mjs --docker",
-    "doctor:docker:offline": "node scripts/doctor.mjs --docker --offline"
+    "doctor:docker:offline": "node scripts/doctor.mjs --docker --offline",
+    "import:postgres": "node scripts/import-json-to-postgres.mjs"
   },
   "engines": {
     "node": ">=18.19.0"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
   }
 }

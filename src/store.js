@@ -96,6 +96,23 @@ function normalizeReminderDeliveries(value) {
     .slice(-1000);
 }
 
+export function createDefaultState() {
+  return clone(DEFAULT_STATE);
+}
+
+export function normalizeState(parsed = {}) {
+  return {
+    ...clone(DEFAULT_STATE),
+    ...(parsed && typeof parsed === 'object' ? parsed : {}),
+    version: 5,
+    settings: sanitizeSettings(parsed?.settings ?? {}, DEFAULT_STATE.settings),
+    doses: Array.isArray(parsed?.doses) ? parsed.doses : [],
+    audit: normalizeAudit(parsed?.audit),
+    reminderDeliveries: normalizeReminderDeliveries(parsed?.reminderDeliveries),
+    access: normalizeAccess(parsed?.access),
+  };
+}
+
 export function dateKey(date, timeZone) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone,
@@ -174,18 +191,9 @@ export class Store {
     try {
       const raw = await readFile(this.filePath, 'utf8');
       const parsed = JSON.parse(raw);
-      return {
-        ...clone(DEFAULT_STATE),
-        ...parsed,
-        version: 5,
-        settings: sanitizeSettings(parsed.settings ?? {}, DEFAULT_STATE.settings),
-        doses: Array.isArray(parsed.doses) ? parsed.doses : [],
-        audit: normalizeAudit(parsed.audit),
-        reminderDeliveries: normalizeReminderDeliveries(parsed.reminderDeliveries),
-        access: normalizeAccess(parsed.access),
-      };
+      return normalizeState(parsed);
     } catch (error) {
-      if (error?.code === 'ENOENT') return clone(DEFAULT_STATE);
+      if (error?.code === 'ENOENT') return createDefaultState();
       throw error;
     }
   }
