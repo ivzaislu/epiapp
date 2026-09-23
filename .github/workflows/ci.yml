@@ -7,6 +7,7 @@ on:
       - v-1.1
       - epiappapk
       - main
+      - northflank
   pull_request:
   workflow_dispatch:
 
@@ -44,7 +45,7 @@ jobs:
 
   selfhost:
     name: Self-host Docker stack
-    if: github.ref_name == 'epiappapk' || github.ref_name == 'main' || github.head_ref == 'epiappapk' || github.base_ref == 'main'
+    if: github.ref_name == 'epiappapk' || github.ref_name == 'main' || github.ref_name == 'northflank' || github.head_ref == 'epiappapk' || github.head_ref == 'northflank' || github.base_ref == 'main'
     runs-on: ubuntu-latest
 
     steps:
@@ -93,7 +94,7 @@ jobs:
 
   android:
     name: Android APKs
-    if: github.ref_name == 'epiappapk' || github.ref_name == 'main' || github.head_ref == 'epiappapk' || github.base_ref == 'main'
+    if: github.ref_name == 'epiappapk' || github.ref_name == 'main' || github.ref_name == 'northflank' || github.head_ref == 'epiappapk' || github.head_ref == 'northflank' || github.base_ref == 'main'
     runs-on: ubuntu-latest
 
     steps:
