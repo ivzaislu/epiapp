@@ -26,7 +26,9 @@ Required runtime secrets:
 ```text
 TELEGRAM_BOT_TOKEN=...
 TELEGRAM_ADMIN_ID=...
-APP_BASE_URL=https://<generated-code-run-domain>
+# APP_BASE_URL is optional on Northflank: EpiApp can derive it from NF_HOSTS.
+# Set it only if you use a custom domain or want to override the generated domain.
+APP_BASE_URL=https://<optional-custom-or-code-run-domain>
 DATABASE_URL=<Northflank PostgreSQL addon connection URI>
 HOST=0.0.0.0
 PORT=3000
@@ -81,9 +83,10 @@ This first PostgreSQL implementation deliberately keeps one JSONB state document
 3. Select branch `northflank`.
 4. Build using the repository `Dockerfile`.
 5. Expose port `3000` as public HTTP.
-6. Wait for the generated `*.code.run` hostname.
-7. Add runtime secrets listed above and set `APP_BASE_URL` to that HTTPS origin.
-8. Redeploy.
+6. Link the PostgreSQL addon connection string to the service as `DATABASE_URL` or `POSTGRES_URI`.
+7. Northflank injects `NF_HOSTS`; when `APP_BASE_URL` is empty EpiApp automatically uses the first generated public hostname as `https://…`.
+8. Set `APP_BASE_URL` only when you want to override that with a custom domain.
+9. Redeploy.
 9. Check:
    - `https://<domain>/healthz`
    - the child UI
@@ -107,3 +110,10 @@ DATABASE_URL='postgresql://…' npm run import:postgres -- /path/to/epiapp.json
 The command refuses to replace an already-populated PostgreSQL store. Only use `--force` when you intentionally want to replace the database state and already have a backup.
 
 The raw database URI, Telegram bot token, Android signing secrets and production JSON state must never be committed to Git.
+
+
+## Northflank-generated public URL
+
+Northflank injects `NF_HOSTS` into deployments with public ports. EpiApp uses the first hostname as its public HTTPS origin when `APP_BASE_URL` is not explicitly configured. This removes the deployment chicken-and-egg problem where the `code.run` hostname only exists after the service has been created.
+
+For a custom domain, set `APP_BASE_URL=https://your-domain.example`; the explicit value always wins.

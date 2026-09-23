@@ -26,6 +26,18 @@ const DATABASE_URL = String(process.env.DATABASE_URL || process.env.POSTGRES_URI
 const defaultStore = DATABASE_URL ? new PostgresStore(DATABASE_URL) : new Store(DATA_FILE);
 const pairingAttempts = new Map();
 
+export function resolvePublicAppUrl(env = process.env) {
+  const explicit = String(env.APP_BASE_URL || '').trim().replace(/\/$/, '');
+  if (explicit) return explicit;
+
+  const northflankHost = String(env.NF_HOSTS || '')
+    .split(',')
+    .map((value) => value.trim())
+    .find(Boolean);
+  if (!northflankHost) return '';
+  return `https://${northflankHost.replace(/^https?:\/\//i, '').replace(/\/$/, '')}`;
+}
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -370,11 +382,12 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === normalize(process.argv
   server.listen(PORT, HOST, () => {
     console.log(`EpiApp: http://${HOST}:${PORT}`);
     console.log(`EpiApp storage: ${DATABASE_URL ? 'PostgreSQL' : DATA_FILE}`);
+    if (!process.env.APP_BASE_URL && appUrl) console.log(`EpiApp public URL: ${appUrl} (from NF_HOSTS)`);
   });
 
   const botToken = process.env.TELEGRAM_BOT_TOKEN || '';
   const adminId = String(process.env.TELEGRAM_ADMIN_ID || '').trim();
-  const appUrl = String(process.env.APP_BASE_URL || '').trim();
+  const appUrl = resolvePublicAppUrl();
   if (botToken && adminId && appUrl) {
     startTelegramBot({ token: botToken, store: defaultStore, adminId, appUrl })
       .then(({ username }) => console.log(`EpiApp Telegram bot: @${username}`))

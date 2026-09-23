@@ -4,7 +4,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { createServer } from '../server.js';
+import { createServer, resolvePublicAppUrl } from '../server.js';
 import { Store } from '../src/store.js';
 
 const BOT_TOKEN = '123456:SERVER_TEST_TOKEN';
@@ -227,4 +227,21 @@ test('versioned JavaScript is revalidated instead of served stale', async () => 
   } finally {
     await close(server);
   }
+});
+
+
+test('Northflank public hostname can supply APP_BASE_URL automatically', () => {
+  assert.equal(
+    resolvePublicAppUrl({
+      NF_HOSTS: 'http--epiapp--abc.code.run,other--epiapp--abc.code.run',
+    }),
+    'https://http--epiapp--abc.code.run',
+  );
+  assert.equal(
+    resolvePublicAppUrl({
+      APP_BASE_URL: 'https://custom.example.com/',
+      NF_HOSTS: 'http--epiapp--abc.code.run',
+    }),
+    'https://custom.example.com',
+  );
 });
