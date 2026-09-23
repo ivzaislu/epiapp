@@ -27,6 +27,7 @@ Required runtime secrets:
 TELEGRAM_BOT_TOKEN=...
 TELEGRAM_ADMIN_ID=...
 APP_BASE_URL=https://<generated-code-run-domain>
+DATABASE_URL=<Northflank PostgreSQL addon connection URI>
 HOST=0.0.0.0
 PORT=3000
 ```
@@ -61,14 +62,17 @@ Use the Sandbox plan's database addon and move EpiApp's persistent state to Post
 
 This is the target for the `northflank` branch because it avoids relying on an ephemeral JSON file and fits Northflank's free service + free database model.
 
-Planned migration:
+Implemented in this branch:
 
-1. keep the existing JSON store as the default for normal self-hosting;
-2. add a PostgreSQL storage adapter selected by `DATABASE_URL` / `POSTGRES_URI`;
-3. preserve the same store API so server routes and Telegram logic do not need to know which backend is used;
-4. provide a one-time JSON → PostgreSQL import command;
-5. add Northflank deployment/health checks to CI;
-6. keep `/healthz` as the service health endpoint.
+1. JSON remains the default backend when no PostgreSQL URL is configured;
+2. `DATABASE_URL` or `POSTGRES_URI` selects the PostgreSQL backend automatically;
+3. PostgreSQL stores the normalized EpiApp state in a durable JSONB row while preserving the existing Store API;
+4. mutations use a PostgreSQL transaction plus an advisory lock, so concurrent writes cannot silently overwrite each other;
+5. `npm run import:postgres -- /path/to/epiapp.json` performs a one-time JSON → PostgreSQL import and refuses to overwrite existing DB data unless `--force` is supplied;
+6. `/healthz` now reads the selected storage backend, so a broken database makes the health check fail;
+7. CI includes a real PostgreSQL 16 integration service and tests persistence, duplicate-dose concurrency, device-token hashing and import overwrite protection.
+
+This first PostgreSQL implementation deliberately keeps one JSONB state document rather than prematurely splitting every EpiApp entity into relational tables. It gives Northflank durable storage with minimal risk to the existing application logic. We can normalize individual tables later if scale or querying needs justify it.
 
 ## Initial Northflank service setup
 
@@ -90,3 +94,16 @@ Planned migration:
 ## Production caution
 
 Northflank documents the Developer Sandbox as a development/hobby tier, not a production SLA tier. For family testing this can be useful, but EpiApp should keep the existing self-hosted deployment path available until the hosted path has been proven reliable.
+
+
+## Importing an existing family state
+
+If this Northflank deployment replaces an existing self-hosted instance, first make a backup of the original JSON file. Then run the import from a trusted environment where the PostgreSQL secret is available:
+
+```bash
+DATABASE_URL='postgresql://…' npm run import:postgres -- /path/to/epiapp.json
+```
+
+The command refuses to replace an already-populated PostgreSQL store. Only use `--force` when you intentionally want to replace the database state and already have a backup.
+
+The raw database URI, Telegram bot token, Android signing secrets and production JSON state must never be committed to Git.
