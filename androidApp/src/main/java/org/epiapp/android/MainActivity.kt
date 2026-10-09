@@ -486,7 +486,12 @@ class MainActivity : ComponentActivity() {
             try {
                 val api = ApiClient(serverUrl)
                 val saved = api.updateParentSettings(token, settings)
-                val stats = api.parentStats(token, 7)
+                // Saving the schedule is not invalidated by a temporary statistics failure.
+                val stats = try {
+                    api.parentStats(token, 7)
+                } catch (_: Exception) {
+                    cachedParentStats ?: throw IllegalStateException("Настройки сохранены, но обновить статистику не удалось.")
+                }
                 runOnUiThread {
                     val base = currentState
                     if (base != null) {
