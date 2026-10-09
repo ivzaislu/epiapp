@@ -94,3 +94,12 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
+
+// Android Studio may request this IDE-only Kotlin DSL model preparation task on
+// :androidApp when the module was imported as a separate Gradle project.
+// This no-op compatibility task does not build, sign, or install an APK.
+// The correct long-term fix is to import the repository root as one Gradle build.
+tasks.register("prepareKotlinBuildScriptModel") {
+    group = "IDE"
+    description = "Compatibility with Android Studio Kotlin DSL model synchronization"
+}
