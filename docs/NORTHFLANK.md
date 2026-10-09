@@ -82,19 +82,19 @@ It is responsible for:
 - Android pairing;
 - parent notifications and escalation.
 
-For Android pairing the bot creates a short-lived one-time code and sends an HTTPS button:
+For Android pairing the bot creates a short-lived high-entropy one-time link token and sends an HTTPS button:
 
 ```text
-https://<northflank-domain>/android/connect?code=...
+https://<northflank-domain>/android/connect?token=...
 ```
 
 That handoff page opens the native APK through:
 
 ```text
-epiapp://connect?server=https%3A%2F%2F...&code=...
+epiapp://connect?server=https%3A%2F%2F...&token=...
 ```
 
-The APK then exchanges the one-time code for a random device token and keeps that token encrypted with Android Keystore.
+The APK then exchanges the one-time link token for a random device token and keeps that token encrypted with Android Keystore.
 
 ## Initial deployment
 
