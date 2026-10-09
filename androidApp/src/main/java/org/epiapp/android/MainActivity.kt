@@ -40,6 +40,7 @@ class MainActivity : ComponentActivity() {
     private var currentServerUrl: String? = null
     private var currentState: DeviceScheduleState? = null
     private var currentChildTab: ChildTab = ChildTab.HOME
+    private var parentChildPreview = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -186,6 +187,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun confirmDose(slot: String, complete: (String?) -> Unit) {
+        if (currentRole != "child") {
+            complete("Только ребёнок может подтвердить приём.")
+            return
+        }
         val serverUrl = secureStore.getServerUrl()
         val token = secureStore.getDeviceToken()
         if (serverUrl == null || token == null) {
@@ -237,6 +242,7 @@ class MainActivity : ComponentActivity() {
         currentServerUrl = null
         currentState = null
         currentChildTab = ChildTab.HOME
+        parentChildPreview = false
     }
 
     private fun syncScheduleSilently() {
@@ -263,7 +269,25 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showNativeHome(state: DeviceScheduleState) {
-        if (state.role == "child") showChildHome(state) else showAdultHome(state)
+        if (state.role == "child" || parentChildPreview && state.role in setOf("parent", "admin")) {
+            showChildHome(state)
+        } else {
+            showAdultHome(state)
+        }
+    }
+
+    private fun openChildPreview() {
+        val state = currentState ?: return
+        if (state.role != "parent" && state.role != "admin") return
+        parentChildPreview = true
+        currentChildTab = ChildTab.HOME
+        showChildHome(state)
+    }
+
+    private fun leaveChildPreview() {
+        parentChildPreview = false
+        currentChildTab = ChildTab.HOME
+        currentState?.let { showAdultHome(it) }
     }
 
     private fun title(text: String, size: Float = 28f): TextView = TextView(this).apply {
@@ -324,6 +348,7 @@ class MainActivity : ComponentActivity() {
                     clearDeviceAccess()
                     showPairing(suggestedServer = previous)
                 },
+                onBackToParent = { leaveChildPreview() },
                 onTakeDose = { slot, complete -> confirmDose(slot, complete) },
                 onLoadHistory = { complete ->
                     val serverUrl = secureStore.getServerUrl()
@@ -406,6 +431,16 @@ class MainActivity : ComponentActivity() {
 
         val settingsCard = card()
         settingsCard.addView(title("Настройки", 21f))
+        settingsCard.addView(Button(this).apply {
+            text = "Детский режим · Только просмотр"
+            setOnClickListener { openChildPreview() }
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)).apply {
+            topMargin = dp(12)
+        })
+        settingsCard.addView(muted(
+            "Можно посмотреть расписание и историю, но нельзя отметить приём за ребёнка.",
+            13f,
+        ).apply { setPadding(0, dp(5), 0, dp(9)) })
 
         fun field(label: String, value: String, type: Int = InputType.TYPE_CLASS_TEXT): EditText {
             settingsCard.addView(muted(label, 12f).apply { setPadding(0, dp(12), 0, dp(3)) })
