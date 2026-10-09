@@ -232,6 +232,13 @@ test('Android APK pairs once, creates a secure web session and loses access afte
     assert.equal(afterTake.status, 200);
     assert.ok((await afterTake.json()).todayDoses.morning);
 
+    const nativeHistory = await fetch(`${baseUrl}/api/state`, {
+      headers: { authorization: `Bearer ${pairData.deviceToken}` },
+    });
+    assert.equal(nativeHistory.status, 200);
+    const historyData = await nativeHistory.json();
+    assert.equal(historyData.recentDoses[0].slot, 'morning');
+
     const nativeSession = await fetch(`${baseUrl}/api/device/session`, {
       method: 'POST',
       headers: { authorization: `Bearer ${pairData.deviceToken}` },
