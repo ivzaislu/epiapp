@@ -20,6 +20,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
+import android.widget.Switch
 import android.widget.TextView
 import java.util.Locale
 import kotlin.concurrent.thread
@@ -387,38 +388,187 @@ class MainActivity : Activity() {
     }
 
     private fun showAdultHome(state: DeviceScheduleState) {
+        val serverUrl = secureStore.getServerUrl()
+        val token = secureStore.getDeviceToken()
+        if (serverUrl == null || token == null) {
+            showPairing("Подключение устройства потеряно.")
+            return
+        }
+
+        showLoading("Загружаю кабинет…")
+        thread(name = "epiapp-parent-load") {
+            try {
+                val api = ApiClient(serverUrl)
+                val settings = api.parentSettings(token)
+                val stats = api.parentStats(token, 7)
+                runOnUiThread {
+                    val updatedState = state.copy(schedule = settings)
+                    currentState = updatedState
+                    renderAdultDashboard(state.role, settings, stats)
+                }
+            } catch (error: ApiException) {
+                runOnUiThread {
+                    if (error.statusCode == 401 || error.statusCode == 403) {
+                        clearDeviceAccess()
+                        showPairing("Доступ этого Android-устройства отозван.", serverUrl)
+                    } else {
+                        showRetry(error.message ?: "Не удалось загрузить кабинет.", serverUrl, token)
+                    }
+                }
+            } catch (error: Exception) {
+                runOnUiThread { showRetry(error.message ?: "Нет связи с сервером.", serverUrl, token) }
+            }
+        }
+    }
+
+    private fun renderAdultDashboard(role: String, settings: NativeSchedule, stats: ParentStats) {
+        val scroll = ScrollView(this).apply { setBackgroundColor(Color.parseColor("#F4F7FB")) }
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(dp(28), dp(40), dp(28), dp(40))
-            setBackgroundColor(Color.parseColor("#F4F7FB"))
+            setPadding(dp(22), dp(30), dp(22), dp(36))
         }
-        root.addView(title("EpiApp", 34f).apply { gravity = Gravity.CENTER })
-        root.addView(title(if (state.role == "admin") "Администратор" else "Родитель", 22f).apply {
-            gravity = Gravity.CENTER
-            setPadding(0, dp(10), 0, dp(14))
+        scroll.addView(root)
+
+        root.addView(title("EpiApp", 32f))
+        root.addView(muted(if (role == "admin") "Администратор" else "Родитель", 16f).apply {
+            setPadding(0, dp(4), 0, 0)
         })
-        root.addView(muted(
-            "APK уже работает без WebView. Детский экран перенесён в native. Родительские настройки и статистика будут перенесены следующим этапом.",
-            16f,
-        ).apply { gravity = Gravity.CENTER })
-        root.addView(Button(this).apply {
+
+        val statsCard = card()
+        statsCard.addView(title("Статистика за 7 дней", 21f))
+        val rateText = stats.rate?.let { it.toString() + "%" } ?: "—"
+        statsCard.addView(title(rateText, 34f).apply { setPadding(0, dp(8), 0, dp(4)) })
+        statsCard.addView(muted(
+            "Отмечено: " + stats.taken + " из " + stats.expected +
+                "\nПропущено: " + stats.missed +
+                "\nПолных дней подряд: " + stats.currentStreak,
+            15f,
+        ))
+        addCard(root, statsCard)
+
+        val settingsCard = card()
+        settingsCard.addView(title("Настройки", 21f))
+
+        fun field(label: String, value: String, type: Int = InputType.TYPE_CLASS_TEXT): EditText {
+            settingsCard.addView(muted(label, 12f).apply { setPadding(0, dp(12), 0, dp(3)) })
+            return EditText(this).apply {
+                setText(value)
+                textSize = 16f
+                inputType = type
+                setSingleLine(true)
+                settingsCard.addView(this, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            }
+        }
+
+        val childName = field("Имя ребёнка", settings.childName)
+        val medication = field("Препарат", settings.medicationName)
+        val morningDose = field("Утренняя доза", settings.morningDose)
+        val eveningDose = field("Вечерняя доза", settings.eveningDose)
+        val morningTime = field("Утреннее время", settings.morningTime)
+        val eveningTime = field("Вечернее время", settings.eveningTime)
+        val timezone = field("Часовой пояс", settings.timezone)
+
+        val reminders = Switch(this).apply {
+            text = "Напоминания включены"
+            isChecked = settings.remindersEnabled
+            textSize = 16f
+            setPadding(0, dp(14), 0, dp(4))
+        }
+        settingsCard.addView(reminders)
+
+        val firstMinutes = field("Первое напоминание через, мин", settings.reminderFirstMinutes.toString(), InputType.TYPE_CLASS_NUMBER)
+        val urgentMinutes = field("Срочная тревога через, мин", settings.reminderUrgentMinutes.toString(), InputType.TYPE_CLASS_NUMBER)
+        val repeatMinutes = field("Повтор каждые, мин", settings.reminderRepeatMinutes.toString(), InputType.TYPE_CLASS_NUMBER)
+        val stopMinutes = field("Остановить повторы через, мин", settings.reminderStopMinutes.toString(), InputType.TYPE_CLASS_NUMBER)
+
+        val saveStatus = muted("", 14f).apply { setPadding(0, dp(10), 0, dp(6)) }
+        settingsCard.addView(saveStatus)
+
+        val saveButton = Button(this).apply {
+            text = "Сохранить настройки"
+            textSize = 17f
+        }
+        saveButton.setOnClickListener {
+            val updated = settings.copy(
+                childName = childName.text.toString(),
+                medicationName = medication.text.toString(),
+                morningDose = morningDose.text.toString(),
+                eveningDose = eveningDose.text.toString(),
+                morningTime = morningTime.text.toString(),
+                eveningTime = eveningTime.text.toString(),
+                timezone = timezone.text.toString(),
+                remindersEnabled = reminders.isChecked,
+                reminderFirstMinutes = firstMinutes.text.toString().toIntOrNull() ?: settings.reminderFirstMinutes,
+                reminderUrgentMinutes = urgentMinutes.text.toString().toIntOrNull() ?: settings.reminderUrgentMinutes,
+                reminderRepeatMinutes = repeatMinutes.text.toString().toIntOrNull() ?: settings.reminderRepeatMinutes,
+                reminderStopMinutes = stopMinutes.text.toString().toIntOrNull() ?: settings.reminderStopMinutes,
+            )
+            saveParentSettings(role, updated, saveButton, saveStatus)
+        }
+        settingsCard.addView(saveButton, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)))
+        addCard(root, settingsCard)
+
+        val account = card()
+        account.addView(muted("СЕРВЕР", 12f))
+        account.addView(muted(secureStore.getServerUrl().orEmpty(), 14f).apply {
+            setPadding(0, dp(6), 0, dp(8))
+        })
+        account.addView(Button(this).apply {
             text = "Обновить данные"
-            setOnClickListener { syncScheduleSilently() }
-        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)).apply {
-            topMargin = dp(20)
+            setOnClickListener { currentState?.let { showAdultHome(it) } }
         })
-        root.addView(Button(this).apply {
+        account.addView(Button(this).apply {
+            text = "Проверить обновления"
+            setOnClickListener { AppUpdater.checkForUpdates(this@MainActivity, force = true) }
+        })
+        account.addView(Button(this).apply {
             text = "Переподключить устройство"
             setOnClickListener {
                 val previous = secureStore.getServerUrl().orEmpty()
                 clearDeviceAccess()
                 showPairing(suggestedServer = previous)
             }
-        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)).apply {
-            topMargin = dp(10)
         })
-        setContentView(root)
+        addCard(root, account)
+
+        setContentView(scroll)
+    }
+
+    private fun saveParentSettings(role: String, settings: NativeSchedule, button: Button, status: TextView) {
+        val serverUrl = secureStore.getServerUrl() ?: return
+        val token = secureStore.getDeviceToken() ?: return
+        button.isEnabled = false
+        status.text = "Сохраняю…"
+        thread(name = "epiapp-parent-save") {
+            try {
+                val api = ApiClient(serverUrl)
+                val saved = api.updateParentSettings(token, settings)
+                val stats = api.parentStats(token, 7)
+                val base = currentState
+                runOnUiThread {
+                    if (base != null) {
+                        currentState = base.copy(schedule = saved)
+                        applyNativeState(currentState!!)
+                    }
+                    renderAdultDashboard(role, saved, stats)
+                }
+            } catch (error: ApiException) {
+                runOnUiThread {
+                    if (error.statusCode == 401 || error.statusCode == 403) {
+                        clearDeviceAccess()
+                        showPairing("Доступ этого Android-устройства отозван.", serverUrl)
+                    } else {
+                        button.isEnabled = true
+                        status.text = error.message ?: "Не удалось сохранить настройки."
+                    }
+                }
+            } catch (error: Exception) {
+                runOnUiThread {
+                    button.isEnabled = true
+                    status.text = error.message ?: "Нет связи с сервером."
+                }
+            }
+        }
     }
 
     private fun showPairing(error: String? = null, suggestedServer: String = "") {
