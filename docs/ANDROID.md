@@ -1,84 +1,117 @@
-# Универсальный Android APK
+# Native Android EpiApp
 
-Один APK EpiApp может подключаться к любому совместимому self-hosted EpiApp-серверу. В APK не вшивается домен конкретной семьи, Telegram bot token или `TELEGRAM_ADMIN_ID`.
+The Android application is a native Kotlin client. It no longer depends on WebView for the main child or parent/admin flows.
 
-## Требования
+The backend, Telegram bot and PostgreSQL database are hosted on Northflank. The APK connects to that service over HTTPS.
+
+## Requirements
 
 - Android 8.0+ (API 26+);
-- публичный EpiApp-сервер с действующим HTTPS;
-- Telegram-аккаунт уже должен иметь роль `child`, `parent` или `admin` на этом сервере.
+- a running Northflank EpiApp service with PostgreSQL;
+- a valid public HTTPS origin;
+- a Telegram account that already has the role `child`, `parent` or `admin`.
 
-## Подключение
+## One-tap pairing
 
-1. В Telegram откройте бота именно вашего EpiApp-сервера.
-2. Нажмите `📲 Подключить Android`.
-3. Бот покажет HTTPS-адрес сервера и шестизначный код.
-4. Запустите APK.
-5. Введите, например:
+Primary flow:
 
-```text
-https://epiapp.example.com
-123 456
-```
+1. Open the family EpiApp bot in Telegram.
+2. Press `📲 Подключить Android`.
+3. Press `📲 Открыть в EpiApp`.
+4. Android opens the installed APK through the `epiapp://connect` deep link.
+5. The APK receives the Northflank HTTPS origin and the one-time code automatically.
+6. The APK checks `/healthz`, exchanges the code through `/api/device/pair`, stores the returned device token and loads the native screen.
 
-6. Нажмите `Подключить EpiApp`.
+Manual server/code entry remains only as a fallback.
 
-APK сначала проверяет `/healthz`, затем обменивает одноразовый код на случайный device-token.
+The pairing code is valid for five minutes and can be used once.
 
-Адрес должен быть HTTPS-origin без дополнительного пути. APK не принимает `http://` и не работает с `https://host/some/path`.
+## Authentication and storage
 
-## Хранение доступа
+The server stores only a SHA-256 hash of the persistent Android device token.
 
-На сервере сохраняется только SHA-256 hash device-token. На Android сам device-token шифруется ключом Android Keystore. Адрес сервера хранится отдельно как несекретная конфигурация подключения.
+On Android:
 
-WebView разрешает внутреннюю навигацию только по тому же HTTPS-origin, к которому подключено устройство. Внешние ссылки передаются системному браузеру/соответствующему приложению.
+- the device token is encrypted using Android Keystore;
+- the server HTTPS origin is stored as non-secret connection configuration;
+- the child schedule is cached locally for alarm recovery.
 
-## Роли
+The APK does not contain:
 
-- `child` — детский интерфейс и локальные Android alarms;
-- `parent` — родительский кабинет, графики и настройки, без детских локальных alarms;
-- `admin` — родительский/административный интерфейс.
+- `TELEGRAM_BOT_TOKEN`;
+- `TELEGRAM_ADMIN_ID`;
+- PostgreSQL credentials;
+- family database state.
 
-## Будильники ребёнка
+## Native roles
 
-Интервалы берутся с сервера. При стандартной конфигурации:
+### Child
 
-```text
-+15 минут  обычное Android-уведомление
-+30 минут  полноэкранная срочная тревога
-+45 минут  повтор
-+60 минут  повтор
-```
+The native child screen shows:
 
-Экран срочной тревоги использует alarm audio usage, циклический системный alarm sound и вибрацию до явного выбора пользователя.
+- medication name;
+- morning/evening schedule;
+- configured doses;
+- today's completion state;
+- direct native `Отметить приём` buttons;
+- reminder reliability status;
+- reconnect/update actions.
 
-`🔕 Выключить будильник` не создаёт отметку о приёме. Отметка появляется только после подтверждения в EpiApp и успешного ответа сервера.
+A dose is written through the device-token API and then synchronized back from the server.
 
-## Разрешения
+### Parent / admin
 
-На детском телефоне разрешите:
+The native parent/admin screen shows:
+
+- seven-day statistics;
+- child name;
+- medication;
+- morning/evening doses;
+- schedule;
+- timezone;
+- reminder configuration;
+- reconnect/update actions.
+
+Settings and statistics use the same Android device token; WebView cookies are not required.
+
+## Alarms
+
+Alarm delivery is native and independent from WebView.
+
+The schedule is cached on the phone and alarms are created through Android `AlarmManager`.
+
+For accurate timing the child device should allow:
 
 - Notifications;
 - Alarms & reminders / exact alarms;
-- full-screen alarm access, если Android показывает отдельную настройку.
+- full-screen alarm access when Android exposes that setting.
 
-Без exact-alarm permission используется менее точный fallback. Без full-screen permission остаётся high-priority уведомление, но Android может не открыть экран тревоги автоматически.
+The app shows these permissions as a reliability checklist. If exact-alarm access is unavailable, Android may delay the fallback alarm.
 
-Нельзя гарантировать звук при абсолютно любых настройках производителя/DND/каналов уведомлений. Telegram-эскалация родителям остаётся независимым вторым каналом.
+The urgent alarm screen keeps two actions separate:
 
-## Работа без интернета
+- open EpiApp and confirm the dose;
+- silence the alarm without recording a dose.
 
-После успешной синхронизации детский APK хранит локальную копию расписания. Уже поставленные alarms могут срабатывать без сети.
+Silencing an alarm never marks medication as taken.
 
-Отметка и серверная статистика требуют соединения. Расписание фоново сверяется с сервером примерно раз в 30 минут, а также после запуска/перезагрузки/смены времени.
+## Offline behavior
 
-## Смена сервера
+After a successful synchronization the child schedule remains cached locally.
 
-В экране ошибки есть `Сменить сервер / переподключить`. Это удаляет локальный device-token, локальное расписание и cookie. На новом сервере нужен новый код из его Telegram-бота.
+Already scheduled alarms can fire while the Northflank service or the phone's internet connection is temporarily unavailable.
 
-Если сервер просто переносится на другой VPS, но сохраняет тот же домен и тот же JSON с device hashes, повторное подключение Android обычно не требуется.
+Writing a dose, parent statistics, settings changes and access checks require connectivity to the Northflank API.
 
-## Сборка
+## Northflank
+
+The APK connects to the public HTTPS origin of the Northflank service.
+
+All durable data stays in the Northflank PostgreSQL addon. The Telegram bot runs in the same Northflank Node.js service as the API.
+
+See [NORTHFLANK.md](NORTHFLANK.md).
+
+## Build
 
 Debug build:
 
@@ -86,10 +119,10 @@ Debug build:
 gradle --no-daemon :androidApp:assembleDebug
 ```
 
-Результат:
+Output:
 
 ```text
 androidApp/build/outputs/apk/debug/androidApp-debug.apk
 ```
 
-Для постоянного распространения нужен стабильный release signing key. См. [RELEASE.md](RELEASE.md).
+A stable release signing key is required for normal upgrades. See [RELEASE.md](RELEASE.md).
