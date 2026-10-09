@@ -112,6 +112,33 @@ class ApiClient(inputBaseUrl: String) {
         )
     }
 
+    fun parentSettings(deviceToken: String): NativeSchedule {
+        val response = request(
+            path = "/api/parent/settings",
+            bearer = deviceToken,
+        )
+        return NativeSchedule.fromJson(response.json.getJSONObject("settings"))
+    }
+
+    fun updateParentSettings(deviceToken: String, settings: NativeSchedule): NativeSchedule {
+        val response = request(
+            path = "/api/parent/settings",
+            method = "POST",
+            bearer = deviceToken,
+            payload = settings.toJson(),
+        )
+        return NativeSchedule.fromJson(response.json.getJSONObject("settings"))
+    }
+
+    fun parentStats(deviceToken: String, days: Int = 7): ParentStats {
+        val safeDays = days.coerceIn(1, 90)
+        val response = request(
+            path = "/api/parent/stats?days=$safeDays",
+            bearer = deviceToken,
+        )
+        return ParentStats.fromJson(response.json.getJSONObject("stats"))
+    }
+
     fun takeDose(deviceToken: String, slot: String): DeviceScheduleState {
         request(
             path = "/api/device/take",
