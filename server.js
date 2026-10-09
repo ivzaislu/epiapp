@@ -227,8 +227,8 @@ export function createServer(options = {}) {
       }
 
       if (req.method === 'GET' && url.pathname === '/android/connect') {
-        const code = String(url.searchParams.get('code') || '').replace(/\D/g, '');
-        if (!/^\d{6}$/.test(code)) {
+        const linkToken = String(url.searchParams.get('token') || '');
+        if (!/^[A-Za-z0-9_-]{32,128}$/.test(linkToken)) {
           res.writeHead(400, {
             'content-type': 'text/html; charset=utf-8',
             'cache-control': 'no-store',
@@ -260,7 +260,7 @@ p{line-height:1.5;color:#566177}
 <a id="open" href="#">Открыть EpiApp</a>
 </main>
 <script>
-const target='epiapp://connect?server='+encodeURIComponent(location.origin)+'&code=${code}';
+const target='epiapp://connect?server='+encodeURIComponent(location.origin)+'&token=${linkToken}';
 document.getElementById('open').href=target;
 location.replace(target);
 </script>
