@@ -424,7 +424,7 @@ private fun DoseCard(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = EpiColors.success)
+                        Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
                         Spacer(Modifier.width(8.dp))
                         Text("Приём подтверждён", color = MaterialTheme.colorScheme.onTertiaryContainer, fontWeight = FontWeight.Bold)
                     }
@@ -520,7 +520,7 @@ private fun HistoryPage(
                         Icon(
                             Icons.Rounded.CheckCircle,
                             contentDescription = null,
-                            tint = EpiColors.success,
+                            tint = MaterialTheme.colorScheme.tertiary,
                             modifier = Modifier.size(26.dp),
                         )
                         Spacer(Modifier.width(14.dp))
@@ -679,12 +679,12 @@ private fun PermissionRow(label: String, granted: Boolean, onGrant: () -> Unit) 
         Icon(
             if (granted) Icons.Rounded.CheckCircle else Icons.Rounded.NotificationsActive,
             contentDescription = null,
-            tint = if (granted) EpiColors.success else MaterialTheme.colorScheme.error,
+            tint = if (granted) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error,
         )
         Spacer(Modifier.width(10.dp))
         Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
         if (granted) {
-            Text("Готово", color = EpiColors.success, style = MaterialTheme.typography.labelMedium)
+            Text("Готово", color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.labelMedium)
         } else {
             TextButton(onClick = onGrant) { Text("Разрешить") }
         }
