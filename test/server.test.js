@@ -250,18 +250,35 @@ test('Android APK pairs once, creates a secure web session and loses access afte
 });
 
 
+test('strong Android pairing link and six-digit fallback are jointly single-use', async () => {
+  const store = await tempStore();
+  const pairing = await store.createDevicePairCode('444444444');
+  assert.match(pairing.linkToken, /^[A-Za-z0-9_-]{32,128}$/);
+  const paired = await store.pairDevice(pairing.linkToken, { deviceName: 'Pixel Native' });
+  assert.ok(paired.deviceToken.length >= 32);
+  await assert.rejects(
+    store.pairDevice(pairing.code, { deviceName: 'Manual Replay' }),
+    (error) => error.statusCode === 401,
+  );
+  await assert.rejects(
+    store.pairDevice(pairing.linkToken, { deviceName: 'Link Replay' }),
+    (error) => error.statusCode === 401,
+  );
+});
+
+
 test('Android pairing handoff opens the native deep link without manual server entry', async () => {
   const server = createServer();
   const port = await listen(server);
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/android/connect?code=123456`);
+    const response = await fetch(`http://127.0.0.1:${port}/android/connect?token=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA`);
     assert.equal(response.status, 200);
     assert.match(response.headers.get('cache-control') || '', /no-store/);
     const html = await response.text();
     assert.match(html, /epiapp:\/\/connect/);
-    assert.match(html, /code=123456/);
+    assert.match(html, /token=AAAAAAAA/);
 
-    const invalid = await fetch(`http://127.0.0.1:${port}/android/connect?code=nope`);
+    const invalid = await fetch(`http://127.0.0.1:${port}/android/connect?token=nope`);
     assert.equal(invalid.status, 400);
   } finally {
     await close(server);
