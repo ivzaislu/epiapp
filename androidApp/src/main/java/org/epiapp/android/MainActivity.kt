@@ -84,6 +84,23 @@ class MainActivity : ComponentActivity() {
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
+    private fun applyAppWindowColors(darkTheme: Boolean) {
+        val color = Color.parseColor(if (darkTheme) "#122124" else "#F5F8F6")
+        window.statusBarColor = color
+        window.navigationBarColor = color
+        val mask = android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
+            android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+        val lightBars = if (darkTheme) 0 else mask
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.insetsController?.setSystemBarsAppearance(lightBars, mask)
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = if (darkTheme) 0 else (
+                View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+            )
+        }
+    }
+
     private fun handlePairingIntent(intent: Intent?): Boolean {
         val data = intent?.data ?: return false
         if (!data.scheme.equals("epiapp", ignoreCase = true) || !data.host.equals("connect", ignoreCase = true)) return false
@@ -329,6 +346,7 @@ class MainActivity : ComponentActivity() {
 
     private fun showChildHome(state: DeviceScheduleState) {
         val preferences = getSharedPreferences("epiapp_ui", MODE_PRIVATE)
+        applyAppWindowColors(preferences.getBoolean("dark_theme", false))
         setContent {
             var darkTheme by remember { mutableStateOf(preferences.getBoolean("dark_theme", false)) }
             ChildDashboard(
@@ -340,6 +358,7 @@ class MainActivity : ComponentActivity() {
                 onDarkThemeChange = { enabled ->
                     darkTheme = enabled
                     preferences.edit().putBoolean("dark_theme", enabled).apply()
+                    applyAppWindowColors(enabled)
                 },
                 permissions = AlarmPermissions(
                     notifications = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
@@ -422,6 +441,7 @@ class MainActivity : ComponentActivity() {
     private fun renderAdultDashboard(role: String, settings: NativeSchedule, stats: ParentStats) {
         val state = currentState ?: return
         val preferences = getSharedPreferences("epiapp_ui", MODE_PRIVATE)
+        applyAppWindowColors(preferences.getBoolean("dark_theme", false))
         cachedParentSettings = settings
         cachedParentStats = stats
         setContent {
@@ -437,6 +457,7 @@ class MainActivity : ComponentActivity() {
                 onDarkThemeChange = { enabled ->
                     darkTheme = enabled
                     preferences.edit().putBoolean("dark_theme", enabled).apply()
+                    applyAppWindowColors(enabled)
                 },
                 onPreviewChild = { openChildPreview() },
                 onRefresh = { currentState?.let { showAdultHome(it) } },
@@ -491,6 +512,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showPairing(error: String? = null, suggestedServer: String = "") {
+        applyAppWindowColors(false)
         currentRole = null
         currentState = null
 
@@ -566,6 +588,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showLoading(message: String) {
+        applyAppWindowColors(false)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -582,6 +605,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showRetry(message: String, serverUrl: String, token: String) {
+        applyAppWindowColors(false)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
