@@ -306,13 +306,13 @@ class MainActivity : ComponentActivity() {
     private fun title(text: String, size: Float = 28f): TextView = TextView(this).apply {
         this.text = text
         textSize = size
-        setTextColor(Color.parseColor("#172033"))
+        setTextColor(Color.parseColor("#1C343A"))
     }
 
     private fun muted(text: String, size: Float = 14f): TextView = TextView(this).apply {
         this.text = text
         textSize = size
-        setTextColor(Color.parseColor("#677085"))
+        setTextColor(Color.parseColor("#64777A"))
     }
 
     private fun card(): LinearLayout = LinearLayout(this).apply {
@@ -494,7 +494,7 @@ class MainActivity : ComponentActivity() {
         currentRole = null
         currentState = null
 
-        val scroll = ScrollView(this).apply { setBackgroundColor(Color.parseColor("#F4F7FB")) }
+        val scroll = ScrollView(this).apply { setBackgroundColor(Color.parseColor("#F5F8F6")) }
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
@@ -505,7 +505,7 @@ class MainActivity : ComponentActivity() {
         root.addView(title("EpiApp", 34f).apply { gravity = Gravity.CENTER })
         root.addView(title("Подключение Android", 22f).apply {
             gravity = Gravity.CENTER
-            setTextColor(Color.parseColor("#315BD6"))
+            setTextColor(Color.parseColor("#246A70"))
             setPadding(0, dp(8), 0, dp(16))
         })
         root.addView(muted(
@@ -569,7 +569,7 @@ class MainActivity : ComponentActivity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setBackgroundColor(Color.parseColor("#F4F7FB"))
+            setBackgroundColor(Color.parseColor("#F5F8F6"))
             addView(ProgressBar(this@MainActivity))
             addView(TextView(this@MainActivity).apply {
                 text = message
@@ -586,7 +586,7 @@ class MainActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(dp(36), dp(36), dp(36), dp(36))
-            setBackgroundColor(Color.parseColor("#F4F7FB"))
+            setBackgroundColor(Color.parseColor("#F5F8F6"))
             addView(title("Нет связи с EpiApp", 24f).apply { gravity = Gravity.CENTER })
             addView(muted("$serverUrl\n\n$message", 15f).apply {
                 gravity = Gravity.CENTER
