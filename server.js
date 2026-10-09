@@ -173,6 +173,9 @@ async function notificationChatIds({ store, adminId }) {
 function publicSettings(settings) {
   return {
     childName: settings.childName,
+    medicationName: settings.medicationName,
+    morningDose: settings.morningDose,
+    eveningDose: settings.eveningDose,
     morningTime: settings.morningTime,
     eveningTime: settings.eveningTime,
     timezone: settings.timezone,
@@ -214,6 +217,47 @@ export function createServer(options = {}) {
       if (req.method === 'GET' && url.pathname === '/healthz') {
         await context.store.read();
         return json(res, 200, { ok: true });
+      }
+
+      if (req.method === 'GET' && url.pathname === '/android/connect') {
+        const code = String(url.searchParams.get('code') || '').replace(/\D/g, '');
+        if (!/^\d{6}$/.test(code)) {
+          res.writeHead(400, {
+            'content-type': 'text/html; charset=utf-8',
+            'cache-control': 'no-store',
+            'referrer-policy': 'no-referrer',
+          });
+          return res.end('<!doctype html><meta charset="utf-8"><title>EpiApp</title><p>Ссылка подключения недействительна или устарела.</p>');
+        }
+        res.writeHead(200, {
+          'content-type': 'text/html; charset=utf-8',
+          'cache-control': 'no-store',
+          'referrer-policy': 'no-referrer',
+          'x-content-type-options': 'nosniff',
+          'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'",
+        });
+        return res.end(`<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Подключение EpiApp</title>
+<style>
+body{font-family:system-ui,sans-serif;background:#f4f7fb;color:#172033;margin:0;padding:32px}
+main{max-width:520px;margin:12vh auto;background:#fff;padding:28px;border-radius:20px;box-shadow:0 10px 35px #17203318}
+a{display:block;text-align:center;background:#315bd6;color:#fff;text-decoration:none;padding:16px;border-radius:12px;font-weight:700}
+p{line-height:1.5;color:#566177}
+</style>
+<main>
+<h1>EpiApp</h1>
+<p>Открываю приложение и передаю данные подключения. Если ничего не произошло, нажмите кнопку ниже.</p>
+<a id="open" href="#">Открыть EpiApp</a>
+</main>
+<script>
+const target='epiapp://connect?server='+encodeURIComponent(location.origin)+'&code=${code}';
+document.getElementById('open').href=target;
+location.replace(target);
+</script>
+</html>`);
       }
 
       if (req.method === 'POST' && url.pathname === '/api/auth/telegram') {
@@ -277,6 +321,22 @@ export function createServer(options = {}) {
           today: childState.today,
           todayDoses: childState.todayDoses,
         });
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/device/take') {
+        const { user } = await requireDevice(req, context);
+        if (user.role !== 'child') throw new AuthError('Отмечать приём может только детский профиль.', 403);
+        const payload = await body(req);
+        const result = await context.store.takeDose(payload.slot, new Date(), user);
+        const notification = await notifyDose({
+          token: context.botToken,
+          chatIds: await notificationChatIds(context),
+          childName: result.settings.childName,
+          slot: result.dose.slot,
+          takenAt: result.dose.takenAt,
+          timeZone: result.settings.timezone,
+        });
+        return json(res, 201, { dose: result.dose, notification });
       }
 
       if (req.method === 'GET' && url.pathname === '/api/auth/me') {
