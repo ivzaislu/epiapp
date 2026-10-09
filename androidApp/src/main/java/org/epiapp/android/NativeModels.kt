@@ -64,6 +64,26 @@ data class DeviceScheduleState(
     val eveningTaken: Boolean,
 )
 
+data class ParentStats(
+    val requestedDays: Int,
+    val expected: Int,
+    val taken: Int,
+    val missed: Int,
+    val rate: Int?,
+    val currentStreak: Int,
+) {
+    companion object {
+        fun fromJson(json: JSONObject): ParentStats = ParentStats(
+            requestedDays = json.optInt("requestedDays", 7),
+            expected = json.optInt("expected", 0),
+            taken = json.optInt("taken", 0),
+            missed = json.optInt("missed", 0),
+            rate = if (json.isNull("rate") || !json.has("rate")) null else json.optInt("rate"),
+            currentStreak = json.optInt("currentStreak", 0),
+        )
+    }
+}
+
 object ScheduleStore {
     private const val PREFS = "epiapp_schedule"
     private const val KEY_SCHEDULE = "schedule_json"
