@@ -139,6 +139,17 @@ class ApiClient(inputBaseUrl: String) {
         return ParentStats.fromJson(response.json.getJSONObject("stats"))
     }
 
+    fun history(deviceToken: String, timezone: String): List<RecentDose> {
+        val response = request(
+            path = "/api/state",
+            bearer = deviceToken,
+        )
+        val entries = response.json.optJSONArray("recentDoses") ?: return emptyList()
+        return (0 until entries.length()).mapNotNull { index ->
+            entries.optJSONObject(index)?.let { RecentDose.fromJson(it, timezone) }
+        }
+    }
+
     fun takeDose(deviceToken: String, slot: String): DeviceScheduleState {
         request(
             path = "/api/device/take",
