@@ -1,7 +1,12 @@
 package org.epiapp.android
 
 import android.Manifest
-import android.app.Activity
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import android.app.AlarmManager
 import android.app.NotificationManager
 import android.content.Intent
@@ -25,7 +30,7 @@ import android.widget.TextView
 import java.util.Locale
 import kotlin.concurrent.thread
 
-class MainActivity : Activity() {
+class MainActivity : ComponentActivity() {
     companion object {
         private const val REQUEST_NOTIFICATIONS = 1001
     }
@@ -34,6 +39,7 @@ class MainActivity : Activity() {
     private var currentRole: String? = null
     private var currentServerUrl: String? = null
     private var currentState: DeviceScheduleState? = null
+    private var currentChildTab: ChildTab = ChildTab.HOME
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -179,12 +185,14 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun takeDose(slot: String, button: Button, status: TextView) {
-        val serverUrl = secureStore.getServerUrl() ?: return
-        val token = secureStore.getDeviceToken() ?: return
-        button.isEnabled = false
-        status.text = "Сохраняю отметку…"
-        thread(name = "epiapp-take-dose") {
+    private fun confirmDose(slot: String, complete: (String?) -> Unit) {
+        val serverUrl = secureStore.getServerUrl()
+        val token = secureStore.getDeviceToken()
+        if (serverUrl == null || token == null) {
+            complete("Устройство не подключено к EpiApp.")
+            return
+        }
+        thread(name = "epiapp-confirm-dose") {
             try {
                 val state = ApiClient(serverUrl).takeDose(token, slot)
                 runOnUiThread {
@@ -201,25 +209,20 @@ class MainActivity : Activity() {
                         }
                     } catch (_: Exception) {
                         runOnUiThread {
-                            button.isEnabled = true
-                            status.text = "Приём уже отмечен, но обновить экран не удалось."
+                            complete("Приём уже отмечен. Не удалось обновить экран.")
                         }
                     }
                 } else if (error.statusCode == 401 || error.statusCode == 403) {
                     runOnUiThread {
                         clearDeviceAccess()
-                        showPairing("Доступ этого Android-устройства отозван.", serverUrl)
+                        showPairing("Доступ устройства отозван.", serverUrl)
                     }
                 } else {
-                    runOnUiThread {
-                        button.isEnabled = true
-                        status.text = error.message ?: "Не удалось сохранить отметку."
-                    }
+                    runOnUiThread { complete(error.message ?: "Не удалось сохранить отметку.") }
                 }
             } catch (error: Exception) {
                 runOnUiThread {
-                    button.isEnabled = true
-                    status.text = error.message ?: "Нет связи с сервером. Попробуйте ещё раз."
+                    complete(error.message ?: "Нет связи с сервером. Попробуйте снова.")
                 }
             }
         }
@@ -287,108 +290,58 @@ class MainActivity : Activity() {
     }
 
     private fun showChildHome(state: DeviceScheduleState) {
-        val scroll = ScrollView(this).apply { setBackgroundColor(Color.parseColor("#F4F7FB")) }
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(22), dp(30), dp(22), dp(36))
+        val preferences = getSharedPreferences("epiapp_ui", MODE_PRIVATE)
+        setContent {
+            var darkTheme by remember { mutableStateOf(preferences.getBoolean("dark_theme", false)) }
+            ChildDashboard(
+                state = state,
+                serverUrl = currentServerUrl ?: secureStore.getServerUrl().orEmpty(),
+                initialTab = currentChildTab,
+                onTabSelected = { currentChildTab = it },
+                darkTheme = darkTheme,
+                onDarkThemeChange = { enabled ->
+                    darkTheme = enabled
+                    preferences.edit().putBoolean("dark_theme", enabled).apply()
+                },
+                permissions = AlarmPermissions(
+                    notifications = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                        checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
+                    exactAlarms = hasExactAlarmPermission(),
+                    fullScreen = hasFullScreenPermission(),
+                ),
+                onRequestNotifications = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
+                    }
+                },
+                onRequestExactAlarms = { openExactAlarmSettings() },
+                onRequestFullScreen = { openFullScreenSettings() },
+                onRefresh = { syncScheduleSilently() },
+                onCheckUpdates = { AppUpdater.checkForUpdates(this@MainActivity, force = true) },
+                onReconnect = {
+                    val previous = secureStore.getServerUrl().orEmpty()
+                    clearDeviceAccess()
+                    showPairing(suggestedServer = previous)
+                },
+                onTakeDose = { slot, complete -> confirmDose(slot, complete) },
+                onLoadHistory = { complete ->
+                    val serverUrl = secureStore.getServerUrl()
+                    val token = secureStore.getDeviceToken()
+                    if (serverUrl == null || token == null) {
+                        complete(Result.failure(IllegalStateException("Нет подключения к серверу.")))
+                    } else {
+                        thread(name = "epiapp-history") {
+                            try {
+                                val history = ApiClient(serverUrl).history(token, state.schedule.timezone)
+                                runOnUiThread { complete(Result.success(history)) }
+                            } catch (error: Exception) {
+                                runOnUiThread { complete(Result.failure(error)) }
+                            }
+                        }
+                    }
+                },
+            )
         }
-        scroll.addView(root)
-
-        root.addView(title("EpiApp", 32f))
-        root.addView(muted("Для ${state.schedule.childName}", 16f).apply { setPadding(0, dp(4), 0, 0) })
-
-        val medication = card()
-        medication.addView(muted("ЛЕКАРСТВО", 12f))
-        medication.addView(title(state.schedule.medicationName.ifBlank { "Название не указано" }, 22f).apply {
-            setPadding(0, dp(6), 0, dp(10))
-        })
-        medication.addView(muted("Расписание хранится на телефоне, поэтому уже поставленные будильники работают и без интернета."))
-        addCard(root, medication)
-
-        val status = TextView(this).apply {
-            textSize = 14f
-            setTextColor(Color.parseColor("#677085"))
-            setPadding(0, dp(12), 0, 0)
-        }
-
-        fun doseCard(slot: String, time: String, dose: String, taken: Boolean): LinearLayout {
-            val box = card()
-            val label = if (slot == "morning") "Утренний приём" else "Вечерний приём"
-            box.addView(title(label, 21f))
-            box.addView(title(time, 30f).apply { setPadding(0, dp(5), 0, 0) })
-            box.addView(muted(dose.ifBlank { "Доза не указана" }, 16f).apply { setPadding(0, dp(4), 0, dp(14)) })
-            val action = Button(this).apply {
-                text = if (taken) "✓ Приём отмечен" else "💊 Отметить приём"
-                textSize = 17f
-                isEnabled = !taken
-                if (!taken) setOnClickListener { takeDose(slot, this, status) }
-            }
-            box.addView(action, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)))
-            return box
-        }
-
-        addCard(root, doseCard("morning", state.schedule.morningTime, state.schedule.morningDose, state.morningTaken))
-        addCard(root, doseCard("evening", state.schedule.eveningTime, state.schedule.eveningDose, state.eveningTaken))
-        root.addView(status)
-
-        val reliability = card()
-        reliability.addView(title("Надёжность напоминаний", 20f))
-        val notificationsOk = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-        val exactOk = hasExactAlarmPermission()
-        val fullScreenOk = hasFullScreenPermission()
-        reliability.addView(muted(
-            listOf(
-                "${if (notificationsOk) "✓" else "✕"} Уведомления",
-                "${if (exactOk) "✓" else "✕"} Точные будильники",
-                "${if (fullScreenOk) "✓" else "✕"} Полноэкранная тревога",
-            ).joinToString("\n"),
-            15f,
-        ).apply { setPadding(0, dp(10), 0, dp(10)) })
-
-        if (!notificationsOk && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            reliability.addView(Button(this).apply {
-                text = "Разрешить уведомления"
-                setOnClickListener {
-                    requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
-                }
-            })
-        }
-        if (!exactOk) {
-            reliability.addView(Button(this).apply {
-                text = "Разрешить точные будильники"
-                setOnClickListener { openExactAlarmSettings() }
-            })
-            reliability.addView(muted("Без этого разрешения Android может заметно задерживать напоминания.", 13f))
-        }
-        if (!fullScreenOk && Build.VERSION.SDK_INT >= 34) {
-            reliability.addView(Button(this).apply {
-                text = "Разрешить полноэкранную тревогу"
-                setOnClickListener { openFullScreenSettings() }
-            })
-        }
-        addCard(root, reliability)
-
-        val account = card()
-        account.addView(muted("СЕРВЕР", 12f))
-        account.addView(muted(currentServerUrl ?: secureStore.getServerUrl().orEmpty(), 14f).apply {
-            setPadding(0, dp(6), 0, dp(10))
-        })
-        account.addView(Button(this).apply {
-            text = "Проверить обновления"
-            setOnClickListener { AppUpdater.checkForUpdates(this@MainActivity, force = true) }
-        })
-        account.addView(Button(this).apply {
-            text = "Переподключить устройство"
-            setOnClickListener {
-                val previous = secureStore.getServerUrl().orEmpty()
-                clearDeviceAccess()
-                showPairing(suggestedServer = previous)
-            }
-        })
-        addCard(root, account)
-
-        setContentView(scroll)
     }
 
     private fun showAdultHome(state: DeviceScheduleState) {
