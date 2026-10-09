@@ -220,7 +220,7 @@ async function handleBotMessage({ token, store, adminId, appUrl, botUsername, me
     await sendTelegramMessage({
       token,
       chatId,
-      text: `📲 Подключение EpiApp для Android\n\nНажмите кнопку ниже на телефоне, где установлен EpiApp. Адрес сервера и код будут переданы автоматически.\n\nЕсли автоматическое открытие не сработает, резервный код: ${formatted}\nКод действует 5 минут и используется один раз.`,
+      text: `📲 Подключение EpiApp для Android\n\nНажмите кнопку ниже на телефоне, где установлен EpiApp. Адрес сервера и код будут переданы автоматически.\n\nЕсли автоматическое открытие не сработает, вручную укажите сервер ${appUrl} и код ${formatted}.\nКод действует 5 минут и используется один раз.`,
       replyMarkup: {
         inline_keyboard: [[{ text: '📲 Открыть в EpiApp', url: connectUrl }]],
       },
