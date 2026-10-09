@@ -193,7 +193,7 @@ test('invited parent can manage medication settings and read statistics', async 
       body: JSON.stringify({ slot: 'morning' }),
     });
     assert.equal(forbiddenTake.status, 403);
-    assert.equal((await store.childState()).todayDoses.morning, null);
+    assert.equal(Object.hasOwn((await store.childState()).todayDoses, 'morning'), false);
   } finally {
     await close(server);
   }
