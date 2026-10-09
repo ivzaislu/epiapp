@@ -236,6 +236,7 @@ class MainActivity : ComponentActivity() {
         currentRole = null
         currentServerUrl = null
         currentState = null
+        currentChildTab = ChildTab.HOME
     }
 
     private fun syncScheduleSilently() {
