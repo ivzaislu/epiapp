@@ -1,119 +1,145 @@
 # EpiApp on Northflank
 
-This branch prepares EpiApp for a Northflank deployment without changing the existing self-hosted production path on `main`.
+For the native Android direction, Northflank is the single hosted backend for EpiApp.
 
-## What Northflank gives us
-
-EpiApp can run as a Docker service from the existing `Dockerfile`:
-
-- container port: `3000`
-- protocol: HTTP
-- public access: enabled
-- Northflank terminates TLS and gives the public port a generated `*.code.run` hostname
-- `HOST=0.0.0.0`
-- `PORT=3000`
-
-The generated HTTPS origin must be supplied to EpiApp as `APP_BASE_URL`, for example:
+## Target architecture
 
 ```text
-APP_BASE_URL=https://http--epiapp--example.code.run
+Telegram bot
+     |
+     v
+Northflank service
+Node.js API + Telegram polling
+     |
+     v
+Northflank PostgreSQL addon
+     ^
+     |
+Native Android APK
+HTTPS JSON API
 ```
 
-Do not set `APP_DOMAIN`; that variable is only used by the Docker Compose + Caddy deployment.
+The Android app does not contain the Telegram bot token, PostgreSQL credentials, or a local copy of the backend. It only stores:
 
-Required runtime secrets:
+- the public HTTPS origin of the Northflank service;
+- an encrypted Android device token in Android Keystore;
+- a cached copy of the child's schedule used to restore local alarms after reboot or temporary loss of network.
+
+All durable family data lives in PostgreSQL on Northflank.
+
+## Northflank service
+
+EpiApp runs from the repository Dockerfile:
+
+- container port: `3000`;
+- protocol: HTTP inside Northflank;
+- public access: enabled;
+- Northflank terminates TLS;
+- `HOST=0.0.0.0`;
+- `PORT=3000`.
+
+The same Node.js process serves the JSON API and runs Telegram long polling. Keep this deployment at one application replica while the bot uses the current `getUpdates` polling implementation.
+
+Required runtime secrets/configuration:
 
 ```text
 TELEGRAM_BOT_TOKEN=...
 TELEGRAM_ADMIN_ID=...
-# APP_BASE_URL is optional on Northflank: EpiApp can derive it from NF_HOSTS.
-# Set it only if you use a custom domain or want to override the generated domain.
-APP_BASE_URL=https://<optional-custom-or-code-run-domain>
 DATABASE_URL=<Northflank PostgreSQL addon connection URI>
 HOST=0.0.0.0
 PORT=3000
 ```
 
+`APP_BASE_URL` is optional when Northflank injects `NF_HOSTS`. EpiApp derives the first public hostname and uses it as an HTTPS origin. Set `APP_BASE_URL` only for a custom domain or an explicit override.
+
+Do not set `APP_DOMAIN` for the Northflank deployment.
+
 Never commit real secret values.
 
-## Important: persistence
+## PostgreSQL is the production store
 
-The current EpiApp store is a JSON file. The Docker image defaults to:
+The Northflank deployment must receive `DATABASE_URL` or `POSTGRES_URI`. When it is present, EpiApp selects `PostgresStore`.
+
+The PostgreSQL backend:
+
+1. stores the normalized EpiApp state in a durable JSONB row;
+2. preserves the existing Store API;
+3. serializes mutations using a PostgreSQL transaction and advisory lock;
+4. protects concurrent dose writes from silent overwrite;
+5. supports one-time JSON import using `npm run import:postgres`;
+6. is checked by `/healthz`, so database failure makes the service unhealthy.
+
+The JSON file backend remains in the codebase for compatibility and tests, but it is not the target persistence layer for this hosted setup.
+
+## Telegram bot
+
+The bot runs inside the same Northflank service as the API.
+
+It is responsible for:
+
+- role invitations;
+- statistics commands;
+- Android pairing;
+- parent notifications and escalation.
+
+For Android pairing the bot creates a short-lived one-time code and sends an HTTPS button:
 
 ```text
-DATA_FILE=/data/epiapp.json
+https://<northflank-domain>/android/connect?code=...
 ```
 
-Northflank service-local ephemeral storage is not suitable for this file because it can be erased when the container is restarted or replaced.
-
-There are two deployment paths:
-
-### A. Fast compatibility path
-
-Attach a persistent volume at `/data` and keep:
+That handoff page opens the native APK through:
 
 ```text
-DATA_FILE=/data/epiapp.json
+epiapp://connect?server=https%3A%2F%2F...&code=...
 ```
 
-This requires almost no application changes, but persistent volume storage is billed separately on Northflank.
+The APK then exchanges the one-time code for a random device token and keeps that token encrypted with Android Keystore.
 
-### B. Free-Sandbox target
+## Initial deployment
 
-Use the Sandbox plan's database addon and move EpiApp's persistent state to PostgreSQL.
+1. Create a Northflank project.
+2. Create a PostgreSQL addon.
+3. Create a deployment/combined service from `ivzaislu/epiapp`.
+4. Select branch `android-native` while the native rewrite is being developed.
+5. Build using the repository `Dockerfile`.
+6. Expose container port `3000` as public HTTP.
+7. Inject the PostgreSQL connection string as `DATABASE_URL` or `POSTGRES_URI`.
+8. Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_ADMIN_ID`.
+9. Leave `APP_BASE_URL` empty when using the generated Northflank hostname, or set a custom HTTPS origin.
+10. Keep the service at one replica for the current Telegram polling implementation.
+11. Deploy.
 
-This is the target for the `northflank` branch because it avoids relying on an ephemeral JSON file and fits Northflank's free service + free database model.
+Verify:
 
-Implemented in this branch:
+- `https://<domain>/healthz` returns `{"ok":true}`;
+- Telegram `/start` works;
+- `📲 Подключить Android` returns the one-tap pairing button;
+- the native APK opens from that button;
+- child dose check-in is saved to PostgreSQL;
+- parent stats/settings read and write through the device-token API;
+- local Android alarms are restored after reopening or rebooting the phone.
 
-1. JSON remains the default backend when no PostgreSQL URL is configured;
-2. `DATABASE_URL` or `POSTGRES_URI` selects the PostgreSQL backend automatically;
-3. PostgreSQL stores the normalized EpiApp state in a durable JSONB row while preserving the existing Store API;
-4. mutations use a PostgreSQL transaction plus an advisory lock, so concurrent writes cannot silently overwrite each other;
-5. `npm run import:postgres -- /path/to/epiapp.json` performs a one-time JSON → PostgreSQL import and refuses to overwrite existing DB data unless `--force` is supplied;
-6. `/healthz` now reads the selected storage backend, so a broken database makes the health check fail;
-7. CI includes a real PostgreSQL 16 integration service and tests persistence, duplicate-dose concurrency, device-token hashing and import overwrite protection.
+## Importing existing state
 
-This first PostgreSQL implementation deliberately keeps one JSONB state document rather than prematurely splitting every EpiApp entity into relational tables. It gives Northflank durable storage with minimal risk to the existing application logic. We can normalize individual tables later if scale or querying needs justify it.
-
-## Initial Northflank service setup
-
-1. Create a Northflank Developer Sandbox project.
-2. Create a combined/deployment service from `ivzaislu/epiapp`.
-3. Select branch `northflank`.
-4. Build using the repository `Dockerfile`.
-5. Expose port `3000` as public HTTP.
-6. Link the PostgreSQL addon connection string to the service as `DATABASE_URL` or `POSTGRES_URI`.
-7. Northflank injects `NF_HOSTS`; when `APP_BASE_URL` is empty EpiApp automatically uses the first generated public hostname as `https://…`.
-8. Set `APP_BASE_URL` only when you want to override that with a custom domain.
-9. Redeploy.
-9. Check:
-   - `https://<domain>/healthz`
-   - the child UI
-   - the parent UI
-   - Telegram webhook/polling behaviour
-   - Android pairing against the generated HTTPS origin.
-
-## Production caution
-
-Northflank documents the Developer Sandbox as a development/hobby tier, not a production SLA tier. For family testing this can be useful, but EpiApp should keep the existing self-hosted deployment path available until the hosted path has been proven reliable.
-
-
-## Importing an existing family state
-
-If this Northflank deployment replaces an existing self-hosted instance, first make a backup of the original JSON file. Then run the import from a trusted environment where the PostgreSQL secret is available:
+If this hosted deployment replaces an existing JSON instance, make a backup first and run:
 
 ```bash
 DATABASE_URL='postgresql://…' npm run import:postgres -- /path/to/epiapp.json
 ```
 
-The command refuses to replace an already-populated PostgreSQL store. Only use `--force` when you intentionally want to replace the database state and already have a backup.
+The command refuses to overwrite an existing PostgreSQL state unless `--force` is supplied.
 
-The raw database URI, Telegram bot token, Android signing secrets and production JSON state must never be committed to Git.
+Do not commit database URIs, Telegram bot tokens, Android signing secrets, or production state.
 
+## Public URL
 
-## Northflank-generated public URL
+Northflank injects `NF_HOSTS` for public ports. EpiApp uses the first hostname as its public HTTPS origin when `APP_BASE_URL` is empty.
 
-Northflank injects `NF_HOSTS` into deployments with public ports. EpiApp uses the first hostname as its public HTTPS origin when `APP_BASE_URL` is not explicitly configured. This removes the deployment chicken-and-egg problem where the `code.run` hostname only exists after the service has been created.
+For a custom domain:
 
-For a custom domain, set `APP_BASE_URL=https://your-domain.example`; the explicit value always wins.
+```text
+APP_BASE_URL=https://your-domain.example
+```
+
+That public origin is used by Telegram links and by Android pairing.
