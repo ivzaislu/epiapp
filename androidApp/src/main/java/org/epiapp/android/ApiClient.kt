@@ -88,7 +88,7 @@ class ApiClient(inputBaseUrl: String) {
             path = "/api/device/pair",
             method = "POST",
             payload = JSONObject().apply {
-                put("code", code.filter(Char::isDigit))
+                put("code", code.trim())
                 put("deviceName", deviceName)
             },
         )
