@@ -112,6 +112,16 @@ class ApiClient(inputBaseUrl: String) {
         )
     }
 
+    fun takeDose(deviceToken: String, slot: String): DeviceScheduleState {
+        request(
+            path = "/api/device/take",
+            method = "POST",
+            bearer = deviceToken,
+            payload = JSONObject().apply { put("slot", slot) },
+        )
+        return schedule(deviceToken)
+    }
+
     fun schedule(deviceToken: String): DeviceScheduleState {
         val response = request(
             path = "/api/device/schedule",
