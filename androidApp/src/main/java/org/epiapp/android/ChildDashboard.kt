@@ -26,7 +26,6 @@ import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Medication
-import androidx.compose.material.icons.rounded.Moon
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
@@ -334,7 +333,7 @@ private fun ChildHome(
                 time = state.schedule.eveningTime,
                 dose = state.schedule.eveningDose,
                 taken = state.eveningTaken,
-                icon = Icons.Rounded.Moon,
+                icon = Icons.Rounded.DarkMode,
                 waiting = pendingSlot == "evening",
                 enabled = pendingSlot == null,
                 onTake = { onTake("evening") },
