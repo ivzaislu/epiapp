@@ -117,9 +117,16 @@ async function resolveAccessUser(telegramId, { store, adminId }) {
 
 async function requireUser(req, context, roles = ['child', 'parent', 'admin']) {
   configuredAccess(context.botToken, context.adminId);
-  const session = getCookie(req.headers.cookie, 'epiapp_session');
-  const { telegramId } = verifySessionToken(session, context.botToken);
-  const user = await resolveAccessUser(telegramId, context);
+  let user;
+  const authorization = String(req.headers.authorization || '');
+  if (/^Bearer\s+/i.test(authorization)) {
+    const device = await context.store.authenticateDevice(bearerToken(req));
+    user = await resolveAccessUser(device.telegramId, context);
+  } else {
+    const session = getCookie(req.headers.cookie, 'epiapp_session');
+    const { telegramId } = verifySessionToken(session, context.botToken);
+    user = await resolveAccessUser(telegramId, context);
+  }
   if (!user) throw new AuthError('Доступ к EpiApp отозван или не был выдан.', 403);
   if (!roles.includes(user.role)) throw new AuthError('Недостаточно прав для этого действия.', 403);
   return user;
