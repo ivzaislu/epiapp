@@ -31,7 +31,7 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -536,6 +536,23 @@ private fun SettingsPage(
     onCheckUpdates: () -> Unit,
     onReconnect: () -> Unit,
 ) {
+    var confirmReconnect by remember { mutableStateOf(false) }
+    if (confirmReconnect) {
+        AlertDialog(
+            onDismissRequest = { confirmReconnect = false },
+            title = { Text("Переподключить EpiApp?") },
+            text = { Text("Текущее подключение и локальные будильники будут удалены. Для повторной привязки потребуется Telegram-бот.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmReconnect = false
+                    onReconnect()
+                }) { Text("Переподключить") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmReconnect = false }) { Text("Отмена") }
+            },
+        )
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -611,7 +628,7 @@ private fun SettingsPage(
                         Spacer(Modifier.width(8.dp))
                         Text("Проверить обновления APK")
                     }
-                    TextButton(onClick = onReconnect) {
+                    TextButton(onClick = { confirmReconnect = true }) {
                         Icon(Icons.Rounded.ErrorOutline, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
                         Text("Переподключить устройство")
