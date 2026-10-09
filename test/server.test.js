@@ -156,6 +156,26 @@ test('invited parent can manage medication settings and read statistics', async 
     assert.equal(stats.status, 200);
     const statsData = await stats.json();
     assert.equal(statsData.stats.requestedDays, 30);
+
+    const pairing = await store.createDevicePairCode('333333333');
+    const pair = await fetch(`${baseUrl}/api/device/pair`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ code: pairing.code, deviceName: 'Native Parent' }),
+    });
+    assert.equal(pair.status, 201);
+    const pairData = await pair.json();
+
+    const nativeSettings = await fetch(`${baseUrl}/api/parent/settings`, {
+      headers: { authorization: `Bearer ${pairData.deviceToken}` },
+    });
+    assert.equal(nativeSettings.status, 200);
+    assert.equal((await nativeSettings.json()).settings.medicationName, 'Препарат X');
+
+    const nativeStats = await fetch(`${baseUrl}/api/parent/stats?days=7`, {
+      headers: { authorization: `Bearer ${pairData.deviceToken}` },
+    });
+    assert.equal(nativeStats.status, 200);
   } finally {
     await close(server);
   }
