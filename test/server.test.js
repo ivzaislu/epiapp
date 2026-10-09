@@ -197,6 +197,21 @@ test('Android APK pairs once, creates a secure web session and loses access afte
     const nativeData = await nativeState.json();
     assert.equal(nativeData.user.role, 'child');
 
+    const nativeTake = await fetch(`${baseUrl}/api/device/take`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${pairData.deviceToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ slot: 'morning' }),
+    });
+    assert.equal(nativeTake.status, 201);
+    const afterTake = await fetch(`${baseUrl}/api/device/schedule`, {
+      headers: { authorization: `Bearer ${pairData.deviceToken}` },
+    });
+    assert.equal(afterTake.status, 200);
+    assert.ok((await afterTake.json()).todayDoses.morning);
+
     const nativeSession = await fetch(`${baseUrl}/api/device/session`, {
       method: 'POST',
       headers: { authorization: `Bearer ${pairData.deviceToken}` },
@@ -209,6 +224,25 @@ test('Android APK pairs once, creates a secure web session and loses access afte
       headers: { authorization: `Bearer ${pairData.deviceToken}` },
     });
     assert.equal(afterRevoke.status, 401);
+  } finally {
+    await close(server);
+  }
+});
+
+
+test('Android pairing handoff opens the native deep link without manual server entry', async () => {
+  const server = createServer();
+  const port = await listen(server);
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/android/connect?code=123456`);
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('cache-control') || '', /no-store/);
+    const html = await response.text();
+    assert.match(html, /epiapp:\/\/connect/);
+    assert.match(html, /code=123456/);
+
+    const invalid = await fetch(`http://127.0.0.1:${port}/android/connect?code=nope`);
+    assert.equal(invalid.status, 400);
   } finally {
     await close(server);
   }
