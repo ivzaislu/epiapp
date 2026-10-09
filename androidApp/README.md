@@ -27,19 +27,32 @@ Backend, Telegram-бот и PostgreSQL размещаются на Northflank. A
 
 Без разрешения на точные будильники Android может задерживать сигнал. При выдаче разрешения запланированные alarms перестраиваются.
 
-## Сборка debug
+## Сборка в Android Studio (без автоматической сборки APK в GitHub Actions)
 
-```bash
-gradle --no-daemon :androidApp:assembleDebug
+1. Откройте **корень репозитория** (где `settings.gradle.kts` и `gradlew.bat`), а не только папку `androidApp`.
+2. В **Settings → Build, Execution, Deployment → Build Tools → Gradle** выберите **Distribution: Wrapper** и **Gradle JDK: JDK 17**.
+3. Выполните **Sync Project with Gradle Files**. Wrapper автоматически использует **Gradle 8.9** независимо от версии глобально установленного Gradle.
+4. Выберите модуль `androidApp` и используйте **Build → Build APK(s)** либо Run на подключённом телефоне.
+
+Сборка debug из терминала Windows:
+
+```powershell
+.\gradlew.bat :androidApp:assembleDebug
 ```
 
-APK:
+На Linux/macOS:
+
+```bash
+./gradlew :androidApp:assembleDebug
+```
+
+APK после сборки:
 
 ```text
 androidApp/build/outputs/apk/debug/androidApp-debug.apk
 ```
 
-CI ветки `android-native` проверяет debug и временно подписанный release APK.
+**На ветке `android-native` GitHub Actions больше не собирает APK**, но проверки Node.js, PostgreSQL и Docker сохраняются. Если Android Studio показывает `Task 'prepareKotlinBuildScriptModel' not found`, убедитесь, что выбран Wrapper, а не локальный Gradle 9.x.
 
 Для стабильного release APK используйте один приватный signing key: [../docs/RELEASE.md](../docs/RELEASE.md).
 
