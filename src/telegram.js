@@ -216,7 +216,7 @@ async function handleBotMessage({ token, store, adminId, appUrl, botUsername, me
   if (parsed.command === 'android' || parsed.command === 'device_code') {
     const pairing = await store.createDevicePairCode(telegramId);
     const formatted = `${pairing.code.slice(0, 3)} ${pairing.code.slice(3)}`;
-    const connectUrl = `${appUrl}/android/connect?code=${encodeURIComponent(pairing.code)}`;
+    const connectUrl = `${appUrl}/android/connect?token=${encodeURIComponent(pairing.linkToken)}`;
     await sendTelegramMessage({
       token,
       chatId,
