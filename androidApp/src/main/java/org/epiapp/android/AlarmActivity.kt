@@ -52,7 +52,7 @@ class AlarmActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(dp(28), dp(40), dp(28), dp(40))
-            setBackgroundColor(Color.parseColor("#F4F7FB"))
+            setBackgroundColor(Color.parseColor("#F5F8F6"))
             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         }
         root.addView(TextView(this).apply {
@@ -63,7 +63,7 @@ class AlarmActivity : Activity() {
         root.addView(TextView(this).apply {
             text = "EpiApp — время проверить лекарство"
             textSize = 28f
-            setTextColor(Color.parseColor("#172033"))
+            setTextColor(Color.parseColor("#1C343A"))
             gravity = Gravity.CENTER
             setPadding(0, dp(10), 0, dp(12))
         })
@@ -71,7 +71,7 @@ class AlarmActivity : Activity() {
         root.addView(TextView(this).apply {
             text = "$childName: отметки $label приёма нет около $late минут после заданного времени."
             textSize = 18f
-            setTextColor(Color.parseColor("#4D5870"))
+            setTextColor(Color.parseColor("#64777A"))
             gravity = Gravity.CENTER
             setPadding(0, 0, 0, dp(28))
         })
@@ -103,7 +103,7 @@ class AlarmActivity : Activity() {
         root.addView(TextView(this).apply {
             text = "Выключение будильника не означает, что лекарство принято. Отметка сохраняется отдельно в EpiApp."
             textSize = 13f
-            setTextColor(Color.parseColor("#677085"))
+            setTextColor(Color.parseColor("#64777A"))
             gravity = Gravity.CENTER
             setPadding(0, dp(20), 0, 0)
         })
