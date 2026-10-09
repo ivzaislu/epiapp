@@ -430,27 +430,31 @@ export class Store {
       }
       if (!code) throw new Error('Не удалось создать код подключения устройства.');
 
+      const linkToken = randomBytes(32).toString('base64url');
       const expiresAt = new Date(now.getTime() + ttlMs).toISOString();
       state.access.deviceCodes.push({
         id: randomUUID(),
         codeHash,
+        linkTokenHash: secretHash(linkToken),
         telegramId: normalized,
         createdAt: now.toISOString(),
         expiresAt,
         usedAt: null,
       });
       if (state.access.deviceCodes.length > 100) state.access.deviceCodes = state.access.deviceCodes.slice(-100);
-      return { code, expiresAt };
+      return { code, linkToken, expiresAt };
     });
   }
 
   async pairDevice(code, { deviceName = 'Android', now = new Date() } = {}) {
     const normalizedCode = String(code || '').replace(/\s+/g, '');
-    if (!/^\d{6}$/.test(normalizedCode)) throw new DeviceAuthError('Код подключения должен содержать 6 цифр.', 400);
+    if (!/^\d{6}$/.test(normalizedCode) && !/^[A-Za-z0-9_-]{32,128}$/.test(normalizedCode)) {
+      throw new DeviceAuthError('Некорректный код или токен подключения.', 400);
+    }
     const codeHash = secretHash(normalizedCode);
 
     return this.mutate(async (state) => {
-      const entry = state.access.deviceCodes.find((item) => item.codeHash === codeHash);
+      const entry = state.access.deviceCodes.find((item) => item.codeHash === codeHash || item.linkTokenHash === codeHash);
       if (!entry || entry.usedAt) throw new DeviceAuthError('Код подключения недействителен или уже использован.', 401);
       if (Date.parse(entry.expiresAt || '') <= now.getTime()) throw new DeviceAuthError('Срок действия кода подключения истёк.', 401);
 
