@@ -19,12 +19,12 @@ Primary flow:
 2. Press `📲 Подключить Android`.
 3. Press `📲 Открыть в EpiApp`.
 4. Android opens the installed APK through the `epiapp://connect` deep link.
-5. The APK receives the Northflank HTTPS origin and the one-time code automatically.
+5. The APK receives the Northflank HTTPS origin and the one-time link token automatically.
 6. The APK checks `/healthz`, exchanges the code through `/api/device/pair`, stores the returned device token and loads the native screen.
 
 Manual server/code entry remains only as a fallback.
 
-The pairing code is valid for five minutes and can be used once.
+The one-time link token and six-digit manual code expire after five minutes. Using either invalidates the other.
 
 ## Authentication and storage
 
