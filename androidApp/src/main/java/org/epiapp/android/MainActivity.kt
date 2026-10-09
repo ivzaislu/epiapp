@@ -78,7 +78,9 @@ class MainActivity : Activity() {
         val data = intent?.data ?: return false
         if (!data.scheme.equals("epiapp", ignoreCase = true) || !data.host.equals("connect", ignoreCase = true)) return false
         val server = data.getQueryParameter("server").orEmpty()
-        val code = data.getQueryParameter("code").orEmpty()
+        val code = data.getQueryParameter("token")
+            ?: data.getQueryParameter("code")
+            ?: ""
         pairDevice(server, code, null, null)
         return true
     }
@@ -130,12 +132,14 @@ class MainActivity : Activity() {
             }
             return
         }
-        val digits = code.filter(Char::isDigit)
-        if (digits.length != 6) {
+        val pairingSecret = code.trim()
+        val validManualCode = pairingSecret.matches(Regex("\\d{6}"))
+        val validLinkToken = pairingSecret.matches(Regex("[A-Za-z0-9_-]{32,128}"))
+        if (!validManualCode && !validLinkToken) {
             if (status != null) {
                 status.text = "Введите 6 цифр из Telegram-бота."
             } else {
-                showPairing("Ссылка подключения не содержит действительный одноразовый код.", serverUrl)
+                showPairing("Ссылка подключения не содержит действительный одноразовый токен.", serverUrl)
             }
             return
         }
@@ -153,7 +157,7 @@ class MainActivity : Activity() {
             try {
                 val api = ApiClient(serverUrl)
                 if (!api.health()) throw IllegalStateException("EpiApp healthcheck не подтверждён.")
-                val session = api.pair(digits, deviceName)
+                val session = api.pair(pairingSecret, deviceName)
                 val token = session.deviceToken ?: throw IllegalStateException("Сервер не вернул ключ устройства.")
                 secureStore.saveConnection(api.baseUrl, token)
                 val state = api.schedule(token)
