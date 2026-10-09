@@ -54,6 +54,17 @@ androidApp/build/outputs/apk/debug/androidApp-debug.apk
 
 **На ветке `android-native` GitHub Actions больше не собирает APK**, но проверки Node.js, PostgreSQL и Docker сохраняются. Если Android Studio показывает `Task 'prepareKotlinBuildScriptModel' not found`, убедитесь, что выбран Wrapper, а не локальный Gradle 9.x.
 
+Если Android Studio всё ещё показывает `Task 'prepareKotlinBuildScriptModel' not found in project ':androidApp'`, попробуйте **File → Close Project**, затем открыть корневую папку `epiapp` с `settings.gradle.kts`. В окне **Gradle** должен быть подключён только один корневой проект; если `androidApp` отображается как отдельно подключённый Gradle-проект, выполните **Unlink Gradle Project** для этого дубликата. Для совместимости в модуле также зарегистрирована задача `prepareKotlinBuildScriptModel`, но она не заменяет корректный импорт корневого проекта.
+
+Проверка командой из терминала Android Studio:
+
+```powershell
+.\gradlew.bat :androidApp:prepareKotlinBuildScriptModel
+.\gradlew.bat :androidApp:assembleDebug
+```
+
+Если обе команды проходят, а Sync в Android Studio падает, проблема в настройках импорта проекта IDE.
+
 Для стабильного release APK используйте один приватный signing key: [../docs/RELEASE.md](../docs/RELEASE.md).
 
 Полная документация:
