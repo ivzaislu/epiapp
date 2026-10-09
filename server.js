@@ -180,9 +180,6 @@ async function notificationChatIds({ store, adminId }) {
 function publicSettings(settings) {
   return {
     childName: settings.childName,
-    medicationName: settings.medicationName,
-    morningDose: settings.morningDose,
-    eveningDose: settings.eveningDose,
     morningTime: settings.morningTime,
     eveningTime: settings.eveningTime,
     timezone: settings.timezone,
@@ -200,6 +197,9 @@ function publicSettings(settings) {
 function nativeSchedule(settings) {
   return {
     childName: settings.childName,
+    medicationName: settings.medicationName,
+    morningDose: settings.morningDose,
+    eveningDose: settings.eveningDose,
     morningTime: settings.morningTime,
     eveningTime: settings.eveningTime,
     timezone: settings.timezone,
