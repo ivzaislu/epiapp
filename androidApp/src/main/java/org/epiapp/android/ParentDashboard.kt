@@ -101,8 +101,8 @@ fun ParentDashboard(
         } catch (_: Exception) {
             false
         }
-        if (!validTimes || draft.childName.isBlank() || draft.medicationName.isBlank()) {
-            feedback = "Проверьте название препарата, имя ребёнка, время (ЧЧ:ММ) и часовой пояс."
+        if (!validTimes || draft.childName.isBlank()) {
+            feedback = "Проверьте имя ребёнка, время (ЧЧ:ММ) и часовой пояс."
             return
         }
         if (first == null || urgent == null || repeat == null || stop == null ||
