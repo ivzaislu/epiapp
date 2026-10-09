@@ -49,7 +49,7 @@ jobs:
 
   postgres:
     name: PostgreSQL store
-    if: github.ref_name == 'northflank' || github.head_ref == 'northflank' || github.base_ref == 'northflank'
+    if: github.ref_name == 'northflank' || github.ref_name == 'android-native' || github.head_ref == 'northflank' || github.head_ref == 'android-native' || github.base_ref == 'northflank' || github.base_ref == 'android-native'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -134,7 +134,7 @@ jobs:
 
   android:
     name: Android APKs
-    if: github.ref_name == 'epiappapk' || github.ref_name == 'main' || github.ref_name == 'northflank' || github.head_ref == 'epiappapk' || github.head_ref == 'northflank' || github.base_ref == 'main'
+    if: github.ref_name == 'epiappapk' || github.ref_name == 'main' || github.ref_name == 'northflank' || github.ref_name == 'android-native' || github.head_ref == 'epiappapk' || github.head_ref == 'northflank' || github.head_ref == 'android-native' || github.base_ref == 'main'
     runs-on: ubuntu-latest
 
     steps:
