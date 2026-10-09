@@ -206,7 +206,7 @@ async function handleBotMessage({ token, store, adminId, appUrl, botUsername, me
   }
 
   if (parsed.command === 'help') {
-    let text = 'Используйте кнопки меню ниже. «Открыть EpiApp» запускает защищённое приложение. «Подключить Android» показывает адрес вашего сервера и одноразовый код для универсального APK.';
+    let text = 'Используйте кнопки меню ниже. «Открыть EpiApp» запускает веб-версию. «Подключить Android» создаёт одноразовую ссылку, которая сама откроет APK и передаст данные подключения.';
     if (access.role === 'parent') text += '\n\nРодителю доступна статистика и изменение расписания/препарата в EpiApp.';
     if (access.role === 'admin') text += '\n\nАдминистратор также может приглашать ребёнка/родителя и управлять доступом.';
     await sendTelegramMessage({ token, chatId, text, replyMarkup: mainMenuMarkup(access.role, appUrl) });
@@ -216,11 +216,14 @@ async function handleBotMessage({ token, store, adminId, appUrl, botUsername, me
   if (parsed.command === 'android' || parsed.command === 'device_code') {
     const pairing = await store.createDevicePairCode(telegramId);
     const formatted = `${pairing.code.slice(0, 3)} ${pairing.code.slice(3)}`;
+    const connectUrl = `${appUrl}/android/connect?code=${encodeURIComponent(pairing.code)}`;
     await sendTelegramMessage({
       token,
       chatId,
-      text: `📲 Подключение EpiApp для Android\n\nСервер:\n${appUrl}\n\nОдноразовый код:\n${formatted}\n\nВ универсальном APK введите этот HTTPS-адрес и код. Код действует 5 минут и используется один раз. Не пересылайте его другим людям.`,
-      replyMarkup: mainMenuMarkup(access.role, appUrl),
+      text: `📲 Подключение EpiApp для Android\n\nНажмите кнопку ниже на телефоне, где установлен EpiApp. Адрес сервера и код будут переданы автоматически.\n\nЕсли автоматическое открытие не сработает, резервный код: ${formatted}\nКод действует 5 минут и используется один раз.`,
+      replyMarkup: {
+        inline_keyboard: [[{ text: '📲 Открыть в EpiApp', url: connectUrl }]],
+      },
     });
     return;
   }
