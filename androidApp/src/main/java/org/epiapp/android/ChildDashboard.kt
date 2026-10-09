@@ -73,32 +73,6 @@ data class AlarmPermissions(
     val fullScreen: Boolean,
 )
 
-private val EpiBlue = Color(0xFF3566D6)
-private val EpiInk = Color(0xFF1A2946)
-private val EpiGreen = Color(0xFF218A62)
-private val EpiGreenLight = Color(0xFFE7F6EF)
-private val EpiBlueLight = Color(0xFFEAF1FF)
-
-private val lightPalette = lightColorScheme(
-    primary = EpiBlue,
-    onPrimary = Color.White,
-    background = Color(0xFFF4F7FC),
-    onBackground = EpiInk,
-    surface = Color.White,
-    onSurface = EpiInk,
-    surfaceVariant = Color(0xFFECF1F9),
-    onSurfaceVariant = Color(0xFF5D6A7F),
-)
-private val darkPalette = darkColorScheme(
-    primary = Color(0xFF9CB7FF),
-    background = Color(0xFF111827),
-    onBackground = Color(0xFFE8EEF9),
-    surface = Color(0xFF1C273A),
-    onSurface = Color(0xFFE8EEF9),
-    surfaceVariant = Color(0xFF2B374D),
-    onSurfaceVariant = Color(0xFFB8C4D8),
-)
-
 @Composable
 fun ChildDashboard(
     state: DeviceScheduleState,
@@ -141,7 +115,7 @@ fun ChildDashboard(
         }
     }
 
-    MaterialTheme(colorScheme = if (darkTheme) darkPalette else lightPalette) {
+    EpiTheme(darkTheme = darkTheme) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
@@ -442,8 +416,7 @@ private fun DoseCard(
             if (taken) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    color = if (MaterialTheme.colorScheme.background == lightPalette.background) EpiGreenLight
-                        else EpiGreen.copy(alpha = .25f),
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
                     shape = RoundedCornerShape(13.dp),
                 ) {
                     Row(
@@ -451,9 +424,9 @@ private fun DoseCard(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = EpiGreen)
+                        Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = EpiColors.success)
                         Spacer(Modifier.width(8.dp))
-                        Text("Приём подтверждён", color = if (MaterialTheme.colorScheme.background == lightPalette.background) EpiGreen else Color.White, fontWeight = FontWeight.Bold)
+                        Text("Приём подтверждён", color = MaterialTheme.colorScheme.onTertiaryContainer, fontWeight = FontWeight.Bold)
                     }
                 }
             } else if (readOnly) {
@@ -547,7 +520,7 @@ private fun HistoryPage(
                         Icon(
                             Icons.Rounded.CheckCircle,
                             contentDescription = null,
-                            tint = EpiGreen,
+                            tint = EpiColors.success,
                             modifier = Modifier.size(26.dp),
                         )
                         Spacer(Modifier.width(14.dp))
@@ -706,12 +679,12 @@ private fun PermissionRow(label: String, granted: Boolean, onGrant: () -> Unit) 
         Icon(
             if (granted) Icons.Rounded.CheckCircle else Icons.Rounded.NotificationsActive,
             contentDescription = null,
-            tint = if (granted) EpiGreen else MaterialTheme.colorScheme.error,
+            tint = if (granted) EpiColors.success else MaterialTheme.colorScheme.error,
         )
         Spacer(Modifier.width(10.dp))
         Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
         if (granted) {
-            Text("Готово", color = EpiGreen, style = MaterialTheme.typography.labelMedium)
+            Text("Готово", color = EpiColors.success, style = MaterialTheme.typography.labelMedium)
         } else {
             TextButton(onClick = onGrant) { Text("Разрешить") }
         }
