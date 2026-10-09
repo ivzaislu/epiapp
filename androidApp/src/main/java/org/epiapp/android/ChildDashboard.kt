@@ -114,9 +114,12 @@ fun ChildDashboard(
     onRefresh: () -> Unit,
     onCheckUpdates: () -> Unit,
     onReconnect: () -> Unit,
+    onBackToParent: () -> Unit,
     onTakeDose: (String, (String?) -> Unit) -> Unit,
     onLoadHistory: ((Result<List<RecentDose>>) -> Unit) -> Unit,
 ) {
+    // The effective server role determines whether medication can be marked.
+    val readOnly = state.role != "child"
     var selectedTab by rememberSaveable { mutableStateOf(initialTab) }
     var pendingSlot by remember { mutableStateOf<String?>(null) }
     var actionError by remember { mutableStateOf<String?>(null) }
@@ -163,11 +166,17 @@ fun ChildDashboard(
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f),
                     )
-                    IconButton(onClick = {
-                        selectedTab = ChildTab.SETTINGS
-                        onTabSelected(ChildTab.SETTINGS)
-                    }) {
-                        Icon(Icons.Rounded.Settings, contentDescription = "Настройки")
+                    if (readOnly) {
+                        TextButton(onClick = onBackToParent) {
+                            Text("В кабинет")
+                        }
+                    } else {
+                        IconButton(onClick = {
+                            selectedTab = ChildTab.SETTINGS
+                            onTabSelected(ChildTab.SETTINGS)
+                        }) {
+                            Icon(Icons.Rounded.Settings, contentDescription = "Настройки")
+                        }
                     }
                 }
             },
@@ -195,11 +204,12 @@ fun ChildDashboard(
             when (selectedTab) {
                 ChildTab.HOME -> ChildHome(
                     state = state,
+                    readOnly = readOnly,
                     padding = padding,
                     pendingSlot = pendingSlot,
                     error = actionError,
                     onTake = { slot ->
-                        if (pendingSlot == null) {
+                        if (!readOnly && pendingSlot == null) {
                             pendingSlot = slot
                             actionError = null
                             onTakeDose(slot) { error ->
@@ -238,6 +248,8 @@ fun ChildDashboard(
                     onRequestFullScreen = onRequestFullScreen,
                     onCheckUpdates = onCheckUpdates,
                     onReconnect = onReconnect,
+                    readOnly = readOnly,
+                    onBackToParent = onBackToParent,
                 )
             }
         }
@@ -247,6 +259,7 @@ fun ChildDashboard(
 @Composable
 private fun ChildHome(
     state: DeviceScheduleState,
+    readOnly: Boolean,
     padding: PaddingValues,
     pendingSlot: String?,
     error: String?,
@@ -288,6 +301,23 @@ private fun ChildHome(
                 )
             }
         }
+        if (readOnly) {
+            item {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = .10f),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        "Режим просмотра · Отмечать приём может только ребёнок",
+                        modifier = Modifier.padding(16.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+        }
         item {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
@@ -321,6 +351,7 @@ private fun ChildHome(
                 time = state.schedule.morningTime,
                 dose = state.schedule.morningDose,
                 taken = state.morningTaken,
+                readOnly = readOnly,
                 icon = Icons.Rounded.WbSunny,
                 waiting = pendingSlot == "morning",
                 enabled = pendingSlot == null,
@@ -333,6 +364,7 @@ private fun ChildHome(
                 time = state.schedule.eveningTime,
                 dose = state.schedule.eveningDose,
                 taken = state.eveningTaken,
+                readOnly = readOnly,
                 icon = Icons.Rounded.DarkMode,
                 waiting = pendingSlot == "evening",
                 enabled = pendingSlot == null,
@@ -349,7 +381,7 @@ private fun ChildHome(
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "Отметка сохраняется только после ответа сервера.",
+                    if (readOnly) "Это просмотр расписания и отметок ребёнка." else "Отметка сохраняется только после ответа сервера.",
                     modifier = Modifier.weight(1f),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
@@ -370,6 +402,7 @@ private fun DoseCard(
     time: String,
     dose: String,
     taken: Boolean,
+    readOnly: Boolean,
     icon: ImageVector,
     waiting: Boolean,
     enabled: Boolean,
@@ -422,6 +455,20 @@ private fun DoseCard(
                         Spacer(Modifier.width(8.dp))
                         Text("Приём подтверждён", color = if (MaterialTheme.colorScheme.background == lightPalette.background) EpiGreen else Color.White, fontWeight = FontWeight.Bold)
                     }
+                }
+            } else if (readOnly) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(13.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        "Ожидается приём · только просмотр",
+                        modifier = Modifier.padding(vertical = 18.dp, horizontal = 12.dp),
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium,
+                    )
                 }
             } else {
                 Button(
@@ -535,6 +582,8 @@ private fun SettingsPage(
     onRequestFullScreen: () -> Unit,
     onCheckUpdates: () -> Unit,
     onReconnect: () -> Unit,
+    readOnly: Boolean,
+    onBackToParent: () -> Unit,
 ) {
     var confirmReconnect by remember { mutableStateOf(false) }
     if (confirmReconnect) {
@@ -566,9 +615,18 @@ private fun SettingsPage(
         item {
             Text("Настройки", fontWeight = FontWeight.Bold, fontSize = 27.sp)
             Spacer(Modifier.height(5.dp))
-            Text("Всё важное для напоминаний", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                if (readOnly) "Режим просмотра детского экрана" else "Всё важное для напоминаний",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (readOnly) {
+                Spacer(Modifier.height(12.dp))
+                Button(onClick = onBackToParent, modifier = Modifier.fillMaxWidth()) {
+                    Text("Вернуться в родительский кабинет")
+                }
+            }
         }
-        item {
+        if (!readOnly) item {
             Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column(modifier = Modifier.padding(18.dp)) {
                     Text("Надёжность будильников", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
