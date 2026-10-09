@@ -64,6 +64,33 @@ data class DeviceScheduleState(
     val eveningTaken: Boolean,
 )
 
+data class RecentDose(
+    val id: String,
+    val slot: String,
+    val localDate: String,
+    val localTime: String,
+) {
+    companion object {
+        fun fromJson(json: JSONObject, timezone: String): RecentDose {
+            val takenAt = json.optString("takenAt", "")
+            val localTime = try {
+                val zone = java.time.ZoneId.of(timezone)
+                java.time.Instant.parse(takenAt).atZone(zone).format(
+                    java.time.format.DateTimeFormatter.ofPattern("HH:mm"),
+                )
+            } catch (_: Exception) {
+                "—"
+            }
+            return RecentDose(
+                id = json.optString("id", takenAt + ":" + json.optString("slot")),
+                slot = json.optString("slot"),
+                localDate = json.optString("localDate"),
+                localTime = localTime,
+            )
+        }
+    }
+}
+
 data class ParentStats(
     val requestedDays: Int,
     val expected: Int,
