@@ -88,16 +88,14 @@ class MainActivity : ComponentActivity() {
         val color = Color.parseColor(if (darkTheme) "#122124" else "#F5F8F6")
         window.statusBarColor = color
         window.navigationBarColor = color
-        val mask = android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
-            android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
-        val lightBars = if (darkTheme) 0 else mask
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.insetsController?.setSystemBarsAppearance(lightBars, mask)
-        } else {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = if (darkTheme) 0 else (
-                View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
-            )
+        // A windowInsetsController is not available until DecorView is attached.
+        // Pairing and loading screens may call this from onCreate, before setContentView.
+        val decor = window.decorView
+        decor.post {
+            androidx.core.view.ViewCompat.getWindowInsetsController(decor)?.apply {
+                isAppearanceLightStatusBars = !darkTheme
+                isAppearanceLightNavigationBars = !darkTheme
+            }
         }
     }
 
