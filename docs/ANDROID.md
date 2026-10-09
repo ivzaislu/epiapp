@@ -1,6 +1,6 @@
 # Native Android EpiApp
 
-The Android application is a native Kotlin client. It no longer depends on WebView for the main child or parent/admin flows.
+The Android application is a native Kotlin client. Child mode uses Jetpack Compose and Material 3 (v0.6.0); WebView is not used.
 
 The backend, Telegram bot and PostgreSQL database are hosted on Northflank. The APK connects to that service over HTTPS.
 
@@ -47,17 +47,18 @@ The APK does not contain:
 
 ### Child
 
-The native child screen shows:
+The Material 3 child screen offers light/dark themes and three bottom-navigation sections: Home, History and Settings. Home shows:
 
 - medication name;
 - morning/evening schedule;
 - configured doses;
 - today's completion state;
+- a medication summary, two large dose cards and clear completion feedback;
 - direct native `Отметить приём` buttons;
 - reminder reliability status;
 - reconnect/update actions.
 
-A dose is written through the device-token API and then synchronized back from the server.
+A dose is written through the device-token API and then synchronized back from the server. A successful API response is required before the UI shows a completed dose. The History tab loads recent check-ins from /api/state over device-token auth; it needs internet access.
 
 ### Parent / admin
 
@@ -86,7 +87,7 @@ For accurate timing the child device should allow:
 - Alarms & reminders / exact alarms;
 - full-screen alarm access when Android exposes that setting.
 
-The app shows these permissions as a reliability checklist. If exact-alarm access is unavailable, Android may delay the fallback alarm.
+The Settings tab shows these permissions as a reliability checklist and links to the applicable Android settings. If exact-alarm access is unavailable, Android may delay the fallback alarm.
 
 The urgent alarm screen keeps two actions separate:
 
