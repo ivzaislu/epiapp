@@ -176,6 +176,24 @@ test('invited parent can manage medication settings and read statistics', async 
       headers: { authorization: `Bearer ${pairData.deviceToken}` },
     });
     assert.equal(nativeStats.status, 200);
+
+    // The parent may view the same child state, but may never mark a dose for the child.
+    const childPreview = await fetch(`${baseUrl}/api/device/schedule`, {
+      headers: { authorization: `Bearer ${pairData.deviceToken}` },
+    });
+    assert.equal(childPreview.status, 200);
+    assert.equal((await childPreview.json()).user.role, 'parent');
+
+    const forbiddenTake = await fetch(`${baseUrl}/api/device/take`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${pairData.deviceToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ slot: 'morning' }),
+    });
+    assert.equal(forbiddenTake.status, 403);
+    assert.equal((await store.childState()).todayDoses.morning, null);
   } finally {
     await close(server);
   }
