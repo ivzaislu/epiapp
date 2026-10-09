@@ -85,8 +85,7 @@ jobs:
 
   selfhost:
     name: Self-host Docker stack
-    # APKs for android-native are built locally in Android Studio; keep CI for backend and PostgreSQL.
-    if: github.ref_name != 'android-native' && github.head_ref != 'android-native' && (github.ref_name == 'epiappapk' || github.ref_name == 'main' || github.ref_name == 'northflank' || github.head_ref == 'epiappapk' || github.head_ref == 'northflank' || github.base_ref == 'main')
+    if: github.ref_name == 'epiappapk' || github.ref_name == 'main' || github.ref_name == 'northflank' || github.ref_name == 'android-native' || github.head_ref == 'epiappapk' || github.head_ref == 'northflank' || github.head_ref == 'android-native' || github.base_ref == 'main'
     runs-on: ubuntu-latest
 
     steps:
@@ -135,7 +134,8 @@ jobs:
 
   android:
     name: Android APKs
-    if: github.ref_name == 'epiappapk' || github.ref_name == 'main' || github.ref_name == 'northflank' || github.ref_name == 'android-native' || github.head_ref == 'epiappapk' || github.head_ref == 'northflank' || github.head_ref == 'android-native' || github.base_ref == 'main'
+    # Android APKs for android-native are built locally via Android Studio.
+    if: github.ref_name != 'android-native' && github.head_ref != 'android-native' && (github.ref_name == 'epiappapk' || github.ref_name == 'main' || github.ref_name == 'northflank' || github.head_ref == 'epiappapk' || github.head_ref == 'northflank' || github.base_ref == 'main')
     runs-on: ubuntu-latest
 
     steps:
