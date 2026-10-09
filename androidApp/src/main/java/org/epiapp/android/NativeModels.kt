@@ -5,6 +5,9 @@ import org.json.JSONObject
 
 data class NativeSchedule(
     val childName: String,
+    val medicationName: String,
+    val morningDose: String,
+    val eveningDose: String,
     val morningTime: String,
     val eveningTime: String,
     val timezone: String,
@@ -16,6 +19,9 @@ data class NativeSchedule(
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("childName", childName)
+        put("medicationName", medicationName)
+        put("morningDose", morningDose)
+        put("eveningDose", eveningDose)
         put("morningTime", morningTime)
         put("eveningTime", eveningTime)
         put("timezone", timezone)
@@ -29,6 +35,9 @@ data class NativeSchedule(
     companion object {
         fun fromJson(json: JSONObject): NativeSchedule = NativeSchedule(
             childName = json.optString("childName", "Ребёнок"),
+            medicationName = json.optString("medicationName", ""),
+            morningDose = json.optString("morningDose", ""),
+            eveningDose = json.optString("eveningDose", ""),
             morningTime = json.optString("morningTime", "08:00"),
             eveningTime = json.optString("eveningTime", "20:00"),
             timezone = json.optString("timezone", "Europe/Berlin"),
