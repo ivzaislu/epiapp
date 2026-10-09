@@ -4,10 +4,10 @@
         <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar">true</item>
-        <item name="android:statusBarColor">#EDF3FF</item>
-        <item name="android:navigationBarColor">#EDF3FF</item>
+        <item name="android:statusBarColor">#F5F8F6</item>
+        <item name="android:navigationBarColor">#F5F8F6</item>
         <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
-        <item name="android:colorAccent">#315BD6</item>
+        <item name="android:colorAccent">#246A70</item>
         <item name="android:windowNoTitle">true</item>
     </style>
 </resources>
