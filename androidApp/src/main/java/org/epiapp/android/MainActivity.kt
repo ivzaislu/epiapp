@@ -133,6 +133,38 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun pairingFailureMessage(error: Exception): String {
+        if (error is ApiException) {
+            val detail = error.message.orEmpty()
+            return when {
+                error.statusCode == 429 ->
+                    "Слишком много попыток подключения. Подождите немного и запросите новый код в Telegram."
+                error.statusCode == 401 && detail.contains("истёк", ignoreCase = true) ->
+                    "Срок действия кода истёк. Откройте Telegram-бота и запросите новый код подключения."
+                error.statusCode == 401 ->
+                    "Код недействителен или уже использован. Запросите новый код в Telegram-боте."
+                error.statusCode == 403 ->
+                    "У этого пользователя нет доступа к EpiApp. Проверьте приглашение в Telegram."
+                error.statusCode == 400 ->
+                    "Неверный формат кода. Используйте шестизначный код из Telegram-бота."
+                error.statusCode >= 500 ->
+                    "Сервер EpiApp временно недоступен. Подождите и повторите подключение."
+                else ->
+                    "Не удалось подключить устройство (ошибка сервера ${error.statusCode})."
+            }
+        }
+        return when (error) {
+            is java.net.UnknownHostException, is java.net.ConnectException ->
+                "Не удаётся найти сервер. Проверьте интернет и адрес EpiApp."
+            is java.net.SocketTimeoutException ->
+                "Сервер долго не отвечает. Проверьте подключение к интернету и повторите попытку."
+            is javax.net.ssl.SSLException ->
+                "Не удалось установить защищённое HTTPS-соединение. Проверьте адрес сервера."
+            else ->
+                "Не удалось подключиться. Проверьте интернет, адрес сервера и получите свежий код в Telegram."
+        }
+    }
+
     private fun pairDevice(serverText: String, code: String) {
         val serverUrl = try {
             ApiClient.normalizeBaseUrl(serverText)
@@ -169,7 +201,7 @@ class MainActivity : ComponentActivity() {
                 }
             } catch (error: Exception) {
                 runOnUiThread {
-                    showPairing(error.message ?: "Не удалось подключить устройство.", serverUrl)
+                    showPairing(pairingFailureMessage(error), serverUrl)
                 }
             }
         }
