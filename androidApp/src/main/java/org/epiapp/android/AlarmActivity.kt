@@ -29,10 +29,15 @@ import androidx.compose.material.icons.rounded.Medication
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -63,7 +68,13 @@ class AlarmActivity : ComponentActivity() {
 
         // Only a child device receives alarms. The medication plan is a local cache.
         val stored = ScheduleStore.load(this)?.takeIf { it.first == "child" }?.second
-        val medication = stored?.medicationName.orEmpty()
+        if (stored == null || !stored.remindersEnabled ||
+            AlarmScheduler.isTakenToday(this, stored, slot) ||
+            AlarmScheduler.isSnoozed(this, stored, slot)) {
+            finish() // Ignore a notification opened after confirmation or while snoozed.
+            return
+        }
+        val medication = stored.medicationName
         val dose = if (slot == "morning") stored?.morningDose.orEmpty() else stored?.eveningDose.orEmpty()
         val time = if (slot == "morning") stored?.morningTime.orEmpty() else stored?.eveningTime.orEmpty()
 
@@ -83,6 +94,15 @@ class AlarmActivity : ComponentActivity() {
                             .putExtra("alarm_slot", slot),
                     )
                     finish()
+                },
+                onSnooze = {
+                    if (AlarmScheduler.snooze(this@AlarmActivity, slot, late)) {
+                        stopAlarmSound()
+                        finish()
+                        true
+                    } else {
+                        false
+                    }
                 },
                 onDismiss = {
                     stopAlarmSound()
@@ -155,8 +175,10 @@ private fun EpiAlarmScreen(
     slot: String,
     late: Int,
     onOpen: () -> Unit,
+    onSnooze: () -> Boolean,
     onDismiss: () -> Unit,
 ) {
+    var snoozeError by remember { mutableStateOf<String?>(null) }
     val slotLabel = if (slot == "morning") "Утренний приём" else "Вечерний приём"
     EpiTheme(darkTheme = false) {
         Scaffold(
@@ -240,14 +262,33 @@ private fun EpiAlarmScreen(
                     icon = Icons.Rounded.Medication,
                 )
                 OutlinedButton(
-                    onClick = onDismiss,
+                    onClick = {
+                        if (!onSnooze()) {
+                            snoozeError = "Отложить не удалось. Проверьте подключение устройства и настройки напоминаний."
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     shape = MaterialTheme.shapes.medium,
                 ) {
-                    Text("Выключить сигнал")
+                    Text("Напомнить через 10 минут", textAlign = TextAlign.Center)
+                }
+                if (snoozeError != null) {
+                    Text(
+                        snoozeError.orEmpty(),
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                ) {
+                    Text("Только выключить звук")
                 }
                 Text(
-                    "Выключение сигнала не подтверждает приём. Отметка сохраняется только в детском режиме после ответа сервера. Запланированные повторы могут сработать позже.",
+                    "Отсрочка и выключение звука не подтверждают приём. Отметка сохраняется только в детском режиме после ответа сервера. Без разрешения на точные будильники повтор может прийти позже.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
                     textAlign = TextAlign.Center,
