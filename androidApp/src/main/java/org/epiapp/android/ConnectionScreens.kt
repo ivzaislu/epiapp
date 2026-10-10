@@ -59,18 +59,28 @@ fun EpiConnectScreen(
                         bottom = padding.calculateBottomPadding() + 28.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
-                Text("Добро пожаловать!", fontWeight = FontWeight.Bold, fontSize = 30.sp)
-                Text(
-                    "Привяжите телефон к EpiApp. Это можно сделать в Telegram за одно нажатие.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                EpiPageIntro(
+                    title = "Добро пожаловать!",
+                    subtitle = "Подключите телефон к EpiApp через семейного Telegram-бота",
                 )
                 EpiSurfaceCard {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.Link, contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Rounded.Link,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
                         Spacer(Modifier.width(10.dp))
-                        Text("Подключение через Telegram", fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Через Telegram",
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        )
                     }
                     Spacer(Modifier.height(8.dp))
                     Text("1. Откройте семейного EpiApp-бота.")
@@ -78,7 +88,9 @@ fun EpiConnectScreen(
                     Text("3. Выберите «Открыть в EpiApp».")
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Адрес сервера и одноразовый ключ передаются автоматически.",
+                        "Адрес сервера и одноразовый ключ передадутся автоматически.",
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -146,8 +158,13 @@ fun EpiLoadingScreen(message: String) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(18.dp)) {
                     CircularProgressIndicator()
-                    Text(message, fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface)
+                    Text(
+                        message,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
                     Text("Пожалуйста, подождите", color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall)
                 }
@@ -175,8 +192,10 @@ fun EpiRetryScreen(
                         bottom = padding.calculateBottomPadding() + 24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Text("Нет связи с EpiApp", style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold)
+                EpiPageIntro(
+                    title = "Нет связи с EpiApp",
+                    subtitle = "Проверьте интернет и попробуйте снова",
+                )
                 EpiSurfaceCard {
                     Text(message, color = MaterialTheme.colorScheme.error)
                     Text(serverUrl, color = MaterialTheme.colorScheme.onSurfaceVariant,
