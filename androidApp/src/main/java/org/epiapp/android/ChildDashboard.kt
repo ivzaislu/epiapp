@@ -241,29 +241,11 @@ private fun ChildHome(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Column {
-                Text(
-                    "РАСПИСАНИЕ НА СЕГОДНЯ",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp,
-                )
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "Мои лекарства",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 28.sp,
-                    lineHeight = 34.sp,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                Spacer(Modifier.height(7.dp))
-                Text(
-                    "Для " + state.schedule.childName + " · " + state.today,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
+            EpiPageIntro(
+                eyebrow = "РАСПИСАНИЕ НА СЕГОДНЯ",
+                title = "Мои лекарства",
+                subtitle = "Для " + state.schedule.childName + " · " + state.today,
+            )
         }
         if (readOnly) {
             item {
@@ -274,7 +256,8 @@ private fun ChildHome(
                 ) {
                     Text(
                         "Режим просмотра · Отмечать приём может только ребёнок",
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold,
                         style = MaterialTheme.typography.bodyMedium,
@@ -378,8 +361,15 @@ private fun DoseCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Surface(
                     color = MaterialTheme.colorScheme.primary.copy(alpha = .10f),
                     shape = CircleShape,
@@ -392,13 +382,28 @@ private fun DoseCard(
                     )
                 }
                 Spacer(Modifier.width(12.dp))
-                Text(label, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    label,
+                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleMedium,
+                    textAlign = TextAlign.Center,
+                )
             }
             Spacer(Modifier.height(15.dp))
-            Text(time, fontWeight = FontWeight.Bold, fontSize = 34.sp, lineHeight = 40.sp)
+            Text(
+                time,
+                modifier = Modifier.fillMaxWidth(),
+                fontWeight = FontWeight.Bold,
+                fontSize = 38.sp,
+                lineHeight = 44.sp,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.primary,
+            )
             Spacer(Modifier.height(4.dp))
             Text(
                 dose.ifBlank { "Доза не указана" },
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium,
             )
@@ -427,7 +432,7 @@ private fun DoseCard(
                 ) {
                     Text(
                         "Ожидается приём · только просмотр",
-                        modifier = Modifier.padding(vertical = 18.dp, horizontal = 12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp, horizontal = 12.dp),
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Medium,
@@ -476,9 +481,10 @@ private fun HistoryPage(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Text("История приёмов", fontWeight = FontWeight.Bold, fontSize = 27.sp)
-            Spacer(Modifier.height(5.dp))
-            Text("Последние отметки из Northflank", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            EpiPageIntro(
+                title = "История приёмов",
+                subtitle = "Последние подтверждённые приёмы",
+            )
         }
         if (loading) {
             item {
@@ -494,7 +500,12 @@ private fun HistoryPage(
         } else if (history.isEmpty()) {
             item {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                    Text("Пока нет отмеченных приёмов.", modifier = Modifier.padding(24.dp))
+                    Text(
+                        "Пока нет отмеченных приёмов",
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         } else {
@@ -576,11 +587,10 @@ private fun SettingsPage(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Text("Настройки", fontWeight = FontWeight.Bold, fontSize = 27.sp)
-            Spacer(Modifier.height(5.dp))
-            Text(
-                if (readOnly) "Режим просмотра детского экрана" else "Всё важное для напоминаний",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            EpiPageIntro(
+                title = "Настройки",
+                subtitle = if (readOnly) "Детский экран · Только просмотр"
+                else "Уведомления, внешний вид и подключение",
             )
             if (readOnly) {
                 Spacer(Modifier.height(12.dp))
