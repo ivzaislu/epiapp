@@ -359,14 +359,16 @@ class MainActivity : ComponentActivity() {
         thread(name = "epiapp-parent-load") {
             try {
                 val api = ApiClient(serverUrl)
+                // Always refresh today's real confirmations, not just settings and 7-day stats.
+                val freshState = api.schedule(token)
                 val settings = api.parentSettings(token)
                 val stats = api.parentStats(token, 7)
                 runOnUiThread {
-                    val updatedState = state.copy(schedule = settings)
-                    currentState = updatedState
+                    val updatedState = freshState.copy(schedule = settings)
+                    applyNativeState(updatedState)
                     cachedParentSettings = settings
                     cachedParentStats = stats
-                    renderAdultDashboard(state.role, settings, stats)
+                    renderAdultDashboard(updatedState.role, settings, stats)
                 }
             } catch (error: ApiException) {
                 runOnUiThread {
