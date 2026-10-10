@@ -156,6 +156,7 @@ private fun EpiAlarmScreen(
     onOpen: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val slotLabel = if (slot == "morning") "Утренний приём" else "Вечерний приём"
     EpiTheme(darkTheme = false) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
@@ -185,7 +186,7 @@ private fun EpiAlarmScreen(
                 Text("Время проверить приём", fontSize = 28.sp,
                     fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                 Text(
-                    "$childName · " + if (slot == "morning") "Утренний приём" else "Вечерний приём",
+                    "$childName · $slotLabel",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
