@@ -160,34 +160,14 @@ fun ParentDashboard(
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 15.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                    ) {
-                        Icon(
-                            Icons.Rounded.Favorite,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(10.dp).size(24.dp),
-                        )
-                    }
-                    Spacer(Modifier.width(11.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("EpiApp", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
-                        Text(
-                            if (state.role == "admin") "Кабинет администратора" else "Кабинет родителя",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.labelSmall,
-                        )
-                    }
-                    TextButton(onClick = onPreviewChild) {
-                        Text("Ребёнок")
-                    }
-                }
+                EpiBrandHeader(
+                    subtitle = if (state.role == "admin") "Кабинет администратора" else "Кабинет родителя",
+                    action = {
+                        TextButton(onClick = onPreviewChild) {
+                            Text("Режим ребёнка")
+                        }
+                    },
+                )
             },
             bottomBar = {
                 NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
@@ -265,7 +245,7 @@ private fun ParentOverview(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
-            Text("Рядом каждый день", fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold)
+            Text("Сегодня у ребёнка", fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(5.dp))
             Text(
                 "Расписание и отметки для " + state.schedule.childName,
@@ -328,11 +308,10 @@ private fun ParentOverview(
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Spacer(Modifier.height(14.dp))
-                Button(
+                EpiPrimaryButton(
+                    label = "Открыть детский режим · Просмотр",
                     onClick = onPreviewChild,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = RoundedCornerShape(14.dp),
-                ) { Text("Открыть детский режим · Просмотр") }
+                )
             }
         }
         item {
@@ -393,7 +372,7 @@ private fun ParentSchedule(
     ) {
         item {
             Text("Расписание", fontSize = 28.sp, fontWeight = FontWeight.Bold)
-            Text("Препарат, дозы и время приёма", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Изменения сохраняются для детского устройства", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         item {
             ParentSurfaceCard {
@@ -537,8 +516,8 @@ private fun ParentSaveButton(saving: Boolean, feedback: String?, onSave: () -> U
         Button(
             onClick = onSave,
             enabled = !saving,
-            modifier = Modifier.fillMaxWidth().height(54.dp),
-            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = MaterialTheme.shapes.medium,
         ) {
             if (saving) {
                 CircularProgressIndicator(
@@ -563,12 +542,5 @@ private fun ParentSaveButton(saving: Boolean, feedback: String?, onSave: () -> U
 
 @Composable
 private fun ParentSurfaceCard(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(20.dp), content = content)
-    }
+    EpiSurfaceCard(content = content)
 }
