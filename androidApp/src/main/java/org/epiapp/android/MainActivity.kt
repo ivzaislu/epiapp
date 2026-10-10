@@ -16,17 +16,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.text.InputType
-import android.view.Gravity
-import android.view.View
-import android.view.ViewGroup
-import android.widget.Button
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.ProgressBar
-import android.widget.ScrollView
-import android.widget.Switch
-import android.widget.TextView
 import java.util.Locale
 import kotlin.concurrent.thread
 
@@ -81,8 +70,6 @@ class MainActivity : ComponentActivity() {
             syncScheduleSilently()
         }
     }
-
-    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private fun applyAppWindowColors(darkTheme: Boolean) {
         val color = Color.parseColor(if (darkTheme) "#101827" else "#FFFFFF")
