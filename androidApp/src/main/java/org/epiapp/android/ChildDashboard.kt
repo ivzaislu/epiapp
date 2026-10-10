@@ -119,40 +119,21 @@ fun ChildDashboard(
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 22.dp, end = 14.dp, top = 16.dp, bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = .13f)) {
-                        Icon(
-                            Icons.Rounded.Favorite,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(10.dp).size(24.dp),
-                        )
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        "EpiApp",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f),
-                    )
-                    if (readOnly) {
-                        TextButton(onClick = onBackToParent) {
-                            Text("В кабинет")
+                EpiBrandHeader(
+                    subtitle = if (readOnly) "Детский режим · Только просмотр" else "Мои лекарства",
+                    action = {
+                        if (readOnly) {
+                            TextButton(onClick = onBackToParent) { Text("В кабинет") }
+                        } else {
+                            IconButton(onClick = {
+                                selectedTab = ChildTab.SETTINGS
+                                onTabSelected(ChildTab.SETTINGS)
+                            }) {
+                                Icon(Icons.Rounded.Settings, contentDescription = "Настройки")
+                            }
                         }
-                    } else {
-                        IconButton(onClick = {
-                            selectedTab = ChildTab.SETTINGS
-                            onTabSelected(ChildTab.SETTINGS)
-                        }) {
-                            Icon(Icons.Rounded.Settings, contentDescription = "Настройки")
-                        }
-                    }
-                }
+                    },
+                )
             },
             bottomBar = {
                 NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
@@ -253,7 +234,7 @@ private fun ChildHome(
         item {
             Column {
                 Text(
-                    "СЕГОДНЯ · МОИ ЛЕКАРСТВА",
+                    "РАСПИСАНИЕ НА СЕГОДНЯ",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold,
@@ -261,7 +242,7 @@ private fun ChildHome(
                 )
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    "Время позаботиться о себе",
+                    "Мои лекарства",
                     fontWeight = FontWeight.Bold,
                     fontSize = 28.sp,
                     lineHeight = 34.sp,
@@ -309,7 +290,7 @@ private fun ChildHome(
                     )
                     Spacer(Modifier.width(12.dp))
                     Column {
-                        Text("Ваш препарат", style = MaterialTheme.typography.labelMedium)
+                        Text("Препарат", style = MaterialTheme.typography.labelMedium)
                         Text(
                             state.schedule.medicationName.ifBlank { "Название пока не указано" },
                             fontWeight = FontWeight.SemiBold,
@@ -355,7 +336,7 @@ private fun ChildHome(
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    if (readOnly) "Это просмотр расписания и отметок ребёнка." else "Отметка сохраняется только после ответа сервера.",
+                    if (readOnly) "Родитель может посмотреть отметки, но не подтвердить приём." else "Отметка появится после сохранения на сервере.",
                     modifier = Modifier.weight(1f),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
@@ -384,9 +365,9 @@ private fun DoseCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
+        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -448,7 +429,7 @@ private fun DoseCard(
                     onClick = onTake,
                     enabled = enabled,
                     modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = MaterialTheme.shapes.medium,
                 ) {
                     if (waiting) {
                         CircularProgressIndicator(
