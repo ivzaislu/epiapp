@@ -243,6 +243,12 @@ private fun ParentOverview(
     onPreviewChild: () -> Unit,
     onRefresh: () -> Unit,
 ) {
+    val latest = state.latestTodayConfirmation()
+    val latestText = when {
+        latest != null -> "Последняя отметка сегодня: ${latest.first.lowercase()} в ${latest.second}"
+        state.morningTaken || state.eveningTaken -> "Приём отмечен, точное время недоступно"
+        else -> "Сегодня подтверждений пока нет"
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(20.dp, padding.calculateTopPadding() + 10.dp, 20.dp, padding.calculateBottomPadding() + 24.dp),
@@ -253,6 +259,13 @@ private fun ParentOverview(
                 eyebrow = "КАБИНЕТ РОДИТЕЛЯ",
                 title = "Сегодня у ребёнка",
                 subtitle = "Расписание и отметки для " + state.schedule.childName,
+            )
+        }
+        item {
+            EpiTodayProgress(
+                morningTaken = state.morningTaken,
+                eveningTaken = state.eveningTaken,
+                detail = latestText,
             )
         }
         item {
@@ -304,9 +317,9 @@ private fun ParentOverview(
                 Text(state.schedule.medicationName.ifBlank { "Препарат не указан" },
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(14.dp))
-                ParentTodayRow("Утро", state.schedule.morningTime, state.morningTaken)
+                ParentTodayRow("Утро", state.schedule.morningTime, state.morningTaken, state.localTakenTime("morning"))
                 HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
-                ParentTodayRow("Вечер", state.schedule.eveningTime, state.eveningTaken)
+                ParentTodayRow("Вечер", state.schedule.eveningTime, state.eveningTaken, state.localTakenTime("evening"))
             }
         }
         item {
@@ -344,7 +357,7 @@ private fun ParentOverview(
 }
 
 @Composable
-private fun ParentTodayRow(title: String, time: String, taken: Boolean) {
+private fun ParentTodayRow(title: String, time: String, taken: Boolean, confirmedAt: String?) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -358,7 +371,8 @@ private fun ParentTodayRow(title: String, time: String, taken: Boolean) {
         Column(modifier = Modifier.weight(1f)) {
             Text(title, fontWeight = FontWeight.SemiBold)
             Text(
-                if (taken) "Подтверждён" else "Ожидается отметка",
+                if (taken) confirmedAt?.let { "Подтверждено в $it" } ?: "Подтверждено"
+                else "Ожидается отметка",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
             )
