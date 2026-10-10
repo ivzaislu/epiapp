@@ -115,6 +115,15 @@ fun ChildDashboard(
         }
     }
 
+    androidx.activity.compose.BackHandler(enabled = readOnly || selectedTab != ChildTab.HOME) {
+        if (selectedTab != ChildTab.HOME) {
+            selectedTab = ChildTab.HOME
+            onTabSelected(ChildTab.HOME)
+        } else if (readOnly) {
+            onBackToParent()
+        }
+    }
+
     EpiTheme(darkTheme = darkTheme) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
