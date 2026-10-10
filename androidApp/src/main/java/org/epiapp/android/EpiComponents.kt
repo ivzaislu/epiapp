@@ -1,5 +1,6 @@
 package org.epiapp.android
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,7 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -22,10 +22,17 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
@@ -71,6 +78,39 @@ fun EpiPageIntro(
     }
 }
 
+/**
+ * The app's white checkmark in a rounded blue square.
+ * The check uses the same 512-unit geometry and stroke as the launcher artwork.
+ */
+@Composable
+fun EpiAppLogoMark(
+    modifier: Modifier = Modifier,
+    size: Dp = 44.dp,
+) {
+    Canvas(modifier = modifier.size(size)) {
+        drawRoundRect(
+            color = EpiColors.primary,
+            cornerRadius = CornerRadius(this.size.width * 0.24f),
+        )
+        val sx = this.size.width / 512f
+        val sy = this.size.height / 512f
+        val check = Path().apply {
+            moveTo(151f * sx, 263f * sy)
+            lineTo(221f * sx, 333f * sy)
+            lineTo(364f * sx, 175f * sy)
+        }
+        drawPath(
+            path = check,
+            color = Color.White,
+            style = Stroke(
+                width = 52f * sx,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round,
+            ),
+        )
+    }
+}
+
 /** Consistent identity for child mode, parent mode and connection screens. */
 @Composable
 fun EpiBrandHeader(subtitle: String, modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null) {
@@ -78,17 +118,7 @@ fun EpiBrandHeader(subtitle: String, modifier: Modifier = Modifier, action: (@Co
         modifier = modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Surface(
-            shape = RoundedCornerShape(14.dp),
-            color = MaterialTheme.colorScheme.primaryContainer,
-        ) {
-            Icon(
-                Icons.Rounded.Favorite,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(10.dp).size(24.dp),
-            )
-        }
+        EpiAppLogoMark()
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text("EpiApp", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
