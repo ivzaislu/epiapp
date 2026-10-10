@@ -1,9 +1,7 @@
 package org.epiapp.android
 
-import android.app.Activity
 import android.app.NotificationManager
 import android.content.Intent
-import android.graphics.Color
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.RingtoneManager
@@ -12,14 +10,36 @@ import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import android.view.Gravity
-import android.view.ViewGroup
 import android.view.WindowManager
-import android.widget.Button
-import android.widget.LinearLayout
-import android.widget.TextView
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.material.icons.rounded.Medication
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
-class AlarmActivity : Activity() {
+class AlarmActivity : ComponentActivity() {
     private var mediaPlayer: MediaPlayer? = null
     private var vibrator: Vibrator? = null
 
@@ -40,74 +60,36 @@ class AlarmActivity : Activity() {
         val notificationId = intent.getIntExtra(AlarmScheduler.EXTRA_NOTIFICATION_ID, 0)
         getSystemService(NotificationManager::class.java).cancel(notificationId)
 
-        setContentView(buildContent(slot, late, childName))
-        startAlarmSound()
-    }
+        // Only a child device receives alarms. The medication plan is a local cache.
+        val stored = ScheduleStore.load(this)?.takeIf { it.first == "child" }?.second
+        val medication = stored?.medicationName.orEmpty()
+        val dose = if (slot == "morning") stored?.morningDose.orEmpty() else stored?.eveningDose.orEmpty()
+        val time = if (slot == "morning") stored?.morningTime.orEmpty() else stored?.eveningTime.orEmpty()
 
-    private fun buildContent(slot: String, late: Int, childName: String): LinearLayout {
-        val density = resources.displayMetrics.density
-        fun dp(value: Int) = (value * density).toInt()
-
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(dp(28), dp(40), dp(28), dp(40))
-            setBackgroundColor(Color.parseColor("#F5F8F6"))
-            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        setContent {
+            EpiAlarmScreen(
+                childName = childName,
+                medication = medication,
+                dose = dose,
+                time = time,
+                slot = slot,
+                late = late,
+                onOpen = {
+                    stopAlarmSound()
+                    startActivity(
+                        Intent(this@AlarmActivity, MainActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                            .putExtra("alarm_slot", slot),
+                    )
+                    finish()
+                },
+                onDismiss = {
+                    stopAlarmSound()
+                    finish()
+                },
+            )
         }
-        root.addView(TextView(this).apply {
-            text = "🚨"
-            textSize = 58f
-            gravity = Gravity.CENTER
-        })
-        root.addView(TextView(this).apply {
-            text = "EpiApp — время проверить лекарство"
-            textSize = 28f
-            setTextColor(Color.parseColor("#1C343A"))
-            gravity = Gravity.CENTER
-            setPadding(0, dp(10), 0, dp(12))
-        })
-        val label = if (slot == "morning") "утреннего" else "вечернего"
-        root.addView(TextView(this).apply {
-            text = "$childName: отметки $label приёма нет около $late минут после заданного времени."
-            textSize = 18f
-            setTextColor(Color.parseColor("#64777A"))
-            gravity = Gravity.CENTER
-            setPadding(0, 0, 0, dp(28))
-        })
-        root.addView(Button(this).apply {
-            text = "💊 Открыть EpiApp"
-            textSize = 18f
-            setOnClickListener {
-                stopAlarmSound()
-                startActivity(
-                    Intent(this@AlarmActivity, MainActivity::class.java)
-                        .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                        .putExtra("alarm_slot", slot),
-                )
-                finish()
-            }
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(58)).apply {
-                bottomMargin = dp(14)
-            }
-        })
-        root.addView(Button(this).apply {
-            text = "🔕 Выключить будильник"
-            textSize = 17f
-            setOnClickListener {
-                stopAlarmSound()
-                finish()
-            }
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(58))
-        })
-        root.addView(TextView(this).apply {
-            text = "Выключение будильника не означает, что лекарство принято. Отметка сохраняется отдельно в EpiApp."
-            textSize = 13f
-            setTextColor(Color.parseColor("#64777A"))
-            gravity = Gravity.CENTER
-            setPadding(0, dp(20), 0, 0)
-        })
-        return root
+        startAlarmSound()
     }
 
     private fun startAlarmSound() {
@@ -145,7 +127,7 @@ class AlarmActivity : Activity() {
         try {
             mediaPlayer?.stop()
         } catch (_: Exception) {
-            // already stopped
+            // Already stopped.
         }
         mediaPlayer?.release()
         mediaPlayer = null
@@ -157,8 +139,93 @@ class AlarmActivity : Activity() {
         super.onDestroy()
     }
 
-    @Deprecated("Alarm screen intentionally ignores back to require an explicit choice")
+    @Deprecated("Alarm requires an explicit action")
     override fun onBackPressed() {
-        // Keep the alarm active until one of the visible buttons is pressed.
+        // Opening the app or silencing the alarm are explicit actions.
+    }
+}
+
+@Composable
+private fun EpiAlarmScreen(
+    childName: String,
+    medication: String,
+    dose: String,
+    time: String,
+    slot: String,
+    late: Int,
+    onOpen: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    EpiTheme(darkTheme = false) {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            topBar = { EpiBrandHeader(subtitle = "Напоминание о лекарстве") },
+        ) { padding ->
+            Column(
+                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                    .padding(
+                        start = 20.dp, end = 20.dp,
+                        top = padding.calculateTopPadding() + 26.dp,
+                        bottom = padding.calculateBottomPadding() + 24.dp,
+                    ),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Surface(
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                ) {
+                    Icon(
+                        Icons.Rounded.Alarm,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(24.dp),
+                    )
+                }
+                Text("Время проверить приём", fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                Text(
+                    "$childName · " + if (slot == "morning") "Утренний приём" else "Вечерний приём",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+                EpiSurfaceCard {
+                    Text("Препарат", color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelMedium)
+                    Text(medication.ifBlank { "Проверьте расписание в EpiApp" },
+                        style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    if (dose.isNotBlank()) {
+                        Text("Дозировка: $dose")
+                    }
+                    if (time.isNotBlank()) {
+                        Text("Время по расписанию: $time")
+                    }
+                    Text(
+                        "Отметки о приёме нет примерно $late мин после назначенного времени.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                EpiPrimaryButton(
+                    label = "Открыть EpiApp для подтверждения",
+                    onClick = onOpen,
+                    icon = Icons.Rounded.Medication,
+                )
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = MaterialTheme.shapes.medium,
+                ) {
+                    Text("Выключить сигнал")
+                }
+                Text(
+                    "Выключение сигнала не подтверждает приём. Отметка сохраняется только в детском режиме после ответа сервера. Запланированные повторы могут сработать позже.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
     }
 }
