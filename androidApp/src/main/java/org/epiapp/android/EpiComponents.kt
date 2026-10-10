@@ -28,7 +28,7 @@ import androidx.compose.ui.unit.dp
 
 /** Consistent identity for child mode, parent mode and connection screens. */
 @Composable
-fun EpiBrandHeader(subtitle: String, modifier: Modifier = Modifier, action: @Composable (() -> Unit)? = null) {
+fun EpiBrandHeader(subtitle: String, modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null) {
     Row(
         modifier = modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
