@@ -25,7 +25,51 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
+
+/**
+ * Centred intro for dashboards and connection/empty states.
+ * Form labels and long instructions intentionally remain left aligned.
+ */
+@Composable
+fun EpiPageIntro(
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier,
+    eyebrow: String? = null,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(7.dp),
+    ) {
+        if (!eyebrow.isNullOrBlank()) {
+            Text(
+                eyebrow,
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+            )
+        }
+        Text(
+            title,
+            modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            lineHeight = 34.sp,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            subtitle,
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
 
 /** Consistent identity for child mode, parent mode and connection screens. */
 @Composable
