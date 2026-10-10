@@ -17,7 +17,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.DarkMode
-import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Medication
@@ -169,7 +168,7 @@ fun ParentDashboard(
                     subtitle = if (state.role == "admin") "Кабинет администратора" else "Кабинет родителя",
                     action = {
                         TextButton(onClick = onPreviewChild) {
-                            Text("Режим ребёнка")
+                            Text("Ребёнок")
                         }
                     },
                 )
