@@ -122,7 +122,12 @@ object AlarmScheduler {
             .putString(snoozeDayKey(slot), day)
             .putInt(snoozeStageKey(slot), stageMinute)
             .apply()
-        scheduleSnoozeAlarm(context, slot, schedule.childName, stageMinute, day, target)
+        try {
+            scheduleSnoozeAlarm(context, slot, schedule.childName, stageMinute, day, target)
+        } catch (_: Exception) {
+            clearSnooze(context, slot)
+            return false
+        }
         context.getSystemService(NotificationManager::class.java).cancel(notificationId(slot))
         return true
     }
@@ -131,8 +136,10 @@ object AlarmScheduler {
     fun isSnoozed(context: Context, schedule: NativeSchedule, slot: String): Boolean {
         if (slot != "morning" && slot != "evening") return false
         val state = prefs(context)
+        // Keep regular stages muted until the snooze is actually delivered,
+        // including when Android delays the snoozed alarm during Doze mode.
         return state.getString(snoozeDayKey(slot), null) == today(schedule) &&
-            state.getLong(snoozeTargetKey(slot), 0L) > System.currentTimeMillis()
+            state.getLong(snoozeTargetKey(slot), 0L) > 0L
     }
 
     /** Returns true only for the current, due snooze for this slot and local day. */
@@ -186,7 +193,12 @@ object AlarmScheduler {
         val manager = context.getSystemService(AlarmManager::class.java)
         val due = target.coerceAtLeast(System.currentTimeMillis() + 1_000L)
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || manager.canScheduleExactAlarms()) {
-            manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, due, pending)
+            try {
+                manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, due, pending)
+            } catch (_: SecurityException) {
+                // Permission could be revoked between the check and scheduling.
+                manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, due, pending)
+            }
         } else {
             manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, due, pending)
         }
