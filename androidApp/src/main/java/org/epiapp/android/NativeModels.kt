@@ -62,7 +62,42 @@ data class DeviceScheduleState(
     val today: String,
     val morningTaken: Boolean,
     val eveningTaken: Boolean,
-)
+    // Raw server timestamps (UTC), never inferred from a scheduled dose time.
+    val morningTakenAt: String? = null,
+    val eveningTakenAt: String? = null,
+) {
+    fun localTakenTime(slot: String): String? {
+        val timestamp = when (slot) {
+            "morning" -> morningTakenAt
+            "evening" -> eveningTakenAt
+            else -> null
+        } ?: return null
+        return try {
+            java.time.Instant.parse(timestamp)
+                .atZone(java.time.ZoneId.of(schedule.timezone))
+                .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** The latest *recorded* dose today, or null if its timestamp is unavailable. */
+    fun latestTodayConfirmation(): Pair<String, String>? {
+        val candidates = listOfNotNull(
+            if (morningTaken) morningTakenAt?.let { "Утро" to it } else null,
+            if (eveningTaken) eveningTakenAt?.let { "Вечер" to it } else null,
+        ).mapNotNull { (label, raw) ->
+            try {
+                Triple(label, java.time.Instant.parse(raw), raw)
+            } catch (_: Exception) {
+                null
+            }
+        }
+        val latest = candidates.maxByOrNull { it.second } ?: return null
+        return localTakenTime(if (latest.first == "Утро") "morning" else "evening")
+            ?.let { time -> latest.first to time }
+    }
+}
 
 data class RecentDose(
     val id: String,
