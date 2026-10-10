@@ -57,7 +57,20 @@ class AlarmReceiver : BroadcastReceiver() {
         if (role != "child" || !schedule.remindersEnabled) return
 
         val slot = intent.getStringExtra(AlarmScheduler.EXTRA_SLOT) ?: return
+        if (slot != "morning" && slot != "evening") return
         if (AlarmScheduler.isTakenToday(context, schedule, slot)) {
+            AlarmScheduler.scheduleAll(context, schedule)
+            return
+        }
+        if (intent.action == AlarmScheduler.ACTION_SNOOZE) {
+            // A previous snooze must never trigger if it was replaced or the day changed.
+            if (!AlarmScheduler.consumeSnooze(
+                    context, schedule, slot,
+                    intent.getStringExtra(AlarmScheduler.EXTRA_SNOOZE_DAY),
+                    intent.getLongExtra(AlarmScheduler.EXTRA_SNOOZE_UNTIL, -1L),
+                )) return
+        } else if (AlarmScheduler.isSnoozed(context, schedule, slot)) {
+            // The scheduled escalation is temporarily suppressed until the snoozed alarm.
             AlarmScheduler.scheduleAll(context, schedule)
             return
         }
