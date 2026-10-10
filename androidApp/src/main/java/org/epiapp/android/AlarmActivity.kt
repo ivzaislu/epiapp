@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -180,7 +181,7 @@ private fun EpiAlarmScreen(
                         Icons.Rounded.Alarm,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(24.dp),
+                        modifier = Modifier.padding(24.dp).size(38.dp),
                     )
                 }
                 Text("Время проверить приём", fontSize = 28.sp,
@@ -192,18 +193,43 @@ private fun EpiAlarmScreen(
                     textAlign = TextAlign.Center,
                 )
                 EpiSurfaceCard {
-                    Text("Препарат", color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.labelMedium)
-                    Text(medication.ifBlank { "Проверьте расписание в EpiApp" },
-                        style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(
+                        "ПРЕПАРАТ",
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        medication.ifBlank { "Проверьте расписание в EpiApp" },
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
                     if (dose.isNotBlank()) {
-                        Text("Дозировка: $dose")
+                        Text(
+                            "Дозировка: $dose",
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                     if (time.isNotBlank()) {
-                        Text("Время по расписанию: $time")
+                        Text(
+                            time,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center,
+                            fontSize = 32.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
                     }
                     Text(
-                        "Отметки о приёме нет примерно $late мин после назначенного времени.",
+                        "Нет отметки о приёме примерно $late мин после назначенного времени.",
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodyMedium,
                     )
