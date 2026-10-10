@@ -250,18 +250,26 @@ private fun ParentOverview(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
-            Text("Сегодня у ребёнка", fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(5.dp))
-            Text(
-                "Расписание и отметки для " + state.schedule.childName,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            EpiPageIntro(
+                eyebrow = "КАБИНЕТ РОДИТЕЛЯ",
+                title = "Сегодня у ребёнка",
+                subtitle = "Расписание и отметки для " + state.schedule.childName,
             )
         }
         item {
             ParentSurfaceCard {
-                Text("Приёмы за 7 дней", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Приёмы за 7 дней",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
                 Spacer(Modifier.height(12.dp))
-                Row(verticalAlignment = Alignment.Bottom) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
                     Text(
                         if (stats.rate == null) "—" else stats.rate.toString() + "%",
                         fontSize = 44.sp,
@@ -269,11 +277,10 @@ private fun ParentOverview(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
                     )
-                    Spacer(Modifier.width(10.dp))
                     Text(
                         "подтверждено",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 9.dp),
+                        style = MaterialTheme.typography.bodySmall,
                     )
                 }
                 Spacer(Modifier.height(12.dp))
@@ -305,10 +312,18 @@ private fun ParentOverview(
         }
         item {
             ParentSurfaceCard {
-                Text("Детский экран", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    "Детский экран",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Посмотрите, что видит ребёнок. Подтверждать приём из родительского аккаунта нельзя.",
+                    "Можно посмотреть расписание и историю, но нельзя отметить приём за ребёнка.",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -355,9 +370,20 @@ private fun ParentTodayRow(title: String, time: String, taken: Boolean) {
 
 @Composable
 private fun ParentMetric(value: String, label: String, modifier: Modifier = Modifier) {
-    Column(modifier = modifier) {
-        Text(value, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            value,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            label,
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -376,8 +402,10 @@ private fun ParentSchedule(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
-            Text("Расписание", fontSize = 28.sp, fontWeight = FontWeight.Bold)
-            Text("Изменения сохраняются для детского устройства", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            EpiPageIntro(
+                title = "Расписание",
+                subtitle = "Препарат, дозировки и время приёма",
+            )
         }
         item {
             ParentSurfaceCard {
@@ -436,8 +464,10 @@ private fun ParentSettings(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
-            Text("Настройки", fontSize = 28.sp, fontWeight = FontWeight.Bold)
-            Text("Напоминания и приложение", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            EpiPageIntro(
+                title = "Настройки",
+                subtitle = "Напоминания и параметры EpiApp",
+            )
         }
         item {
             ParentSurfaceCard {
