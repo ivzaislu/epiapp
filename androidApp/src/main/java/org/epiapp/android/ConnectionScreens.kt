@@ -29,6 +29,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -46,7 +47,8 @@ fun EpiConnectScreen(
 ) {
     var manualExpanded by rememberSaveable { mutableStateOf(!error.isNullOrBlank()) }
     var server by rememberSaveable(initialServer) { mutableStateOf(initialServer) }
-    var code by rememberSaveable { mutableStateOf("") }
+    // Do not persist one-time pairing codes in the Activity saved instance state.
+    var code by remember { mutableStateOf("") }
     EpiTheme(darkTheme = false) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
@@ -150,7 +152,7 @@ fun EpiConnectScreen(
                             enabled = server.isNotBlank() && code.length == 6,
                         )
                         Text(
-                            "Если код не подошёл, получите новый в Telegram-боте. Приложение не сохраняет введённый код.",
+                            "Если код не подошёл, получите новый в Telegram-боте. Не сообщайте код посторонним.",
                             modifier = Modifier.fillMaxWidth(),
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
