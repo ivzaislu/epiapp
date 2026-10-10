@@ -77,6 +77,8 @@ fun ParentDashboard(
 ) {
     var tab by rememberSaveable { mutableStateOf(initialTab) }
     var draft by remember { mutableStateOf(settings) }
+    // Only server-saved settings are shown in the overview; unfinished form edits stay in the form.
+    var confirmedSchedule by remember { mutableStateOf(settings) }
     var shownStats by remember { mutableStateOf(stats) }
     var firstMinutes by remember { mutableStateOf(settings.reminderFirstMinutes.toString()) }
     var urgentMinutes by remember { mutableStateOf(settings.reminderUrgentMinutes.toString()) }
@@ -123,6 +125,7 @@ fun ParentDashboard(
             result.fold(
                 onSuccess = { (saved, refreshedStats) ->
                     draft = saved
+                    confirmedSchedule = saved
                     shownStats = refreshedStats
                     firstMinutes = saved.reminderFirstMinutes.toString()
                     urgentMinutes = saved.reminderUrgentMinutes.toString()
@@ -195,7 +198,7 @@ fun ParentDashboard(
         ) { padding ->
             when (tab) {
                 ParentTab.OVERVIEW -> ParentOverview(
-                    state = state.copy(schedule = draft),
+                    state = state.copy(schedule = confirmedSchedule),
                     stats = shownStats,
                     padding = padding,
                     onPreviewChild = onPreviewChild,
