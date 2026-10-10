@@ -88,6 +88,15 @@ fun EpiConnectScreen(
                     Text("3. Выберите «Открыть в EpiApp».")
                     Spacer(Modifier.height(8.dp))
                     Text(
+                        "Код действует 5 минут и подходит только для одного подключения.",
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
                         "Адрес сервера и одноразовый ключ передадутся автоматически.",
                         modifier = Modifier.fillMaxWidth(),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -139,6 +148,13 @@ fun EpiConnectScreen(
                             label = "Подключить EpiApp",
                             onClick = { onManualPair(server, code) },
                             enabled = server.isNotBlank() && code.length == 6,
+                        )
+                        Text(
+                            "Если код не подошёл, получите новый в Telegram-боте. Приложение не сохраняет введённый код.",
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
                         )
                     }
                 }
