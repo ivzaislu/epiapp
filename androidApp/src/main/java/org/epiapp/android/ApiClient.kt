@@ -172,6 +172,8 @@ class ApiClient(inputBaseUrl: String) {
             today = response.json.optString("today", ""),
             morningTaken = doses.has("morning") && !doses.isNull("morning"),
             eveningTaken = doses.has("evening") && !doses.isNull("evening"),
+            morningTakenAt = doses.optJSONObject("morning")?.optString("takenAt")?.takeIf { it.isNotBlank() },
+            eveningTakenAt = doses.optJSONObject("evening")?.optString("takenAt")?.takeIf { it.isNotBlank() },
         )
     }
 }
