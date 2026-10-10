@@ -85,7 +85,7 @@ class MainActivity : ComponentActivity() {
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private fun applyAppWindowColors(darkTheme: Boolean) {
-        val color = Color.parseColor(if (darkTheme) "#122124" else "#F5F8F6")
+        val color = Color.parseColor(if (darkTheme) "#101827" else "#FFFFFF")
         window.statusBarColor = color
         window.navigationBarColor = color
         // A windowInsetsController is not available until DecorView is attached.
@@ -106,7 +106,7 @@ class MainActivity : ComponentActivity() {
         val code = data.getQueryParameter("token")
             ?: data.getQueryParameter("code")
             ?: ""
-        pairDevice(server, code, null, null)
+        pairDevice(server, code)
         return true
     }
 
@@ -146,33 +146,22 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun pairDevice(serverText: String, code: String, status: TextView?, button: Button?) {
+    private fun pairDevice(serverText: String, code: String) {
         val serverUrl = try {
             ApiClient.normalizeBaseUrl(serverText)
         } catch (error: IllegalArgumentException) {
-            if (status != null) {
-                status.text = error.message
-            } else {
-                showPairing(error.message ?: "Некорректный адрес сервера.", serverText)
-            }
+            showPairing(error.message ?: "Некорректный адрес сервера.", serverText)
             return
         }
         val pairingSecret = code.trim()
         val validManualCode = pairingSecret.matches(Regex("\\d{6}"))
         val validLinkToken = pairingSecret.matches(Regex("[A-Za-z0-9_-]{32,128}"))
         if (!validManualCode && !validLinkToken) {
-            if (status != null) {
-                status.text = "Введите 6 цифр из Telegram-бота."
-            } else {
-                showPairing("Ссылка подключения не содержит действительный одноразовый токен.", serverUrl)
-            }
+            showPairing("Нужен действительный одноразовый ключ или шестизначный код.", serverUrl)
             return
         }
 
-        button?.isEnabled = false
-        if (status != null) status.text = "Подключаю устройство…"
-        else showLoading("Подключаю устройство…")
-
+        showLoading("Подключаю устройство…")
         val deviceName = listOf(Build.MANUFACTURER, Build.MODEL)
             .filter { it.isNotBlank() }
             .joinToString(" ")
@@ -181,7 +170,7 @@ class MainActivity : ComponentActivity() {
         thread(name = "epiapp-pair") {
             try {
                 val api = ApiClient(serverUrl)
-                if (!api.health()) throw IllegalStateException("EpiApp healthcheck не подтверждён.")
+                if (!api.health()) throw IllegalStateException("Сервер EpiApp не отвечает.")
                 val session = api.pair(pairingSecret, deviceName)
                 val token = session.deviceToken ?: throw IllegalStateException("Сервер не вернул ключ устройства.")
                 secureStore.saveConnection(api.baseUrl, token)
@@ -193,12 +182,7 @@ class MainActivity : ComponentActivity() {
                 }
             } catch (error: Exception) {
                 runOnUiThread {
-                    if (status != null && button != null) {
-                        button.isEnabled = true
-                        status.text = error.message ?: "Не удалось подключить устройство."
-                    } else {
-                        showPairing(error.message ?: "Не удалось подключить устройство.", serverUrl)
-                    }
+                    showPairing(error.message ?: "Не удалось подключить устройство.", serverUrl)
                 }
             }
         }
@@ -316,30 +300,6 @@ class MainActivity : ComponentActivity() {
         } else {
             showAdultHome(state)
         }
-    }
-
-    private fun title(text: String, size: Float = 28f): TextView = TextView(this).apply {
-        this.text = text
-        textSize = size
-        setTextColor(Color.parseColor("#1C343A"))
-    }
-
-    private fun muted(text: String, size: Float = 14f): TextView = TextView(this).apply {
-        this.text = text
-        textSize = size
-        setTextColor(Color.parseColor("#64777A"))
-    }
-
-    private fun card(): LinearLayout = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(dp(20), dp(18), dp(20), dp(18))
-        setBackgroundColor(Color.WHITE)
-    }
-
-    private fun addCard(root: LinearLayout, view: View) {
-        root.addView(view, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            topMargin = dp(14)
-        })
     }
 
     private fun showChildHome(state: DeviceScheduleState) {
@@ -518,120 +478,33 @@ class MainActivity : ComponentActivity() {
         applyAppWindowColors(false)
         currentRole = null
         currentState = null
-
-        val scroll = ScrollView(this).apply { setBackgroundColor(Color.parseColor("#F5F8F6")) }
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(dp(26), dp(42), dp(26), dp(32))
+        setContent {
+            EpiConnectScreen(
+                initialServer = suggestedServer,
+                error = error,
+                onManualPair = { server, code -> pairDevice(server, code) },
+            )
         }
-        scroll.addView(root)
-
-        root.addView(title("EpiApp", 34f).apply { gravity = Gravity.CENTER })
-        root.addView(title("Подключение Android", 22f).apply {
-            gravity = Gravity.CENTER
-            setTextColor(Color.parseColor("#246A70"))
-            setPadding(0, dp(8), 0, dp(16))
-        })
-        root.addView(muted(
-            "Откройте Telegram-бот вашей семьи, нажмите «📲 Подключить Android», затем «📲 Открыть в EpiApp». Адрес сервера и код передадутся автоматически.",
-            15f,
-        ).apply { gravity = Gravity.CENTER })
-
-        if (!error.isNullOrBlank()) {
-            root.addView(TextView(this).apply {
-                text = error
-                textSize = 14f
-                setTextColor(Color.parseColor("#B42318"))
-                gravity = Gravity.CENTER
-                setPadding(0, dp(14), 0, 0)
-            })
-        }
-
-        root.addView(muted("Резервное ручное подключение", 13f).apply {
-            gravity = Gravity.CENTER
-            setPadding(0, dp(28), 0, dp(8))
-        })
-
-        val serverInput = EditText(this).apply {
-            hint = "https://epiapp.example.com"
-            setText(suggestedServer)
-            textSize = 17f
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-            setSingleLine(true)
-        }
-        root.addView(serverInput, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-
-        val codeInput = EditText(this).apply {
-            hint = "123 456"
-            textSize = 24f
-            gravity = Gravity.CENTER
-            inputType = InputType.TYPE_CLASS_NUMBER
-        }
-        root.addView(codeInput, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            topMargin = dp(10)
-        })
-
-        val status = muted("", 14f).apply {
-            gravity = Gravity.CENTER
-            setPadding(0, dp(10), 0, dp(10))
-        }
-        root.addView(status)
-
-        val button = Button(this).apply {
-            text = "Подключить вручную"
-            textSize = 17f
-        }
-        button.setOnClickListener {
-            pairDevice(serverInput.text.toString(), codeInput.text.toString(), status, button)
-        }
-        root.addView(button, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(58)))
-
-        setContentView(scroll)
     }
 
     private fun showLoading(message: String) {
         applyAppWindowColors(false)
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setBackgroundColor(Color.parseColor("#F5F8F6"))
-            addView(ProgressBar(this@MainActivity))
-            addView(TextView(this@MainActivity).apply {
-                text = message
-                textSize = 16f
-                gravity = Gravity.CENTER
-                setPadding(0, dp(18), 0, 0)
-            })
-        }
-        setContentView(root)
+        setContent { EpiLoadingScreen(message) }
     }
 
     private fun showRetry(message: String, serverUrl: String, token: String) {
         applyAppWindowColors(false)
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(dp(36), dp(36), dp(36), dp(36))
-            setBackgroundColor(Color.parseColor("#F5F8F6"))
-            addView(title("Нет связи с EpiApp", 24f).apply { gravity = Gravity.CENTER })
-            addView(muted("$serverUrl\n\n$message", 15f).apply {
-                gravity = Gravity.CENTER
-                setPadding(0, dp(12), 0, dp(18))
-            })
-            addView(Button(this@MainActivity).apply {
-                text = "Повторить"
-                setOnClickListener { authenticateDevice(serverUrl, token) }
-            })
-            addView(Button(this@MainActivity).apply {
-                text = "Сменить сервер / переподключить"
-                setOnClickListener {
+        setContent {
+            EpiRetryScreen(
+                message = message,
+                serverUrl = serverUrl,
+                onRetry = { authenticateDevice(serverUrl, token) },
+                onReconnect = {
                     clearDeviceAccess()
                     showPairing(suggestedServer = serverUrl)
-                }
-            })
+                },
+            )
         }
-        setContentView(root)
     }
 
     private fun hasExactAlarmPermission(): Boolean {
