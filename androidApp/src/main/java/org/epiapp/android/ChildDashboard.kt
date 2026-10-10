@@ -633,7 +633,7 @@ private fun SettingsPage(
                 }
             }
         }
-        item {
+        if (!readOnly) item {
             Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column(modifier = Modifier.padding(18.dp)) {
                     Text("Подключение", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
