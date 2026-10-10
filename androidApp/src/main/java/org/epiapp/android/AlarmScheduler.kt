@@ -17,6 +17,11 @@ object AlarmScheduler {
     const val EXTRA_STAGE_MINUTE = "stage_minute"
     const val EXTRA_CHILD_NAME = "child_name"
     const val EXTRA_NOTIFICATION_ID = "notification_id"
+    const val EXTRA_SNOOZE_UNTIL = "snooze_until"
+    const val EXTRA_SNOOZE_DAY = "snooze_day"
+    const val ACTION_SNOOZE = "org.epiapp.android.action.SNOOZE"
+    const val SNOOZE_MINUTES = 10
+
 
     const val NOTIFICATION_MORNING = 9001
     const val NOTIFICATION_EVENING = 9002
@@ -34,6 +39,11 @@ object AlarmScheduler {
     private fun today(schedule: NativeSchedule): String = LocalDate.now(safeZone(schedule)).toString()
 
     private fun takenKey(slot: String) = "taken_$slot"
+    private fun snoozeTargetKey(slot: String) = "snooze_target_$slot"
+    private fun snoozeDayKey(slot: String) = "snooze_day_$slot"
+    private fun snoozeStageKey(slot: String) = "snooze_stage_$slot"
+    private fun snoozeCode(slot: String) = if (slot == "morning") 300 else 301
+
 
     private fun notificationId(slot: String) = if (slot == "morning") NOTIFICATION_MORNING else NOTIFICATION_EVENING
 
@@ -46,8 +56,14 @@ object AlarmScheduler {
         else if (prefs(context).getString(takenKey("evening"), null) == state.today) editor.remove(takenKey("evening"))
         editor.apply()
 
-        if (state.morningTaken) context.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_MORNING)
-        if (state.eveningTaken) context.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_EVENING)
+        if (state.morningTaken) {
+            clearSnooze(context, "morning")
+            context.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_MORNING)
+        }
+        if (state.eveningTaken) {
+            clearSnooze(context, "evening")
+            context.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_EVENING)
+        }
 
         if (state.role == "child") scheduleAll(context, state.schedule) else cancelAll(context)
     }
@@ -57,6 +73,7 @@ object AlarmScheduler {
         val stored = ScheduleStore.load(context) ?: return
         val (role, schedule) = stored
         prefs(context).edit().putString(takenKey(slot), today(schedule)).apply()
+        clearSnooze(context, slot)
         context.getSystemService(NotificationManager::class.java).cancel(notificationId(slot))
         if (role == "child") scheduleAll(context, schedule)
     }
@@ -66,17 +83,130 @@ object AlarmScheduler {
 
     fun scheduleAll(context: Context, schedule: NativeSchedule) {
         cancelPendingAlarms(context)
-        if (!schedule.remindersEnabled) return
+        if (!schedule.remindersEnabled) {
+            clearSnooze(context, "morning")
+            clearSnooze(context, "evening")
+            return
+        }
+        restoreSnooze(context, schedule, "morning")
+        restoreSnooze(context, schedule, "evening")
         scheduleSlot(context, schedule, "morning", schedule.morningTime)
         scheduleSlot(context, schedule, "evening", schedule.eveningTime)
     }
 
     fun cancelAll(context: Context) {
         cancelPendingAlarms(context)
+        clearSnooze(context, "morning")
+        clearSnooze(context, "evening")
         context.getSystemService(NotificationManager::class.java).apply {
             cancel(NOTIFICATION_MORNING)
             cancel(NOTIFICATION_EVENING)
         }
+    }
+
+    /**
+     * Snoozing stops the current sound but never marks the medication as taken.
+     * Stage alarms during this window are suppressed; the normal stage schedule
+     * remains intact and resumes after the snoozed signal.
+     */
+    fun snooze(context: Context, slot: String, stageMinute: Int): Boolean {
+        if (slot != "morning" && slot != "evening") return false
+        val stored = ScheduleStore.load(context) ?: return false
+        val (role, schedule) = stored
+        if (role != "child" || !schedule.remindersEnabled || isTakenToday(context, schedule, slot)) return false
+
+        val target = System.currentTimeMillis() + SNOOZE_MINUTES * 60_000L
+        val day = today(schedule)
+        prefs(context).edit()
+            .putLong(snoozeTargetKey(slot), target)
+            .putString(snoozeDayKey(slot), day)
+            .putInt(snoozeStageKey(slot), stageMinute)
+            .apply()
+        scheduleSnoozeAlarm(context, slot, schedule.childName, stageMinute, day, target)
+        context.getSystemService(NotificationManager::class.java).cancel(notificationId(slot))
+        return true
+    }
+
+    /** Suppress intermediate escalation while a child-requested snooze is active. */
+    fun isSnoozed(context: Context, schedule: NativeSchedule, slot: String): Boolean {
+        if (slot != "morning" && slot != "evening") return false
+        val state = prefs(context)
+        return state.getString(snoozeDayKey(slot), null) == today(schedule) &&
+            state.getLong(snoozeTargetKey(slot), 0L) > System.currentTimeMillis()
+    }
+
+    /** Returns true only for the current, due snooze for this slot and local day. */
+    fun consumeSnooze(context: Context, schedule: NativeSchedule, slot: String, day: String?, target: Long): Boolean {
+        if (slot != "morning" && slot != "evening" || day != today(schedule)) return false
+        val state = prefs(context)
+        if (state.getString(snoozeDayKey(slot), null) != day ||
+            state.getLong(snoozeTargetKey(slot), 0L) != target ||
+            target > System.currentTimeMillis() + 3_000L) return false
+        clearSnooze(context, slot)
+        return true
+    }
+
+    private fun restoreSnooze(context: Context, schedule: NativeSchedule, slot: String) {
+        val state = prefs(context)
+        val day = state.getString(snoozeDayKey(slot), null) ?: return
+        val target = state.getLong(snoozeTargetKey(slot), 0L)
+        if (day != today(schedule) || target <= 0L || isTakenToday(context, schedule, slot)) {
+            clearSnooze(context, slot)
+            return
+        }
+        // Also recreates a pending snooze after device restart or a clock change.
+        scheduleSnoozeAlarm(
+            context, slot, schedule.childName,
+            state.getInt(snoozeStageKey(slot), 30), day, target,
+        )
+    }
+
+    private fun scheduleSnoozeAlarm(
+        context: Context,
+        slot: String,
+        childName: String,
+        stageMinute: Int,
+        day: String,
+        target: Long,
+    ) {
+        val intent = Intent(context, AlarmReceiver::class.java).apply {
+            action = ACTION_SNOOZE
+            putExtra(EXTRA_SLOT, slot)
+            putExtra(EXTRA_URGENT, true)
+            putExtra(EXTRA_STAGE_MINUTE, stageMinute)
+            putExtra(EXTRA_CHILD_NAME, childName)
+            putExtra(EXTRA_NOTIFICATION_ID, notificationId(slot))
+            putExtra(EXTRA_SNOOZE_DAY, day)
+            putExtra(EXTRA_SNOOZE_UNTIL, target)
+        }
+        val pending = PendingIntent.getBroadcast(
+            context, snoozeCode(slot), intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val manager = context.getSystemService(AlarmManager::class.java)
+        val due = target.coerceAtLeast(System.currentTimeMillis() + 1_000L)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || manager.canScheduleExactAlarms()) {
+            manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, due, pending)
+        } else {
+            manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, due, pending)
+        }
+    }
+
+    private fun clearSnooze(context: Context, slot: String) {
+        val pending = PendingIntent.getBroadcast(
+            context, snoozeCode(slot),
+            Intent(context, AlarmReceiver::class.java).apply { action = ACTION_SNOOZE },
+            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
+        )
+        if (pending != null) {
+            context.getSystemService(AlarmManager::class.java).cancel(pending)
+            pending.cancel()
+        }
+        prefs(context).edit()
+            .remove(snoozeTargetKey(slot))
+            .remove(snoozeDayKey(slot))
+            .remove(snoozeStageKey(slot))
+            .apply()
     }
 
     private fun cancelPendingAlarms(context: Context) {
