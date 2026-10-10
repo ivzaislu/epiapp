@@ -88,7 +88,7 @@ data class DeviceScheduleState(
             if (eveningTaken) eveningTakenAt?.let { "Вечер" to it } else null,
         ).mapNotNull { (label, raw) ->
             try {
-                Triple(label, java.time.Instant.parse(raw), raw)
+                label to java.time.Instant.parse(raw)
             } catch (_: Exception) {
                 null
             }
