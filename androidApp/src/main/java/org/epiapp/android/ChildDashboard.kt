@@ -265,6 +265,12 @@ private fun ChildHome(
             }
         }
         item {
+            EpiTodayProgress(
+                morningTaken = state.morningTaken,
+                eveningTaken = state.eveningTaken,
+            )
+        }
+        item {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
@@ -297,6 +303,7 @@ private fun ChildHome(
                 time = state.schedule.morningTime,
                 dose = state.schedule.morningDose,
                 taken = state.morningTaken,
+                takenTime = state.localTakenTime("morning"),
                 readOnly = readOnly,
                 icon = Icons.Rounded.WbSunny,
                 waiting = pendingSlot == "morning",
@@ -310,6 +317,7 @@ private fun ChildHome(
                 time = state.schedule.eveningTime,
                 dose = state.schedule.eveningDose,
                 taken = state.eveningTaken,
+                takenTime = state.localTakenTime("evening"),
                 readOnly = readOnly,
                 icon = Icons.Rounded.DarkMode,
                 waiting = pendingSlot == "evening",
@@ -348,6 +356,7 @@ private fun DoseCard(
     time: String,
     dose: String,
     taken: Boolean,
+    takenTime: String?,
     readOnly: Boolean,
     icon: ImageVector,
     waiting: Boolean,
@@ -420,7 +429,12 @@ private fun DoseCard(
                     ) {
                         Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
                         Spacer(Modifier.width(8.dp))
-                        Text("Приём подтверждён", color = MaterialTheme.colorScheme.onTertiaryContainer, fontWeight = FontWeight.Bold)
+                        Text(
+                            takenTime?.let { "Приём подтверждён в $it" } ?: "Приём подтверждён",
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                        )
                     }
                 }
             } else if (readOnly) {
