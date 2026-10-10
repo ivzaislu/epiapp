@@ -140,6 +140,11 @@ fun ParentDashboard(
         feedback = null
     }
 
+    androidx.activity.compose.BackHandler(enabled = tab != ParentTab.OVERVIEW) {
+        tab = ParentTab.OVERVIEW
+        onTabSelected(ParentTab.OVERVIEW)
+    }
+
     EpiTheme(darkTheme) {
         if (confirmReconnect) {
             AlertDialog(
