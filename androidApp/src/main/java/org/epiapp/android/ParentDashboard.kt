@@ -506,6 +506,17 @@ private fun ParentSettings(
         }
         item {
             ParentSurfaceCard {
+                Text("Где звучит будильник", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Звук и полноэкранная тревога срабатывают только на телефоне с детским режимом. Если сигнала нет, на том телефоне откройте Настройки и проверьте «Надёжность будильников». Из родительского кабинета приём подтвердить нельзя.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
+        item {
+            ParentSurfaceCard {
                 Text("Внешний вид", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {

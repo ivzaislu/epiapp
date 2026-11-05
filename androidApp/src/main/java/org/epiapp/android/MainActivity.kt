@@ -7,8 +7,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import android.app.AlarmManager
-import android.app.NotificationManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -337,19 +335,8 @@ class MainActivity : ComponentActivity() {
                     preferences.edit().putBoolean("dark_theme", enabled).apply()
                     applyAppWindowColors(enabled)
                 },
-                permissions = AlarmPermissions(
-                    notifications = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-                        checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
-                    exactAlarms = hasExactAlarmPermission(),
-                    fullScreen = hasFullScreenPermission(),
-                ),
-                onRequestNotifications = {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
-                    }
-                },
-                onRequestExactAlarms = { openExactAlarmSettings() },
-                onRequestFullScreen = { openFullScreenSettings() },
+                reminderHealth = ReminderDiagnostics.inspect(this@MainActivity),
+                onFixReminder = { openReminderFix(it) },
                 onRefresh = { syncScheduleSilently() },
                 onCheckUpdates = { AppUpdater.checkForUpdates(this@MainActivity, force = true) },
                 onReconnect = {
@@ -528,9 +515,58 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun hasExactAlarmPermission(): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
-        return getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
+    private fun openReminderFix(fix: ReminderFix) {
+        when (fix) {
+            ReminderFix.NOTIFICATIONS -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
+                } else {
+                    openAppNotificationSettings()
+                }
+            }
+            ReminderFix.EXACT_ALARMS -> openExactAlarmSettings()
+            ReminderFix.FULL_SCREEN -> openFullScreenSettings()
+            ReminderFix.BATTERY -> openBatterySettings()
+            ReminderFix.ALARM_CHANNEL -> openAlarmChannelSettings()
+            ReminderFix.APP_DETAILS -> openAppDetails()
+        }
+    }
+
+    private fun openAppNotificationSettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+            })
+        } catch (_: Exception) {
+            openAppDetails()
+        }
+    }
+
+    private fun openAlarmChannelSettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
+                putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                putExtra(Settings.EXTRA_CHANNEL_ID, AlarmReceiver.CHANNEL_ALARM)
+            })
+        } catch (_: Exception) {
+            openAppNotificationSettings()
+        }
+    }
+
+    private fun openBatterySettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+        } catch (_: Exception) {
+            openAppDetails()
+        }
+    }
+
+    private fun openAppDetails() {
+        startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.parse("package:$packageName")
+        })
     }
 
     private fun openExactAlarmSettings() {
@@ -540,15 +576,8 @@ class MainActivity : ComponentActivity() {
                 data = Uri.parse("package:$packageName")
             })
         } catch (_: Exception) {
-            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                data = Uri.parse("package:$packageName")
-            })
+            openAppDetails()
         }
-    }
-
-    private fun hasFullScreenPermission(): Boolean {
-        if (Build.VERSION.SDK_INT < 34) return true
-        return getSystemService(NotificationManager::class.java).canUseFullScreenIntent()
     }
 
     private fun openFullScreenSettings() {
@@ -558,9 +587,7 @@ class MainActivity : ComponentActivity() {
                 data = Uri.parse("package:$packageName")
             })
         } catch (_: Exception) {
-            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                data = Uri.parse("package:$packageName")
-            })
+            openAppDetails()
         }
     }
 

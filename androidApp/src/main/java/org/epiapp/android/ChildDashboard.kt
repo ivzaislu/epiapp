@@ -25,7 +25,6 @@ import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Medication
-import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.WbSunny
@@ -34,7 +33,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -66,12 +64,6 @@ import androidx.compose.ui.unit.sp
 
 enum class ChildTab { HOME, HISTORY, SETTINGS }
 
-data class AlarmPermissions(
-    val notifications: Boolean,
-    val exactAlarms: Boolean,
-    val fullScreen: Boolean,
-)
-
 @Composable
 fun ChildDashboard(
     state: DeviceScheduleState,
@@ -80,10 +72,8 @@ fun ChildDashboard(
     onTabSelected: (ChildTab) -> Unit,
     darkTheme: Boolean,
     onDarkThemeChange: (Boolean) -> Unit,
-    permissions: AlarmPermissions,
-    onRequestNotifications: () -> Unit,
-    onRequestExactAlarms: () -> Unit,
-    onRequestFullScreen: () -> Unit,
+    reminderHealth: ReminderHealth,
+    onFixReminder: (ReminderFix) -> Unit,
     onRefresh: () -> Unit,
     onCheckUpdates: () -> Unit,
     onReconnect: () -> Unit,
@@ -205,10 +195,9 @@ fun ChildDashboard(
                     serverUrl = serverUrl,
                     darkTheme = darkTheme,
                     onDarkThemeChange = onDarkThemeChange,
-                    permissions = permissions,
-                    onRequestNotifications = onRequestNotifications,
-                    onRequestExactAlarms = onRequestExactAlarms,
-                    onRequestFullScreen = onRequestFullScreen,
+                    reminderHealth = reminderHealth,
+                    remindersEnabled = state.schedule.remindersEnabled,
+                    onFixReminder = onFixReminder,
                     onCheckUpdates = onCheckUpdates,
                     onReconnect = onReconnect,
                     readOnly = readOnly,
@@ -563,10 +552,9 @@ private fun SettingsPage(
     serverUrl: String,
     darkTheme: Boolean,
     onDarkThemeChange: (Boolean) -> Unit,
-    permissions: AlarmPermissions,
-    onRequestNotifications: () -> Unit,
-    onRequestExactAlarms: () -> Unit,
-    onRequestFullScreen: () -> Unit,
+    reminderHealth: ReminderHealth,
+    remindersEnabled: Boolean,
+    onFixReminder: (ReminderFix) -> Unit,
     onCheckUpdates: () -> Unit,
     onReconnect: () -> Unit,
     readOnly: Boolean,
@@ -613,31 +601,11 @@ private fun SettingsPage(
             }
         }
         if (!readOnly) item {
-            Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                Column(modifier = Modifier.padding(18.dp)) {
-                    Text("Надёжность будильников", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "Для своевременных сигналов проверь все разрешения.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    PermissionRow("Уведомления", permissions.notifications, onRequestNotifications)
-                    Divider()
-                    PermissionRow("Точные будильники", permissions.exactAlarms, onRequestExactAlarms)
-                    Divider()
-                    PermissionRow("Полноэкранная тревога", permissions.fullScreen, onRequestFullScreen)
-                    if (!permissions.exactAlarms) {
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "Без доступа к точным будильникам Android может заметно задерживать напоминания.",
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                }
-            }
+            ReminderDiagnosticsCard(
+                health = reminderHealth,
+                remindersEnabled = remindersEnabled,
+                onFix = onFixReminder,
+            )
         }
         item {
             Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
@@ -679,27 +647,6 @@ private fun SettingsPage(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun PermissionRow(label: String, granted: Boolean, onGrant: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            if (granted) Icons.Rounded.CheckCircle else Icons.Rounded.NotificationsActive,
-            contentDescription = null,
-            tint = if (granted) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error,
-        )
-        Spacer(Modifier.width(10.dp))
-        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-        if (granted) {
-            Text("Готово", color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.labelMedium)
-        } else {
-            TextButton(onClick = onGrant) { Text("Разрешить") }
         }
     }
 }
