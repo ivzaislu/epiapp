@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -33,7 +31,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -67,12 +65,11 @@ fun EpiPageIntro(
             modifier = Modifier.fillMaxWidth(),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            lineHeight = 34.sp,
             textAlign = TextAlign.Center,
         )
         Text(
             subtitle,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
@@ -181,16 +178,30 @@ fun EpiTodayProgress(
 @Composable
 fun EpiBrandHeader(subtitle: String, modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null) {
     Row(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        EpiAppLogoMark()
+        EpiAppLogoMark(size = 40.dp)
         Spacer(Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text("EpiApp", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text(subtitle, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(
+                "EpiApp",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
-        action?.invoke()
+        if (action != null) {
+            Spacer(Modifier.width(4.dp))
+            action()
+        }
     }
 }
 
@@ -231,6 +242,13 @@ fun EpiPrimaryButton(
             Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(8.dp))
         }
-        Text(label, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = 2)
+        Text(
+            label,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.labelLarge,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }

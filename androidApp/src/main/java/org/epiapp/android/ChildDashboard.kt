@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -147,7 +148,7 @@ fun ChildDashboard(
                                 onTabSelected(tab)
                             },
                             icon = { Icon(icon, contentDescription = null) },
-                            label = { Text(label) },
+                            label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             alwaysShowLabel = true,
                         )
                     }
@@ -230,9 +231,8 @@ private fun ChildHome(
     ) {
         item {
             EpiPageIntro(
-                eyebrow = "РАСПИСАНИЕ НА СЕГОДНЯ",
-                title = "Мои лекарства",
-                subtitle = "Для " + state.schedule.childName + " · " + state.today,
+                title = state.schedule.childName.ifBlank { "Сегодня" },
+                subtitle = "Расписание на " + state.today,
             )
         }
         if (readOnly) {
@@ -265,24 +265,29 @@ private fun ChildHome(
                 shape = RoundedCornerShape(18.dp),
                 color = MaterialTheme.colorScheme.primary.copy(alpha = .08f),
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Icon(
                         Icons.Rounded.Medication,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                     )
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text("Препарат", style = MaterialTheme.typography.labelMedium)
-                        Text(
-                            state.schedule.medicationName.ifBlank { "Название пока не указано" },
-                            fontWeight = FontWeight.SemiBold,
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Препарат",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        state.schedule.medicationName.ifBlank { "Название пока не указано" },
+                        modifier = Modifier.fillMaxWidth(),
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleMedium,
+                        textAlign = TextAlign.Center,
+                    )
                 }
             }
         }
@@ -317,17 +322,23 @@ private fun ChildHome(
         if (error != null) item {
             Text(
                 error,
+                modifier = Modifier.fillMaxWidth(),
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
             )
         }
         item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
                 Text(
                     if (readOnly) "Родитель может посмотреть отметки, но не подтвердить приём." else "Отметка появится после сохранения на сервере.",
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center,
                 )
                 TextButton(onClick = onRefresh) {
                     Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -362,10 +373,9 @@ private fun DoseCard(
             modifier = Modifier.fillMaxWidth().padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Surface(
                     color = MaterialTheme.colorScheme.primary.copy(alpha = .10f),
@@ -375,25 +385,27 @@ private fun DoseCard(
                         icon,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(11.dp).size(23.dp),
+                        modifier = Modifier.padding(11.dp).size(22.dp),
                     )
                 }
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.height(10.dp))
                 Text(
                     label,
+                    modifier = Modifier.fillMaxWidth(),
                     fontWeight = FontWeight.SemiBold,
                     style = MaterialTheme.typography.titleMedium,
                     textAlign = TextAlign.Center,
                 )
             }
-            Spacer(Modifier.height(15.dp))
+            Spacer(Modifier.height(8.dp))
             Text(
                 time,
                 modifier = Modifier.fillMaxWidth(),
                 fontWeight = FontWeight.Bold,
-                fontSize = 38.sp,
-                lineHeight = 44.sp,
+                fontSize = 32.sp,
+                lineHeight = 38.sp,
                 textAlign = TextAlign.Center,
+                maxLines = 1,
                 color = MaterialTheme.colorScheme.primary,
             )
             Spacer(Modifier.height(4.dp))
@@ -411,18 +423,19 @@ private fun DoseCard(
                     color = MaterialTheme.colorScheme.tertiaryContainer,
                     shape = RoundedCornerShape(13.dp),
                 ) {
-                    Row(
-                        modifier = Modifier.padding(vertical = 17.dp, horizontal = 12.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically,
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp, horizontal = 12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.height(6.dp))
                         Text(
                             takenTime?.let { "Приём подтверждён в $it" } ?: "Приём подтверждён",
+                            modifier = Modifier.fillMaxWidth(),
                             color = MaterialTheme.colorScheme.onTertiaryContainer,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.bodyMedium,
                         )
                     }
                 }
@@ -444,7 +457,7 @@ private fun DoseCard(
                 Button(
                     onClick = onTake,
                     enabled = enabled,
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                     shape = MaterialTheme.shapes.medium,
                 ) {
                     if (waiting) {
@@ -457,7 +470,13 @@ private fun DoseCard(
                         Icon(Icons.Rounded.Medication, contentDescription = null)
                     }
                     Spacer(Modifier.width(8.dp))
-                    Text(if (waiting) "Сохраняю…" else "Я принял лекарство", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                    Text(
+                        if (waiting) "Сохраняю…" else "Я принял лекарство",
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.labelLarge,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                    )
                 }
             }
         }
@@ -531,6 +550,7 @@ private fun HistoryPage(
                             Text(
                                 if (dose.slot == "morning") "Утренний приём" else "Вечерний приём",
                                 fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.bodyLarge,
                             )
                             Text(
                                 dose.localDate,
@@ -538,7 +558,11 @@ private fun HistoryPage(
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
-                        Text(dose.localTime, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            dose.localTime,
+                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.titleMedium,
+                        )
                     }
                 }
             }
@@ -627,12 +651,20 @@ private fun SettingsPage(
         if (!readOnly) item {
             Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column(modifier = Modifier.padding(18.dp)) {
-                    Text("Подключение", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "Подключение",
+                        modifier = Modifier.fillMaxWidth(),
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleLarge,
+                        textAlign = TextAlign.Center,
+                    )
                     Spacer(Modifier.height(10.dp))
                     Text(
                         serverUrl,
+                        modifier = Modifier.fillMaxWidth(),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center,
                     )
                     Spacer(Modifier.height(10.dp))
                     TextButton(onClick = onCheckUpdates) {

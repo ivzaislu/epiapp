@@ -85,9 +85,9 @@ fun EpiConnectScreen(
                         )
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text("1. Откройте семейного EpiApp-бота.")
-                    Text("2. Нажмите «Подключить Android».")
-                    Text("3. Выберите «Открыть в EpiApp».")
+                    Text("1. Откройте семейного EpiApp-бота.", style = MaterialTheme.typography.bodyMedium)
+                    Text("2. Нажмите «Подключить Android».", style = MaterialTheme.typography.bodyMedium)
+                    Text("3. Выберите «Открыть в EpiApp».", style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.height(8.dp))
                     Text(
                         "Код действует 5 минут и подходит только для одного подключения.",

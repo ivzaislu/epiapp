@@ -241,14 +241,18 @@ fun ReminderDiagnosticsCard(
         Column(modifier = Modifier.padding(18.dp)) {
             Text(
                 "Надёжность будильников",
+                modifier = Modifier.fillMaxWidth(),
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.titleLarge,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
             Spacer(Modifier.height(8.dp))
             Text(
                 headline,
+                modifier = Modifier.fillMaxWidth(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
             Spacer(Modifier.height(6.dp))
             health.checks.forEachIndexed { index, check ->

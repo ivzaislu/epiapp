@@ -2,16 +2,21 @@ package org.epiapp.android
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * Shared EpiApp design tokens: blue, white and subtle blue surfaces.
  * Green is only used as a semantic "dose recorded" indicator.
+ * Type sizes are phone-sized so titles, times and captions stay in one scale.
  */
 object EpiColors {
     val primary = Color(0xFF2F6BFF)
@@ -71,6 +76,18 @@ private val epiDark = darkColorScheme(
     error = Color(0xFFFFB4BF),
 )
 
+private val epiType = Typography(
+    headlineMedium = TextStyle(fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold),
+    titleLarge = TextStyle(fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold),
+    titleMedium = TextStyle(fontSize = 17.sp, lineHeight = 23.sp, fontWeight = FontWeight.SemiBold),
+    bodyLarge = TextStyle(fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.Normal),
+    bodyMedium = TextStyle(fontSize = 15.sp, lineHeight = 21.sp, fontWeight = FontWeight.Normal),
+    bodySmall = TextStyle(fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Normal),
+    labelLarge = TextStyle(fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium),
+    labelMedium = TextStyle(fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.Medium),
+    labelSmall = TextStyle(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium),
+)
+
 private val epiShapes = Shapes(
     small = RoundedCornerShape(12.dp),
     medium = RoundedCornerShape(16.dp),
@@ -81,6 +98,7 @@ private val epiShapes = Shapes(
 fun EpiTheme(darkTheme: Boolean, content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = if (darkTheme) epiDark else epiLight,
+        typography = epiType,
         shapes = epiShapes,
         content = content,
     )

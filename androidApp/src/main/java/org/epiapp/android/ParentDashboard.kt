@@ -190,7 +190,7 @@ fun ParentDashboard(
                                 onTabSelected(item)
                             },
                             icon = { Icon(icon, contentDescription = null) },
-                            label = { Text(title) },
+                            label = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         )
                     }
                 }
@@ -287,8 +287,8 @@ private fun ParentOverview(
                 ) {
                     Text(
                         if (stats.rate == null) "—" else stats.rate.toString() + "%",
-                        fontSize = 44.sp,
-                        lineHeight = 52.sp,
+                        fontSize = 34.sp,
+                        lineHeight = 40.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
                     )
@@ -315,10 +315,20 @@ private fun ParentOverview(
         }
         item {
             ParentSurfaceCard {
-                Text("Сегодня", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    "Сегодня",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
                 Spacer(Modifier.height(5.dp))
-                Text(state.schedule.medicationName.ifBlank { "Препарат не указан" },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    state.schedule.medicationName.ifBlank { "Препарат не указан" },
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Spacer(Modifier.height(14.dp))
                 ParentTodayRow("Утро", state.schedule.morningTime, state.morningTaken, state.localTakenTime("morning"))
                 HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
@@ -344,7 +354,7 @@ private fun ParentOverview(
                 )
                 Spacer(Modifier.height(14.dp))
                 EpiPrimaryButton(
-                    label = "Открыть детский режим · Просмотр",
+                    label = "Посмотреть экран ребёнка",
                     onClick = onPreviewChild,
                 )
             }
@@ -372,7 +382,7 @@ private fun ParentTodayRow(title: String, time: String, taken: Boolean, confirme
         )
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontWeight = FontWeight.SemiBold)
+            Text(title, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge)
             Text(
                 if (taken) confirmedAt?.let { "Подтверждено в $it" } ?: "Подтверждено"
                 else "Ожидается отметка",
@@ -380,7 +390,7 @@ private fun ParentTodayRow(title: String, time: String, taken: Boolean, confirme
                 style = MaterialTheme.typography.bodySmall,
             )
         }
-        Text(time, fontWeight = FontWeight.SemiBold)
+        Text(time, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleMedium)
     }
 }
 
@@ -389,7 +399,8 @@ private fun ParentMetric(value: String, label: String, modifier: Modifier = Modi
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             value,
-            fontSize = 24.sp,
+            fontSize = 22.sp,
+            lineHeight = 26.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
         )
@@ -397,8 +408,9 @@ private fun ParentMetric(value: String, label: String, modifier: Modifier = Modi
             label,
             modifier = Modifier.fillMaxWidth(),
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            style = MaterialTheme.typography.labelSmall,
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
         )
     }
 }
@@ -425,7 +437,13 @@ private fun ParentSchedule(
         }
         item {
             ParentSurfaceCard {
-                Text("Ребёнок и препарат", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    "Ребёнок и препарат",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
                 Spacer(Modifier.height(13.dp))
                 ParentField("Имя ребёнка", draft.childName) { onDraftChange(draft.copy(childName = it)) }
                 ParentField("Название препарата", draft.medicationName) { onDraftChange(draft.copy(medicationName = it)) }
@@ -434,7 +452,13 @@ private fun ParentSchedule(
         }
         item {
             ParentSurfaceCard {
-                Text("Утренний приём", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    "Утренний приём",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
                 Spacer(Modifier.height(12.dp))
                 ParentField("Время · ЧЧ:ММ", draft.morningTime) { onDraftChange(draft.copy(morningTime = it)) }
                 ParentField("Дозировка", draft.morningDose) { onDraftChange(draft.copy(morningDose = it)) }
@@ -442,7 +466,13 @@ private fun ParentSchedule(
         }
         item {
             ParentSurfaceCard {
-                Text("Вечерний приём", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    "Вечерний приём",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
                 Spacer(Modifier.height(12.dp))
                 ParentField("Время · ЧЧ:ММ", draft.eveningTime) { onDraftChange(draft.copy(eveningTime = it)) }
                 ParentField("Дозировка", draft.eveningDose) { onDraftChange(draft.copy(eveningDose = it)) }
@@ -487,7 +517,13 @@ private fun ParentSettings(
         }
         item {
             ParentSurfaceCard {
-                Text("Напоминания", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    "Напоминания",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
                 Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Напоминания включены", modifier = Modifier.weight(1f))
@@ -506,10 +542,18 @@ private fun ParentSettings(
         }
         item {
             ParentSurfaceCard {
-                Text("Где звучит будильник", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    "Где звучит будильник",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
                 Spacer(Modifier.height(8.dp))
                 Text(
                     "Звук и полноэкранная тревога срабатывают только на телефоне с детским режимом. Если сигнала нет, на том телефоне откройте Настройки и проверьте «Надёжность будильников». Из родительского кабинета приём подтвердить нельзя.",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -517,7 +561,13 @@ private fun ParentSettings(
         }
         item {
             ParentSurfaceCard {
-                Text("Внешний вид", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    "Внешний вид",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
@@ -533,12 +583,20 @@ private fun ParentSettings(
         }
         item {
             ParentSurfaceCard {
-                Text("Подключение", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    "Подключение",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
                 Spacer(Modifier.height(7.dp))
                 Text(
                     serverUrl,
+                    modifier = Modifier.fillMaxWidth(),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )

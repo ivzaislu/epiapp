@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -206,13 +207,19 @@ private fun EpiAlarmScreen(
                         modifier = Modifier.padding(24.dp).size(38.dp),
                     )
                 }
-                Text("Время проверить приём", fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                Text(
+                    "Время проверить приём",
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                )
                 Text(
                     "$childName · $slotLabel",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
                 )
                 EpiSurfaceCard {
                     Text(
@@ -235,6 +242,7 @@ private fun EpiAlarmScreen(
                             "Дозировка: $dose",
                             modifier = Modifier.fillMaxWidth(),
                             textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -243,7 +251,8 @@ private fun EpiAlarmScreen(
                             time,
                             modifier = Modifier.fillMaxWidth(),
                             textAlign = TextAlign.Center,
-                            fontSize = 32.sp,
+                            fontSize = 30.sp,
+                            lineHeight = 36.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,
                         )
@@ -267,10 +276,15 @@ private fun EpiAlarmScreen(
                             snoozeError = "Отложить не удалось. Проверьте подключение устройства и настройки напоминаний."
                         }
                     },
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                     shape = MaterialTheme.shapes.medium,
                 ) {
-                    Text("Напомнить через 10 минут", textAlign = TextAlign.Center)
+                    Text(
+                        "Напомнить через 10 минут",
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                    )
                 }
                 if (snoozeError != null) {
                     Text(
