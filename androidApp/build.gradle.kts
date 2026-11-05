@@ -43,8 +43,8 @@ android {
         applicationId = "org.epiapp.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 18
-        versionName = "0.6.5"
+        versionCode = 19
+        versionName = "0.6.6"
     }
 
     if (releaseSigningRequested) {

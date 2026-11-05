@@ -35,33 +35,61 @@ function formatTakenAt(iso, timeZone) {
   }).format(new Date(iso));
 }
 
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;',
+  })[char]);
+}
+
+function clock(iso, timeZone) {
+  return new Intl.DateTimeFormat('ru-RU', {
+    timeZone, hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(new Date(iso));
+}
+
+function refreshAlarmLine() {
+  const el = $('#alarmLine');
+  const bridge = window.EpiAndroid;
+  if (!el || !bridge || typeof bridge.alarmLine !== 'function') return;
+  let text = '';
+  try { text = String(bridge.alarmLine() || ''); } catch { text = ''; }
+  el.textContent = text;
+  el.classList.toggle('hidden', !text);
+}
+
 function render(next) {
   state = next;
-  $('#greeting').textContent = currentUser?.role === 'child'
-    ? `${next.settings.childName}, сегодня всё просто.`
-    : `${next.settings.childName}: отметки сегодня`;
+  const childName = next.settings.childName || 'Сегодня';
+  $('#greeting').textContent = childName;
   $('#todayLabel').textContent = currentUser?.role === 'child'
-    ? 'Сверь препарат и дозу с таблетницей и отмечай только после приёма.'
-    : 'Просмотр статуса приёма. Отметку делает только аккаунт ребёнка.';
-  $('#medicationName').textContent = next.settings.medicationName || 'Препарат не указан';
-  $('#morningDose').textContent = next.settings.morningDose || 'Доза не указана';
-  $('#eveningDose').textContent = next.settings.eveningDose || 'Доза не указана';
-  $('#morningTime').textContent = next.settings.morningTime;
-  $('#eveningTime').textContent = next.settings.eveningTime;
+    ? `Расписание на ${next.today}`
+    : `Просмотр на ${next.today}. Отметить может только ребёнок.`;
+  const med = next.settings.medicationName || 'Препарат не указан';
+  $('#medicationLine').textContent = med;
+  $('#saveNote').textContent = currentUser?.role === 'child'
+    ? 'Отметка появляется только после ответа сервера. Звук будильника сам по себе приём не записывает.'
+    : 'Родитель видит статус и не подтверждает приём за ребёнка.';
 
   const canTake = currentUser?.role === 'child';
-  for (const slot of ['morning', 'evening']) {
+  $('#doseList').innerHTML = ['morning', 'evening'].map((slot) => {
     const dose = next.todayDoses[slot];
-    const status = $(`#${slot}Status`);
-    const button = document.querySelector(`.take-button[data-slot="${slot}"]`);
-    status.textContent = dose ? `✓ ${formatTakenAt(dose.takenAt, next.settings.timezone).split(', ').at(-1)}` : 'Не отмечено';
-    status.classList.toggle('done', Boolean(dose));
-    button.classList.toggle('hidden', !canTake);
-    button.disabled = Boolean(dose) || !canTake;
-    button.textContent = dose ? 'Уже отмечено' : 'Я выпил(а) лекарство';
+    const label = slot === 'morning' ? 'Утро' : 'Вечер';
+    const time = next.settings[slot === 'morning' ? 'morningTime' : 'eveningTime'];
+    const amount = next.settings[slot === 'morning' ? 'morningDose' : 'eveningDose'] || '';
+    const status = dose ? `подтверждено в ${clock(dose.takenAt, next.settings.timezone)}` : 'ещё не отмечено';
+    const button = canTake && !dose
+      ? `<button class="primary take-button" data-slot="${slot}" type="button">Я принял</button>`
+      : '';
     if (canTake && dose) notifyAndroidTaken(slot);
-  }
+    return `<article class="dose-row${dose ? ' is-done' : ''}">
+      <div class="dose-name">${label} · ${escapeHtml(time)}</div>
+      <div class="dose-status">${escapeHtml(status)}</div>
+      <div class="dose-meta">${escapeHtml(amount)}</div>
+      ${button}
+    </article>`;
+  }).join('');
 
+  refreshAlarmLine();
   renderHistory(next);
 }
 
@@ -82,8 +110,8 @@ function renderHistory(next = state) {
   const view = childHistoryView(next.recentDoses, historyExpanded);
   history.innerHTML = view.visible.map((dose) => `
     <div class="history-row">
-      <div><div class="history-main">${slotLabels[dose.slot]} приём</div><div class="history-meta">${formatTakenAt(dose.takenAt, next.settings.timezone)}</div></div>
-      <span class="status done">✓ Выпито</span>
+      <div class="history-main">${slotLabels[dose.slot]} приём</div>
+      <div class="history-meta">${formatTakenAt(dose.takenAt, next.settings.timezone)}</div>
     </div>`).join('');
 
   count.textContent = String(view.total);
@@ -119,7 +147,14 @@ function closeConfirm() {
   $('#confirmModal').setAttribute('aria-hidden', 'true');
 }
 
-document.querySelectorAll('.take-button').forEach((button) => button.addEventListener('click', () => openConfirm(button.dataset.slot)));
+document.querySelector('#doseList').addEventListener('click', (event) => {
+  const button = event.target.closest('.take-button');
+  if (button) openConfirm(button.dataset.slot);
+});
+document.querySelector('#alarmLine').addEventListener('click', () => {
+  try { window.EpiAndroid?.openAlarmHelp?.(); } catch { /* browser */ }
+});
+window.epiRefreshAlarm = refreshAlarmLine;
 $('#historyToggle').addEventListener('click', () => {
   historyExpanded = !historyExpanded;
   renderHistory();
@@ -129,6 +164,11 @@ $('#confirmModal').addEventListener('click', (event) => { if (event.target.id ==
 $('#acceptConfirm').addEventListener('click', async () => {
   if (!pendingSlot || currentUser?.role !== 'child') return;
   const slot = pendingSlot;
+  if (new URLSearchParams(location.search).get('demo') === '1') {
+    closeConfirm();
+    toast('Это пример экрана, отметка не сохраняется.');
+    return;
+  }
   const button = $('#acceptConfirm');
   button.disabled = true;
   button.textContent = 'Сохраняю…';
@@ -153,9 +193,35 @@ $('#acceptConfirm').addEventListener('click', async () => {
 });
 
 async function start() {
+  const demo = new URLSearchParams(location.search).get('demo') === '1';
+  if (demo) {
+    currentUser = { role: 'child', telegramId: '0', firstName: 'Демо' };
+    $('#accessGate').classList.add('hidden');
+    $('#appShell').classList.remove('hidden');
+    render({
+      today: '2026-11-05',
+      settings: {
+        childName: 'Маша',
+        medicationName: 'Препарат по схеме родителей',
+        morningTime: '08:00',
+        eveningTime: '20:00',
+        morningDose: '1 таблетка',
+        eveningDose: '1 таблетка',
+        timezone: 'Europe/Berlin',
+      },
+      todayDoses: {
+        evening: { slot: 'evening', takenAt: '2026-11-04T19:12:00.000Z' },
+      },
+      recentDoses: [
+        { id: '1', slot: 'evening', takenAt: '2026-11-04T19:12:00.000Z', localDate: '2026-11-04' },
+        { id: '2', slot: 'morning', takenAt: '2026-11-04T07:05:00.000Z', localDate: '2026-11-04' },
+      ],
+    });
+    return;
+  }
   try {
     currentUser = await ensureTelegramSession();
-    $('#signedInAs').textContent = `${roleLabel(currentUser.role)} · Telegram ID ${currentUser.telegramId}`;
+    $('#signedInAs') && ($('#signedInAs').textContent = `${roleLabel(currentUser.role)} · Telegram ID ${currentUser.telegramId}`);
     $('#parentLink').classList.toggle('hidden', !['parent', 'admin'].includes(currentUser.role));
     $('#accessGate').classList.add('hidden');
     $('#appShell').classList.remove('hidden');

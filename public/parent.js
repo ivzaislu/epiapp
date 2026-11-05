@@ -139,10 +139,10 @@ async function loadToday() {
     const label = slot === 'morning' ? 'Утро' : 'Вечер';
     const time = slot === 'morning' ? state.settings.morningTime : state.settings.eveningTime;
     const doseText = slot === 'morning' ? state.settings.morningDose : state.settings.eveningDose;
-    let value = 'Не отмечено';
-    if (dose) value = new Intl.DateTimeFormat('ru-RU', { timeZone: state.settings.timezone, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(dose.takenAt));
+    let value = 'ожидается';
+    if (dose) value = `подтверждено в ${new Intl.DateTimeFormat('ru-RU', { timeZone: state.settings.timezone, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(dose.takenAt))}`;
     const meta = [state.settings.medicationName, doseText, `план ${time}`].filter(Boolean).join(' · ');
-    return `<div class="history-row"><div><div class="history-main">${label}</div><div class="history-meta">${escapeHtml(meta)}</div></div><span class="status ${dose ? 'done' : ''}">${dose ? '✓ ' : ''}${escapeHtml(value)}</span></div>`;
+    return `<div class="history-row"><div><div class="history-main">${label} · ${escapeHtml(time)}</div><div class="history-meta">${escapeHtml(meta)}</div></div><span class="status ${dose ? 'done' : ''}">${escapeHtml(value)}</span></div>`;
   }).join('');
 }
 
@@ -190,6 +190,37 @@ function renderChart(stats30) {
   }).join('');
 }
 
+function weekdayLabel(key) {
+  const date = new Date(`${key}T12:00:00`);
+  return new Intl.DateTimeFormat('ru-RU', { weekday: 'short', day: 'numeric' }).format(date);
+}
+
+function dotClass(slot) {
+  if (!slot?.expected) return 'later';
+  return slot.taken ? 'done' : '';
+}
+
+function renderWeek(stats7) {
+  const days = stats7.days || [];
+  const grid = $('#weekGrid');
+  const line = $('#weekLine');
+  if (!grid || !line) return;
+  if (!days.length) {
+    line.textContent = 'За 7 дней отметок ещё нет.';
+    grid.innerHTML = '';
+    return;
+  }
+  line.textContent = stats7.expected
+    ? `За 7 дней отмечено ${stats7.taken} из ${stats7.expected}.`
+    : 'За эту неделю время приёма ещё не наступило.';
+  grid.innerHTML = `<div class="week-head"><span></span><span>У</span><span>В</span></div>` + days.map((day) => `
+    <div class="week-row">
+      <span>${escapeHtml(weekdayLabel(day.localDate))}</span>
+      <span class="dot ${dotClass(day.slots.morning)}"></span>
+      <span class="dot ${dotClass(day.slots.evening)}"></span>
+    </div>`).join('');
+}
+
 function renderStats(stats7, stats30) {
   $('#stats7Rate').textContent = percentage(stats7.rate);
   $('#stats7Detail').textContent = `${stats7.taken} из ${stats7.expected} · пропущено ${stats7.missed}`;
@@ -200,6 +231,7 @@ function renderStats(stats7, stats30) {
   $('#statsEvening').textContent = percentage(stats30.bySlot.evening.rate);
   $('#statsEveningDetail').textContent = `${stats30.bySlot.evening.taken} из ${stats30.bySlot.evening.expected}`;
   $('#streakNotice').textContent = `Полных дней подряд: ${stats30.currentStreak}. Полностью отмеченных дней в периоде: ${stats30.completedDays}.`;
+  renderWeek(stats7);
   renderChart(stats30);
 
   statsHistoryDays = stats30.days.slice(-14).reverse();
@@ -296,7 +328,8 @@ async function start() {
     if (!['parent', 'admin'].includes(currentUser.role)) {
       throw new Error('Этот раздел доступен только родителю или администратору.');
     }
-    $('#signedInAs').textContent = `${roleLabel(currentUser.role)} · Telegram ID ${currentUser.telegramId}`;
+    const who = document.querySelector('#signedInAs');
+    if (who) who.textContent = `${roleLabel(currentUser.role)} · Telegram ID ${currentUser.telegramId}`;
     $('#adminHelp').classList.toggle('hidden', currentUser.role !== 'admin');
     const data = await api('/api/parent/settings');
     fillSettings(data);

@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#315bd6">
+  <meta name="theme-color" content="#f6f7f5">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=9">
+  <link rel="stylesheet" href="/styles.css?v=10">
   <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
   <title>EpiApp — родители</title>
 </head>
@@ -26,10 +26,15 @@
     </header>
 
     <div class="hero">
-      <h1>Родительский кабинет</h1>
-      <p>Таблетница, расписание, напоминания, статистика и Telegram-доступ семьи.</p>
-      <p class="help" id="signedInAs"></p>
+      <h1>Сегодня у ребёнка</h1>
+      <p>Две отметки за день. Подтвердить приём может только ребёнок.</p>
     </div>
+
+    <section class="panel">
+      <p class="week-line" id="weekLine">Загрузка недели…</p>
+      <div class="week-grid" id="weekGrid"></div>
+      <div id="todaySummary" class="history" style="margin-top:14px"><div class="empty">Загрузка…</div></div>
+    </section>
 
     <details class="panel collapsible-panel settings-panel" open>
       <summary class="panel-summary">
@@ -137,6 +142,9 @@
         </span>
       </summary>
       <div class="panel-body">
+      <p class="week-line" id="weekLineFallback" hidden></p>
+      <details class="more-stats">
+        <summary>Подробнее за 30 дней</summary>
       <div class="stats-grid" id="statsGrid">
         <div class="stat-card"><div class="help">7 дней</div><div class="stat-value" id="stats7Rate">—</div><div class="help" id="stats7Detail">Загрузка…</div></div>
         <div class="stat-card"><div class="help">30 дней</div><div class="stat-value" id="stats30Rate">—</div><div class="help" id="stats30Detail">Загрузка…</div></div>
@@ -166,6 +174,7 @@
       </div>
       <div id="statsHistory" class="history"><div class="empty">Загрузка…</div></div>
       <button class="expand-button hidden" id="statsHistoryToggle" type="button" aria-expanded="false">Ещё</button>
+      </details>
       </div>
     </details>
 
@@ -183,20 +192,8 @@
       <button class="secondary" id="testTelegram" type="button" style="margin-top:14px">Отправить тест уведомлений</button>
       </div>
     </details>
-
-    <details class="panel collapsible-panel" open>
-      <summary class="panel-summary">
-        <span class="panel-summary-main">
-          <span class="panel-icon" aria-hidden="true">✓</span>
-          <span><strong>Сегодня</strong><span class="summary-help">Утренний и вечерний статус</span></span>
-        </span>
-      </summary>
-      <div class="panel-body">
-      <div id="todaySummary" class="history"><div class="empty">Загрузка…</div></div>
-      </div>
-    </details>
   </main>
   <div class="toast" id="toast"></div>
-  <script type="module" src="/parent.js?v=9"></script>
+  <script type="module" src="/parent.js?v=10"></script>
 </body>
 </html>

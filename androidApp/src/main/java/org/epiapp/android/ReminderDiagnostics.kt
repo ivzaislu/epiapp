@@ -90,6 +90,20 @@ object ReminderDiagnostics {
         )
     }
 
+    /** Empty when the phone can ring. Shown as one quiet line, not a dashboard. */
+    fun summaryLine(health: ReminderHealth, remindersEnabled: Boolean): String {
+        if (!remindersEnabled) return "Напоминания выключены в настройках семьи."
+        val blocked = health.checks.filter { it.status == ReminderStatus.BLOCKED }
+        if (blocked.isNotEmpty()) {
+            return "Сигнал может не открыться: ${blocked.joinToString { it.title.lowercase() }}."
+        }
+        val limited = health.checks.filter { it.status == ReminderStatus.LIMITED }
+        if (limited.isNotEmpty()) {
+            return "Сигнал может прийти позже: ${limited.joinToString { it.title.lowercase() }}."
+        }
+        return ""
+    }
+
     /** Local OEM hint only. Nothing is uploaded. */
     fun manufacturerGuidance(manufacturer: String, brand: String): String? {
         val token = "$manufacturer $brand".lowercase()

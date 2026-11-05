@@ -14,6 +14,13 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.webkit.CookieManager
+import android.webkit.JavascriptInterface
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.webkit.ValueCallback
+import java.net.URI
 import java.util.Locale
 import kotlin.concurrent.thread
 
@@ -31,6 +38,8 @@ class MainActivity : ComponentActivity() {
     private var currentParentTab: ParentTab = ParentTab.OVERVIEW
     private var cachedParentSettings: NativeSchedule? = null
     private var cachedParentStats: ParentStats? = null
+    private var cabinetWeb: WebView? = null
+    private var cabinetPath: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,8 +73,8 @@ class MainActivity : ComponentActivity() {
         if (currentRole == "child") {
             ScheduleStore.load(this)?.second?.let { AlarmScheduler.scheduleAll(this, it) }
             ScheduleSyncScheduler.schedule(this)
-            currentState?.let { showNativeHome(it) }
             syncScheduleSilently()
+            cabinetWeb?.evaluateJavascript("window.epiRefreshAlarm&&window.epiRefreshAlarm()", null)
         }
     }
 
@@ -265,6 +274,8 @@ class MainActivity : ComponentActivity() {
         currentParentTab = ParentTab.OVERVIEW
         cachedParentSettings = null
         cachedParentStats = null
+        cabinetWeb = null
+        cabinetPath = null
     }
 
     private fun syncScheduleSilently() {
@@ -291,198 +302,81 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showNativeHome(state: DeviceScheduleState) {
-        if (state.role == "child" || parentChildPreview && state.role in setOf("parent", "admin")) {
-            showChildHome(state)
-        } else {
-            showAdultHome(state)
-        }
+        showCabinet(if (state.role == "child") "/" else "/parent")
     }
 
-    private fun openChildPreview() {
-        val state = currentState ?: return
-        if (state.role != "parent" && state.role != "admin") return
-        parentChildPreview = true
-        currentChildTab = ChildTab.HOME
-        showChildHome(state)
-    }
-
-    private fun leaveChildPreview() {
-        parentChildPreview = false
-        currentChildTab = ChildTab.HOME
-        val state = currentState ?: return
-        val settings = cachedParentSettings
-        val stats = cachedParentStats
-        if (settings != null && stats != null) {
-            renderAdultDashboard(state.role, settings, stats)
-        } else {
-            showAdultHome(state)
-        }
-    }
-
-    private fun showChildHome(state: DeviceScheduleState) {
-        val preferences = getSharedPreferences("epiapp_ui", MODE_PRIVATE)
-        applyAppWindowColors(preferences.getBoolean("dark_theme", false))
-        setContent {
-            var darkTheme by remember { mutableStateOf(preferences.getBoolean("dark_theme", false)) }
-            ChildDashboard(
-                state = state,
-                serverUrl = currentServerUrl ?: secureStore.getServerUrl().orEmpty(),
-                initialTab = currentChildTab,
-                onTabSelected = { currentChildTab = it },
-                darkTheme = darkTheme,
-                onDarkThemeChange = { enabled ->
-                    darkTheme = enabled
-                    preferences.edit().putBoolean("dark_theme", enabled).apply()
-                    applyAppWindowColors(enabled)
-                },
-                reminderHealth = ReminderDiagnostics.inspect(this@MainActivity),
-                onFixReminder = { openReminderFix(it) },
-                onRefresh = { syncScheduleSilently() },
-                onCheckUpdates = { AppUpdater.checkForUpdates(this@MainActivity, force = true) },
-                onReconnect = {
-                    val previous = secureStore.getServerUrl().orEmpty()
-                    clearDeviceAccess()
-                    showPairing(suggestedServer = previous)
-                },
-                onBackToParent = { leaveChildPreview() },
-                onTakeDose = { slot, complete -> confirmDose(slot, complete) },
-                onLoadHistory = { complete ->
-                    val serverUrl = secureStore.getServerUrl()
-                    val token = secureStore.getDeviceToken()
-                    if (serverUrl == null || token == null) {
-                        complete(Result.failure(IllegalStateException("Нет подключения к серверу.")))
-                    } else {
-                        thread(name = "epiapp-history") {
-                            try {
-                                val history = ApiClient(serverUrl).history(token, state.schedule.timezone)
-                                runOnUiThread { complete(Result.success(history)) }
-                            } catch (error: Exception) {
-                                runOnUiThread { complete(Result.failure(error)) }
-                            }
-                        }
-                    }
-                },
-            )
-        }
-    }
-
-    private fun showAdultHome(state: DeviceScheduleState) {
-        val serverUrl = secureStore.getServerUrl()
+    private fun showCabinet(path: String) {
+        val serverUrl = currentServerUrl ?: secureStore.getServerUrl()
         val token = secureStore.getDeviceToken()
         if (serverUrl == null || token == null) {
             showPairing("Подключение устройства потеряно.")
             return
         }
-
-        showLoading("Загружаю кабинет…")
-        thread(name = "epiapp-parent-load") {
-            try {
-                val api = ApiClient(serverUrl)
-                // Always refresh today's real confirmations, not just settings and 7-day stats.
-                val freshState = api.schedule(token)
-                val settings = api.parentSettings(token)
-                val stats = api.parentStats(token, 7)
-                runOnUiThread {
-                    val updatedState = freshState.copy(schedule = settings)
-                    applyNativeState(updatedState)
-                    cachedParentSettings = settings
-                    cachedParentStats = stats
-                    renderAdultDashboard(updatedState.role, settings, stats)
-                }
-            } catch (error: ApiException) {
-                runOnUiThread {
-                    if (error.statusCode == 401 || error.statusCode == 403) {
-                        clearDeviceAccess()
-                        showPairing("Доступ этого Android-устройства отозван.", serverUrl)
-                    } else {
-                        showRetry(error.message ?: "Не удалось загрузить кабинет.", serverUrl, token)
-                    }
-                }
-            } catch (error: Exception) {
-                runOnUiThread { showRetry(error.message ?: "Нет связи с сервером.", serverUrl, token) }
-            }
-        }
-    }
-
-    private fun renderAdultDashboard(role: String, settings: NativeSchedule, stats: ParentStats) {
-        val state = currentState ?: return
-        val preferences = getSharedPreferences("epiapp_ui", MODE_PRIVATE)
-        applyAppWindowColors(preferences.getBoolean("dark_theme", false))
-        cachedParentSettings = settings
-        cachedParentStats = stats
-        setContent {
-            var darkTheme by remember { mutableStateOf(preferences.getBoolean("dark_theme", false)) }
-            ParentDashboard(
-                state = state,
-                settings = settings,
-                stats = stats,
-                serverUrl = currentServerUrl ?: secureStore.getServerUrl().orEmpty(),
-                initialTab = currentParentTab,
-                onTabSelected = { currentParentTab = it },
-                darkTheme = darkTheme,
-                onDarkThemeChange = { enabled ->
-                    darkTheme = enabled
-                    preferences.edit().putBoolean("dark_theme", enabled).apply()
-                    applyAppWindowColors(enabled)
-                },
-                onPreviewChild = { openChildPreview() },
-                onRefresh = { currentState?.let { showAdultHome(it) } },
-                onSaveSettings = { updated, complete -> saveParentSettings(updated, complete) },
-                onCheckUpdates = { AppUpdater.checkForUpdates(this@MainActivity, force = true) },
-                onReconnect = {
-                    val previous = secureStore.getServerUrl().orEmpty()
-                    clearDeviceAccess()
-                    showPairing(suggestedServer = previous)
-                },
-            )
-        }
-    }
-
-    private fun saveParentSettings(
-        settings: NativeSchedule,
-        complete: (Result<Pair<NativeSchedule, ParentStats>>) -> Unit,
-    ) {
-        val serverUrl = secureStore.getServerUrl()
-        val token = secureStore.getDeviceToken()
-        if (serverUrl == null || token == null) {
-            complete(Result.failure(IllegalStateException("Нет подключения к EpiApp.")))
+        if (cabinetWeb != null && cabinetPath == path) {
+            cabinetWeb?.evaluateJavascript("window.epiRefreshAlarm&&window.epiRefreshAlarm()", null)
             return
         }
-        thread(name = "epiapp-parent-save") {
+        val web = WebView(this)
+        cabinetWeb = web
+        cabinetPath = path
+        web.settings.javaScriptEnabled = true
+        web.settings.domStorageEnabled = true
+        web.settings.allowFileAccess = false
+        CookieManager.getInstance().setAcceptCookie(true)
+        CookieManager.getInstance().setAcceptThirdPartyCookies(web, false)
+        web.addJavascriptInterface(CabinetBridge(), "EpiAndroid")
+        val allowedHost = try { URI(serverUrl).host } catch (_: Exception) { null }
+        web.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                return request.url?.host != allowedHost
+            }
+        }
+        setContentView(web)
+        thread(name = "epiapp-cabinet-cookie") {
             try {
-                val api = ApiClient(serverUrl)
-                val saved = api.updateParentSettings(token, settings)
-                // Saving the schedule is not invalidated by a temporary statistics failure.
-                val stats = try {
-                    api.parentStats(token, 7)
-                } catch (_: Exception) {
-                    cachedParentStats ?: throw IllegalStateException("Настройки сохранены, но обновить статистику не удалось.")
-                }
+                val cookie = ApiClient(serverUrl).session(token).cookie
                 runOnUiThread {
-                    val base = currentState
-                    if (base != null) {
-                        applyNativeState(base.copy(schedule = saved))
-                    }
-                    cachedParentSettings = saved
-                    cachedParentStats = stats
-                    complete(Result.success(saved to stats))
-                }
-            } catch (error: ApiException) {
-                runOnUiThread {
-                    if (error.statusCode == 401 || error.statusCode == 403) {
-                        clearDeviceAccess()
-                        showPairing("Доступ Android-устройства отозван.", serverUrl)
+                    if (cabinetWeb !== web) return@runOnUiThread
+                    if (cookie.isNullOrBlank()) {
+                        web.loadUrl(serverUrl + path)
                     } else {
-                        complete(Result.failure(error))
+                        CookieManager.getInstance().setCookie(serverUrl, cookie, ValueCallback {
+                            CookieManager.getInstance().flush()
+                            if (cabinetWeb === web) web.loadUrl(serverUrl + path)
+                        })
                     }
                 }
             } catch (error: Exception) {
-                runOnUiThread { complete(Result.failure(error)) }
+                runOnUiThread {
+                    cabinetWeb = null
+                    cabinetPath = null
+                    showRetry(error.message ?: "Не удалось открыть кабинет.", serverUrl, token)
+                }
             }
+        }
+    }
+
+    private inner class CabinetBridge {
+        @JavascriptInterface
+        fun doseTaken(slot: String) {
+            runOnUiThread { AlarmScheduler.markTaken(this@MainActivity, slot) }
+        }
+
+        @JavascriptInterface
+        fun alarmLine(): String {
+            val enabled = ScheduleStore.load(this@MainActivity)?.second?.remindersEnabled ?: true
+            return ReminderDiagnostics.summaryLine(ReminderDiagnostics.inspect(this@MainActivity), enabled)
+        }
+
+        @JavascriptInterface
+        fun openAlarmHelp() {
+            runOnUiThread { startActivity(Intent(this@MainActivity, AlarmHelpActivity::class.java)) }
         }
     }
 
     private fun showPairing(error: String? = null, suggestedServer: String = "") {
+        cabinetWeb = null
+        cabinetPath = null
         applyAppWindowColors(false)
         currentRole = null
         currentState = null
@@ -496,11 +390,15 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showLoading(message: String) {
+        cabinetWeb = null
+        cabinetPath = null
         applyAppWindowColors(false)
         setContent { EpiLoadingScreen(message) }
     }
 
     private fun showRetry(message: String, serverUrl: String, token: String) {
+        cabinetWeb = null
+        cabinetPath = null
         applyAppWindowColors(false)
         setContent {
             EpiRetryScreen(
@@ -589,6 +487,10 @@ class MainActivity : ComponentActivity() {
         } catch (_: Exception) {
             openAppDetails()
         }
+    }
+
+    override fun onBackPressed() {
+        if (cabinetWeb?.canGoBack() == true) cabinetWeb?.goBack() else super.onBackPressed()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
