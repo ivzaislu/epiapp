@@ -1,5 +1,5 @@
-import { ensureTelegramSession, roleLabel } from './auth.js?v=23';
-import { childHistoryView } from './history.js?v=23';
+import { ensureTelegramSession, roleLabel } from './auth.js?v=24';
+import { childHistoryView } from './history.js?v=24';
 
 const $ = (id) => document.getElementById(id);
 
@@ -24,6 +24,54 @@ function applyAccent(id) {
   root.style.setProperty('--today', accent.soft);
   const theme = document.querySelector('meta[name="theme-color"]');
   if (theme) theme.setAttribute('content', accent.color);
+}
+
+let prefs = {
+  accent: 'blue',
+  largeText: false,
+  hints: true,
+  confirmTake: true,
+  compact: false,
+  showDate: true,
+  emblem: true,
+};
+
+function prefsKey() {
+  return `epiapp-prefs:${mode === 'parent' ? 'parent' : 'child'}`;
+}
+
+function loadPrefs() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(prefsKey()) || '{}');
+    prefs = {
+      accent: accentById(raw.accent).id,
+      largeText: Boolean(raw.largeText),
+      hints: raw.hints !== false,
+      confirmTake: raw.confirmTake !== false,
+      compact: Boolean(raw.compact),
+      showDate: raw.showDate !== false,
+      emblem: raw.emblem !== false,
+    };
+  } catch {
+    prefs = { accent: 'blue', largeText: false, hints: true, confirmTake: true, compact: false, showDate: true, emblem: true };
+  }
+  applyPrefs();
+}
+
+function savePrefs(patch) {
+  prefs = { ...prefs, ...patch };
+  localStorage.setItem(prefsKey(), JSON.stringify(prefs));
+  applyPrefs();
+}
+
+function applyPrefs() {
+  applyAccent(prefs.accent);
+  const root = document.documentElement;
+  root.classList.toggle('text-lg', prefs.largeText);
+  root.classList.toggle('no-hints', !prefs.hints);
+  root.classList.toggle('compact', prefs.compact);
+  root.classList.toggle('no-date', !prefs.showDate);
+  root.classList.toggle('no-emblem', !prefs.emblem);
 }
 
 let user = null;
@@ -139,10 +187,10 @@ function paintChrome() {
   const zone = state?.settings?.timezone || settings?.timezone || 'Europe/Berlin';
   const name = state?.settings?.childName || settings?.childName || 'EpiApp';
   $('back').hidden = screen === 'today';
-  if (screen === 'color') {
-    $('kicker').textContent = 'Оформление';
-    $('title').textContent = 'Цвет';
-    $('sub').textContent = '';
+  if (screen === 'settings') {
+    $('kicker').textContent = mode === 'child' ? 'Ребёнок' : 'Родитель';
+    $('title').textContent = 'Настройки';
+    $('sub').textContent = 'Только для себя';
     return;
   }
   if (mode === 'child') {
@@ -412,7 +460,7 @@ function childScreen() {
       ${historyBlock(state.recentDoses || [], historyExpanded, 'Пока нет отметок.')}
     </section>
     <nav class="menu">
-      <button type="button" data-go="color"><span>Цвет</span><small>общий для ребёнка и родителя</small></button>
+      <button type="button" data-go="settings"><span>Настройки</span><small>только на этом телефоне</small></button>
     </nav>`;
 }
 
@@ -427,29 +475,43 @@ function parentToday() {
       <button type="button" data-go="reminders"><span>Напоминания</span><small>Telegram, если отметки нет</small></button>
       <button type="button" data-go="month"><span>30 дней</span><small>те же точки за месяц</small></button>
       <button type="button" data-go="telegram"><span>Telegram</span><small>проверка, что сообщения доходят</small></button>
-      <button type="button" data-go="color"><span>Цвет</span><small>общий для ребёнка и родителя</small></button>
+      <button type="button" data-go="settings"><span>Настройки</span><small>только на этом телефоне</small></button>
     </nav>
     <p class="note end">Вы вошли как ${escapeHtml(roleLabel(user?.role))}.</p>`;
 }
 
-function colorScreen() {
-  const current = accentById(state?.settings?.accent || settings?.accent).id;
+function prefSwitch(name, label, on) {
+  return `<label class="switch"><span>${label}</span><input type="checkbox" data-pref="${name}"${on ? ' checked' : ''}></label>`;
+}
+
+function settingsScreen() {
+  const current = prefs.accent;
   const items = ACCENTS.map((item) => `
     <button class="swatch${item.id === current ? ' on' : ''}" type="button" data-accent="${item.id}">
       <i style="background:${item.color}"></i>
       <span>${item.name}</span>
     </button>`).join('');
+  const confirm = mode === 'child'
+    ? prefSwitch('confirmTake', 'Спрашивать перед отметкой', prefs.confirmTake)
+    : '';
   return `<section class="block">
-      <p class="sentence">Белый фон остаётся. Меняется цвет кнопок, меток и эмблемы.</p>
+      <p class="sentence">Эти настройки не общие. У ребёнка и у родителя свои.</p>
+      <p class="label-line">Цвет</p>
       <div class="swatches">${items}</div>
-      <p class="help">Один цвет у ребёнка и у родителя.</p>
+      ${prefSwitch('largeText', 'Крупный текст', prefs.largeText)}
+      ${prefSwitch('compact', 'Плотный список', prefs.compact)}
+      ${prefSwitch('hints', 'Подсказки', prefs.hints)}
+      ${prefSwitch('showDate', 'Дата в шапке', prefs.showDate)}
+      ${prefSwitch('emblem', 'Эмблема', prefs.emblem)}
+      ${confirm}
+      <p class="help">Белый фон остаётся. Цвет меняет кнопки, метки и эмблему.</p>
     </section>`;
 }
 
 function render() {
   paintChrome();
   const root = $('screen');
-  if (screen === 'color') root.innerHTML = colorScreen();
+  if (screen === 'settings') root.innerHTML = settingsScreen();
   else if (mode === 'child') root.innerHTML = childScreen();
   else if (screen === 'scheme') root.innerHTML = schemeScreen();
   else if (screen === 'reminders') root.innerHTML = remindersScreen();
@@ -548,25 +610,9 @@ async function confirmTake() {
   }
 }
 
-async function chooseAccent(id) {
-  const accent = accentById(id).id;
-  applyAccent(accent);
-  if (state?.settings) state.settings.accent = accent;
-  if (settings) settings.accent = accent;
+function chooseAccent(id) {
+  savePrefs({ accent: accentById(id).id });
   render();
-  if (demo) return;
-  try {
-    const data = await api('/api/accent', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ accent }),
-    });
-    if (state?.settings) state.settings.accent = data.accent;
-    if (settings) settings.accent = data.accent;
-    applyAccent(data.accent);
-  } catch (error) {
-    toast(error.message, true);
-  }
 }
 
 async function save(form) {
@@ -619,7 +665,6 @@ async function refresh() {
     settingsPack = pack;
     settings = pack.settings;
   }
-  applyAccent(state?.settings?.accent || settings?.accent);
   render();
 }
 
@@ -755,7 +800,13 @@ export function boot() {
       return;
     }
     const take = event.target.closest('.take');
-    if (take) openSheet(take.dataset.slot);
+    if (take) {
+      if (prefs.confirmTake) openSheet(take.dataset.slot);
+      else {
+        pendingSlot = take.dataset.slot;
+        confirmTake();
+      }
+    }
     if (event.target.id === 'historyToggle') {
       if (screen === 'month') monthExpanded = !monthExpanded;
       else historyExpanded = !historyExpanded;
@@ -764,6 +815,11 @@ export function boot() {
     if (event.target.id === 'testTelegram') sendTest();
   });
   $('screen').addEventListener('change', (event) => {
+    const pref = event.target.dataset.pref;
+    if (pref) {
+      savePrefs({ [pref]: event.target.checked });
+      return;
+    }
     if (event.target.name !== 'remindersEnabled') return;
     const fields = event.target.form.querySelector('#reminderFields');
     if (fields) fields.disabled = !event.target.checked;
@@ -788,6 +844,7 @@ export function boot() {
   if (demo) {
     mode = demoName === 'parent' || location.pathname === '/parent' ? 'parent' : 'child';
     user = { role: mode === 'parent' ? 'parent' : 'child', telegramId: '0' };
+    loadPrefs();
     applyDemo();
     showApp();
     const requested = params.get('screen');
@@ -805,6 +862,7 @@ export function boot() {
       throw new Error('Этот раздел только для родителя.');
     }
     mode = ['parent', 'admin'].includes(user.role) ? 'parent' : 'child';
+    loadPrefs();
     showApp();
     try {
       await refresh();

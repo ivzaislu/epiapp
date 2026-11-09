@@ -637,7 +637,40 @@ fieldset:disabled { opacity: 0.55; }
 
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
 
-::selection { background: #d6e3ff; }
+html.text-lg body { font-size: 18px; }
+html.text-lg .dose-amount { font-size: 32px; }
+html.text-lg .dose h2,
+html.text-lg h1 { font-size: 22px; }
+
+html.compact .dose { padding: 8px 10px; }
+html.compact .dose-amount { font-size: 22px; }
+html.compact .hist { padding: 2px 0; }
+html.compact .block { margin-top: 8px; padding-top: 8px; }
+html.compact .swatch { min-height: 42px; }
+
+html.no-hints .note { display: none; }
+html.no-date .kicker { display: none; }
+html.no-emblem .emblem { display: none; }
+html.no-emblem .identity { grid-template-columns: minmax(0, 1fr); }
+
+.switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  padding: 11px 0;
+  border-top: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.switch input {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--blue);
+}
 
 @media (prefers-reduced-motion: reduce) {
   .toast { transition: none; }
