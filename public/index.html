@@ -8,13 +8,14 @@
   <meta name="description" content="Отметка утреннего и вечернего приёма. Родитель видит статус, отметить может только ребёнок.">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=12">
+  <link rel="stylesheet" href="/styles.css?v=13">
   <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
   <title>EpiApp</title>
 </head>
 <body>
   <div class="wrap">
     <section id="gate">
+      <img class="emblem" src="/icon.svg" alt="">
       <p class="kicker">EpiApp</p>
       <h1>Кабинет</h1>
       <p class="sub" id="gateMessage">Проверяю Telegram-аккаунт…</p>
@@ -22,6 +23,7 @@
 
     <section id="app" hidden>
       <header class="top">
+        <img class="emblem" src="/icon.svg" alt="">
         <button id="back" type="button" hidden>← Назад</button>
         <p class="kicker" id="kicker"></p>
         <h1 id="title"></h1>
@@ -40,6 +42,6 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script type="module" src="/app.js?v=12"></script>
+  <script type="module" src="/app.js?v=13"></script>
 </body>
 </html>

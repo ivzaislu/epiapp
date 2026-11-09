@@ -5,8 +5,8 @@
   --muted: #6e675f;
   --soft: #3e3933;
   --line: #e6dfd6;
-  --blue: #1a4bb5;
-  --blue-press: #153e94;
+  --blue: #315bd6;
+  --blue-press: #2749ad;
   --green: #0e7a43;
   --danger: #7d332c;
   --wait: #e7e1d8;
@@ -53,6 +53,14 @@ h2 { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: -0.02em; }
 .sub { margin: 6px 0 0; color: var(--soft); font-size: 16px; }
 
 .sub:empty { display: none; }
+
+.emblem {
+  display: block;
+  width: 44px;
+  height: 44px;
+  margin: 0 0 14px;
+  border-radius: 14px;
+}
 
 #back {
   display: block;

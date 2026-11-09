@@ -1,5 +1,5 @@
-import { ensureTelegramSession, roleLabel } from './auth.js?v=12';
-import { childHistoryView } from './history.js?v=12';
+import { ensureTelegramSession, roleLabel } from './auth.js?v=13';
+import { childHistoryView } from './history.js?v=13';
 
 const $ = (id) => document.getElementById(id);
 
