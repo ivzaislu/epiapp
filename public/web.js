@@ -1,5 +1,5 @@
-import { ensureTelegramSession, roleLabel } from './auth.js?v=19';
-import { childHistoryView } from './history.js?v=19';
+import { ensureTelegramSession, roleLabel } from './auth.js?v=20';
+import { childHistoryView } from './history.js?v=20';
 
 const $ = (id) => document.getElementById(id);
 
@@ -99,13 +99,6 @@ function slotPhrase(slot) {
   return slot.taken ? 'подтверждено' : 'нет отметки';
 }
 
-function medicationLine(source) {
-  const meds = source?.medications || [];
-  const names = meds.map((item) => item.name).filter(Boolean);
-  if (names.length) return names.join(' · ');
-  return source?.medicationName || 'Препарат не указан';
-}
-
 function planItems() {
   return state?.settings?.plan || settings?.plan || [];
 }
@@ -122,7 +115,6 @@ function labelForSlot(slot) {
 function paintChrome() {
   const zone = state?.settings?.timezone || settings?.timezone || 'Europe/Berlin';
   const name = state?.settings?.childName || settings?.childName || 'EpiApp';
-  const medication = medicationLine(state?.settings || settings);
   $('back').hidden = screen === 'today';
   if (mode === 'child') {
     $('kicker').textContent = longDate(zone);
@@ -131,7 +123,7 @@ function paintChrome() {
     return;
   }
   const titles = {
-    today: [`Сегодня · ${longDate(zone)}`, name, medication],
+    today: [`Сегодня · ${longDate(zone)}`, name, ''],
     scheme: ['Схема', name, ''],
     reminders: ['Напоминания', name, ''],
     month: ['30 дней', name, ''],
@@ -167,10 +159,12 @@ function doseRows(canTake) {
       ? `<button class="${item.slot === nextDue?.slot ? 'primary' : 'quiet'} take" type="button" data-slot="${escapeHtml(item.slot)}">Я принял</button>`
       : '';
     return `<article class="dose${taken ? ' is-done' : ''}">
-      <h2>${escapeHtml(rx.name)}</h2>
-      <p class="dose-amount">${escapeHtml(rx.dose)}</p>
-      <p class="when">${escapeHtml(rx.time)}</p>
-      <p class="status">${escapeHtml(status)}</p>
+      <div class="dose-copy">
+        <h2>${escapeHtml(rx.name)}</h2>
+        <p class="dose-amount">${escapeHtml(rx.dose)}</p>
+        <p class="status">${escapeHtml(status)}</p>
+      </div>
+      <time class="when">${escapeHtml(rx.time)}</time>
       ${button}
     </article>`;
   }).join('');
@@ -210,7 +204,7 @@ function historyBlock(items, expanded, emptyText) {
     const item = planItems().find((entry) => entry.slot === dose.slot);
     const rx = prescription(item || { time: labelForSlot(dose.slot), medicationName: '', dose: '' });
     return `<div class="hist">
-      <span class="hist-main">${escapeHtml(rx.name)}<em>${escapeHtml(rx.dose)}</em><small>${escapeHtml(rx.time)}</small></span>
+      <span class="hist-main"><b>${escapeHtml(rx.time)}</b><span>${escapeHtml(rx.name)}</span><em>${escapeHtml(rx.dose)}</em></span>
       <span>${escapeHtml(formatTakenAt(dose.takenAt, state.settings.timezone))}</span>
     </div>`;
   }).join('');
