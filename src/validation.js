@@ -187,6 +187,12 @@ function mirrorSchedule(medications) {
   };
 }
 
+const ACCENTS = ['blue', 'sky', 'teal', 'indigo', 'navy'];
+
+function sanitizeAccent(value) {
+  return ACCENTS.includes(value) ? value : 'blue';
+}
+
 export function sanitizeSettings(input, current = {}) {
   const reminderFirstMinutes = sanitizeInteger(
     input.reminderFirstMinutes,
@@ -237,6 +243,7 @@ export function sanitizeSettings(input, current = {}) {
     reminderRepeatMinutes,
     reminderStopMinutes,
     telegramChatIds: sanitizeChatIds(input.telegramChatIds ?? current.telegramChatIds ?? []),
+    accent: sanitizeAccent(input.accent ?? current.accent),
   };
 }
 

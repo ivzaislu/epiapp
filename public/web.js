@@ -1,7 +1,30 @@
-import { ensureTelegramSession, roleLabel } from './auth.js?v=21';
-import { childHistoryView } from './history.js?v=21';
+import { ensureTelegramSession, roleLabel } from './auth.js?v=23';
+import { childHistoryView } from './history.js?v=23';
 
 const $ = (id) => document.getElementById(id);
+
+const ACCENTS = [
+  { id: 'blue', name: 'Синий', color: '#315bd6', press: '#2749ad', soft: '#e8eefb' },
+  { id: 'sky', name: 'Голубой', color: '#1a7fd4', press: '#1467ad', soft: '#e7f3fc' },
+  { id: 'teal', name: 'Бирюзовый', color: '#0c7c86', press: '#096269', soft: '#e5f4f5' },
+  { id: 'indigo', name: 'Индиго', color: '#3a46b5', press: '#2e388f', soft: '#eceefb' },
+  { id: 'navy', name: 'Тёмно-синий', color: '#1a3f8f', press: '#143272', soft: '#e8eef8' },
+];
+
+function accentById(id) {
+  return ACCENTS.find((item) => item.id === id) || ACCENTS[0];
+}
+
+function applyAccent(id) {
+  const accent = accentById(id);
+  const root = document.documentElement;
+  root.style.setProperty('--blue', accent.color);
+  root.style.setProperty('--blue-press', accent.press);
+  root.style.setProperty('--blue-soft', accent.soft);
+  root.style.setProperty('--today', accent.soft);
+  const theme = document.querySelector('meta[name="theme-color"]');
+  if (theme) theme.setAttribute('content', accent.color);
+}
 
 let user = null;
 let mode = 'child';
@@ -116,6 +139,12 @@ function paintChrome() {
   const zone = state?.settings?.timezone || settings?.timezone || 'Europe/Berlin';
   const name = state?.settings?.childName || settings?.childName || 'EpiApp';
   $('back').hidden = screen === 'today';
+  if (screen === 'color') {
+    $('kicker').textContent = 'Оформление';
+    $('title').textContent = 'Цвет';
+    $('sub').textContent = '';
+    return;
+  }
   if (mode === 'child') {
     $('kicker').textContent = longDate(zone);
     $('title').textContent = name;
@@ -381,7 +410,10 @@ function childScreen() {
     <section class="block">
       <h2 class="block-title">Последние отметки</h2>
       ${historyBlock(state.recentDoses || [], historyExpanded, 'Пока нет отметок.')}
-    </section>`;
+    </section>
+    <nav class="menu">
+      <button type="button" data-go="color"><span>Цвет</span><small>общий для ребёнка и родителя</small></button>
+    </nav>`;
 }
 
 function parentToday() {
@@ -395,14 +427,30 @@ function parentToday() {
       <button type="button" data-go="reminders"><span>Напоминания</span><small>Telegram, если отметки нет</small></button>
       <button type="button" data-go="month"><span>30 дней</span><small>те же точки за месяц</small></button>
       <button type="button" data-go="telegram"><span>Telegram</span><small>проверка, что сообщения доходят</small></button>
+      <button type="button" data-go="color"><span>Цвет</span><small>общий для ребёнка и родителя</small></button>
     </nav>
     <p class="note end">Вы вошли как ${escapeHtml(roleLabel(user?.role))}.</p>`;
+}
+
+function colorScreen() {
+  const current = accentById(state?.settings?.accent || settings?.accent).id;
+  const items = ACCENTS.map((item) => `
+    <button class="swatch${item.id === current ? ' on' : ''}" type="button" data-accent="${item.id}">
+      <i style="background:${item.color}"></i>
+      <span>${item.name}</span>
+    </button>`).join('');
+  return `<section class="block">
+      <p class="sentence">Белый фон остаётся. Меняется цвет кнопок, меток и эмблемы.</p>
+      <div class="swatches">${items}</div>
+      <p class="help">Один цвет у ребёнка и у родителя.</p>
+    </section>`;
 }
 
 function render() {
   paintChrome();
   const root = $('screen');
-  if (mode === 'child') root.innerHTML = childScreen();
+  if (screen === 'color') root.innerHTML = colorScreen();
+  else if (mode === 'child') root.innerHTML = childScreen();
   else if (screen === 'scheme') root.innerHTML = schemeScreen();
   else if (screen === 'reminders') root.innerHTML = remindersScreen();
   else if (screen === 'month') root.innerHTML = monthScreen();
@@ -500,6 +548,27 @@ async function confirmTake() {
   }
 }
 
+async function chooseAccent(id) {
+  const accent = accentById(id).id;
+  applyAccent(accent);
+  if (state?.settings) state.settings.accent = accent;
+  if (settings) settings.accent = accent;
+  render();
+  if (demo) return;
+  try {
+    const data = await api('/api/accent', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ accent }),
+    });
+    if (state?.settings) state.settings.accent = data.accent;
+    if (settings) settings.accent = data.accent;
+    applyAccent(data.accent);
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
 async function save(form) {
   const button = form.querySelector('button[type="submit"]');
   button.disabled = true;
@@ -550,6 +619,7 @@ async function refresh() {
     settingsPack = pack;
     settings = pack.settings;
   }
+  applyAccent(state?.settings?.accent || settings?.accent);
   render();
 }
 
@@ -654,6 +724,11 @@ export function boot() {
       if (go.dataset.go === 'scheme') schemeDraft = null;
       screen = go.dataset.go;
       render();
+      return;
+    }
+    const accent = event.target.closest('[data-accent]');
+    if (accent) {
+      chooseAccent(accent.dataset.accent);
       return;
     }
     const count = event.target.closest('[data-count]');

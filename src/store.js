@@ -223,6 +223,7 @@ export class Store {
       const fields = [
         'childName', 'morningTime', 'eveningTime', 'timezone', 'medicationName', 'morningDose', 'eveningDose',
         'remindersEnabled', 'reminderFirstMinutes', 'reminderUrgentMinutes', 'reminderRepeatMinutes', 'reminderStopMinutes',
+        'accent',
       ];
       const changedFields = fields.filter((field) => previous[field] !== next[field]);
       if (JSON.stringify(previous.medications ?? null) !== JSON.stringify(next.medications ?? null)) {
@@ -297,6 +298,7 @@ export class Store {
         eveningDose: state.settings.eveningDose,
         medications: state.settings.medications,
         plan: schedulePlan(state.settings),
+        accent: state.settings.accent,
       },
       todayDoses,
       recentDoses: recent,

@@ -193,6 +193,7 @@ function publicSettings(settings) {
     reminderStopMinutes: settings.reminderStopMinutes,
     medications: settings.medications,
     plan: schedulePlan(settings),
+    accent: settings.accent,
   };
 }
 
@@ -375,6 +376,17 @@ location.replace(target);
           timeZone: result.settings.timezone,
         });
         return json(res, 201, { dose: result.dose, notification });
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/accent') {
+        const actor = await requireUser(req, context);
+        const current = await context.store.read();
+        const input = await body(req);
+        const settings = await context.store.updateSettings({
+          ...current.settings,
+          accent: input.accent,
+        }, actor);
+        return json(res, 200, { accent: settings.accent });
       }
 
       if (req.method === 'GET' && url.pathname === '/api/parent/settings') {

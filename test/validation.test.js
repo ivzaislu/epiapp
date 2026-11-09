@@ -32,6 +32,7 @@ test('sanitizeSettings accepts a normal family configuration', () => {
     reminderRepeatMinutes: 15,
     reminderStopMinutes: 60,
     telegramChatIds: ['123', '-456'],
+    accent: 'blue',
     medications: [{
       id: 'legacy',
       name: 'Препарат X',
