@@ -1,5 +1,5 @@
-import { ensureTelegramSession, roleLabel } from './auth.js?v=16';
-import { childHistoryView } from './history.js?v=16';
+import { ensureTelegramSession, roleLabel } from './auth.js?v=17';
+import { childHistoryView } from './history.js?v=17';
 
 const $ = (id) => document.getElementById(id);
 
@@ -168,7 +168,8 @@ function doseRows(canTake) {
       : '';
     return `<article class="dose${taken ? ' is-done' : ''}">
       <h2>${escapeHtml(rx.name)}</h2>
-      <p class="rx">${escapeHtml(rx.time)} · ${escapeHtml(rx.dose)}</p>
+      <p class="dose-amount">${escapeHtml(rx.dose)}</p>
+      <p class="when">${escapeHtml(rx.time)}</p>
       <p class="status">${escapeHtml(status)}</p>
       ${button}
     </article>`;
@@ -209,7 +210,7 @@ function historyBlock(items, expanded, emptyText) {
     const item = planItems().find((entry) => entry.slot === dose.slot);
     const rx = prescription(item || { time: labelForSlot(dose.slot), medicationName: '', dose: '' });
     return `<div class="hist">
-      <span class="hist-main">${escapeHtml(rx.name)}<small>${escapeHtml(rx.time)}${rx.dose ? ` · ${escapeHtml(rx.dose)}` : ''}</small></span>
+      <span class="hist-main">${escapeHtml(rx.name)}<em>${escapeHtml(rx.dose)}</em><small>${escapeHtml(rx.time)}</small></span>
       <span>${escapeHtml(formatTakenAt(dose.takenAt, state.settings.timezone))}</span>
     </div>`;
   }).join('');

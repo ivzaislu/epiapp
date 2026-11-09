@@ -120,10 +120,25 @@ h2 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -0.01em; }
 
 .block .dose:first-child { border-top: 0; padding-top: 0; }
 
-.dose .rx {
-  margin: 4px 0 0;
-  color: var(--soft);
-  font-size: 16px;
+.dose h2 {
+  font-size: 22px;
+  letter-spacing: -0.03em;
+}
+
+.dose-amount {
+  margin: 2px 0 0;
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.dose .when {
+  margin: 1px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
 }
 
 .dose .status { margin: 3px 0 0; color: var(--muted); font-size: 15px; }
@@ -134,6 +149,13 @@ h2 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -0.01em; }
   gap: 2px;
   min-width: 0;
   font-weight: 650;
+}
+
+.hist-main em {
+  font-style: normal;
+  font-weight: 650;
+  font-size: 16px;
+  letter-spacing: -0.02em;
 }
 
 .hist-main small {
