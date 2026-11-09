@@ -1,5 +1,5 @@
-import { ensureTelegramSession, roleLabel } from './auth.js?v=20';
-import { childHistoryView } from './history.js?v=20';
+import { ensureTelegramSession, roleLabel } from './auth.js?v=21';
+import { childHistoryView } from './history.js?v=21';
 
 const $ = (id) => document.getElementById(id);
 
@@ -204,7 +204,7 @@ function historyBlock(items, expanded, emptyText) {
     const item = planItems().find((entry) => entry.slot === dose.slot);
     const rx = prescription(item || { time: labelForSlot(dose.slot), medicationName: '', dose: '' });
     return `<div class="hist">
-      <span class="hist-main"><b>${escapeHtml(rx.time)}</b><span>${escapeHtml(rx.name)}</span><em>${escapeHtml(rx.dose)}</em></span>
+      <span class="hist-main"><span>${escapeHtml(rx.name)}</span><small><b>${escapeHtml(rx.time)}</b> ${escapeHtml(rx.dose)}</small></span>
       <span>${escapeHtml(formatTakenAt(dose.takenAt, state.settings.timezone))}</span>
     </div>`;
   }).join('');
