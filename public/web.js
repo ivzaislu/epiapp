@@ -1,5 +1,5 @@
-import { ensureTelegramSession, roleLabel } from './auth.js?v=24';
-import { childHistoryView } from './history.js?v=24';
+import { ensureTelegramSession, roleLabel } from './auth.js?v=25';
+import { childHistoryView } from './history.js?v=25';
 
 const $ = (id) => document.getElementById(id);
 
@@ -37,12 +37,13 @@ let prefs = {
 };
 
 function prefsKey() {
-  return `epiapp-prefs:${mode === 'parent' ? 'parent' : 'child'}`;
+  const who = user?.telegramId ? String(user.telegramId) : (mode === 'parent' ? 'parent' : 'child');
+  return `epiapp-prefs:${who}`;
 }
 
 function loadPrefs() {
   try {
-    const raw = JSON.parse(localStorage.getItem(prefsKey()) || '{}');
+    const raw = JSON.parse(localStorage.getItem(prefsKey()) || localStorage.getItem(`epiapp-prefs:${mode === 'parent' ? 'parent' : 'child'}`) || '{}');
     prefs = {
       accent: accentById(raw.accent).id,
       largeText: Boolean(raw.largeText),
@@ -204,7 +205,7 @@ function paintChrome() {
     scheme: ['Схема', name, ''],
     reminders: ['Напоминания', name, ''],
     month: ['30 дней', name, ''],
-    telegram: ['Telegram', name, ''],
+    telegram: ['Семья', name, ''],
   };
   const [kicker, title, sub] = titles[screen] || titles.today;
   $('kicker').textContent = kicker;
@@ -437,15 +438,26 @@ function monthScreen() {
 
 function telegramScreen() {
   const ready = Boolean(settingsPack?.telegramConfigured);
+  const seats = settingsPack?.family?.length ? settingsPack.family : [
+    { title: 'Первый', name: 'Администратор', connected: true },
+    { title: 'Второй', name: '', connected: false },
+  ];
+  const rows = seats.map((seat) => `
+    <div class="hist">
+      <span class="hist-main"><span>${escapeHtml(seat.title)}</span><small>${escapeHtml(seat.connected ? seat.name : 'не подключён')}</small></span>
+      <span>${seat.connected ? 'в Telegram' : 'свободно'}</span>
+    </div>`).join('');
   const admin = user?.role === 'admin'
-    ? '<p class="help">Пригласить ребёнка или родителя можно в чате с ботом.</p>'
-    : '';
+    ? '<p class="help">Второго родителя приглашает администратор кнопкой «Второй родитель» в чате с ботом.</p>'
+    : '<p class="help">Второго родителя приглашает администратор в Telegram. Это не обязательно.</p>';
   return `<section class="block">
+      <h2 class="block-title">Два родителя</h2>
+      ${rows}
+      ${admin}
       <p class="sentence">${ready
-        ? 'Бот подключён. Сообщение уходит администратору и приглашённым родителям.'
+        ? 'Сообщение об отметке уходит первому родителю и второму, если он подключён.'
         : 'Бот не настроен. Сообщения не отправляются.'}</p>
       <p class="help">Обычное уведомление не содержит название препарата и дозу.</p>
-      ${admin}
       <button id="testTelegram" class="primary" type="button"${ready ? '' : ' disabled'}>Отправить тест</button>
     </section>`;
 }
@@ -474,7 +486,7 @@ function parentToday() {
       <button type="button" data-go="scheme"><span>Схема</span><small>препараты и число приёмов</small></button>
       <button type="button" data-go="reminders"><span>Напоминания</span><small>Telegram, если отметки нет</small></button>
       <button type="button" data-go="month"><span>30 дней</span><small>те же точки за месяц</small></button>
-      <button type="button" data-go="telegram"><span>Telegram</span><small>проверка, что сообщения доходят</small></button>
+      <button type="button" data-go="telegram"><span>Семья</span><small>два родителя, второй через Telegram</small></button>
       <button type="button" data-go="settings"><span>Настройки</span><small>только на этом телефоне</small></button>
     </nav>
     <p class="note end">Вы вошли как ${escapeHtml(roleLabel(user?.role))}.</p>`;

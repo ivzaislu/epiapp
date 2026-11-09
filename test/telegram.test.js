@@ -33,7 +33,7 @@ test('parses admin invitation and revoke commands', () => {
 
 test('maps Telegram menu buttons to bot actions', () => {
   assert.deepEqual(botActionFromText('👶 Пригласить ребёнка'), { command: 'invite_child', argument: '' });
-  assert.deepEqual(botActionFromText('👨‍👩‍👧 Пригласить родителя'), { command: 'invite_parent', argument: '' });
+  assert.deepEqual(botActionFromText('Второй родитель'), { command: 'invite_parent', argument: '' });
   assert.deepEqual(botActionFromText('📊 Статистика'), { command: 'stats', argument: '' });
   assert.deepEqual(botActionFromText('📲 Подключить Android'), { command: 'android', argument: '' });
 });
@@ -44,7 +44,7 @@ test('all roles receive Android pairing button and role-specific Telegram keyboa
   const parent = mainMenuMarkup('parent', server);
   const child = mainMenuMarkup('child', server);
   assert.ok(admin.keyboard.flat().some((button) => button.text === '👶 Пригласить ребёнка'));
-  assert.ok(admin.keyboard.flat().some((button) => button.text === '👨‍👩‍👧 Пригласить родителя'));
+  assert.ok(admin.keyboard.flat().some((button) => button.text === 'Второй родитель'));
   assert.ok(parent.keyboard.flat().some((button) => button.text === '📊 Статистика'));
   assert.equal(parent.keyboard.flat().some((button) => button.text.includes('Пригласить')), false);
   assert.equal(child.keyboard.flat().some((button) => button.text === '📊 Статистика'), false);

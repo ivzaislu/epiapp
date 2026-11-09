@@ -41,6 +41,24 @@ function telegramId(value) {
   return id;
 }
 
+function hasOtherParent(state, exceptId = '') {
+  return state.access.users.some((user) => user.role === 'parent' && String(user.telegramId) !== String(exceptId || ''));
+}
+
+export function familyParents(users, adminId) {
+  const list = Array.isArray(users) ? users : [];
+  const personName = (user, fallback) => {
+    const name = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim();
+    return name || fallback;
+  };
+  const admin = list.find((user) => String(user.telegramId) === String(adminId || ''));
+  const second = list.find((user) => user.role === 'parent' && String(user.telegramId) !== String(adminId || ''));
+  return [
+    { place: 1, title: 'Первый', name: personName(admin, 'Администратор'), connected: true },
+    { place: 2, title: 'Второй', name: second ? personName(second, 'Родитель') : '', connected: Boolean(second) },
+  ];
+}
+
 function accessRole(value) {
   if (value !== 'child' && value !== 'parent') throw new Error('Неизвестная роль доступа.');
   return value;
@@ -523,6 +541,9 @@ export class Store {
     const expiresAt = new Date(now.getTime() + ttlMs).toISOString();
 
     await this.mutate(async (state) => {
+      if (normalizedRole === 'parent' && hasOtherParent(state)) {
+        throw new InviteError('Второй родитель уже подключён. Новое приглашение не нужно.');
+      }
       state.access.invites = state.access.invites.filter((invite) => {
         const expires = Date.parse(invite.expiresAt || '');
         return invite.usedAt || !Number.isFinite(expires) || expires > now.getTime() - 7 * 86400000;
@@ -556,6 +577,9 @@ export class Store {
       if (invite.usedAt) throw new InviteError('Это приглашение уже использовано.');
       if (!invite.expiresAt || Date.parse(invite.expiresAt) <= now.getTime()) {
         throw new InviteError('Срок действия приглашения истёк.');
+      }
+      if (invite.role === 'parent' && hasOtherParent(state, id)) {
+        throw new InviteError('Второй родитель уже подключён.');
       }
 
       const user = {

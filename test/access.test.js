@@ -40,6 +40,24 @@ test('expired invitations cannot be accepted', async () => {
   );
 });
 
+test('a family has one optional second parent invited by telegram', async () => {
+  const store = await tempStore();
+  const first = await store.createInvite('parent', '111111111');
+  const pending = await store.createInvite('parent', '111111111');
+  await store.acceptInvite(first.token, { id: '333333333', firstName: 'Папа' });
+  await assert.rejects(
+    () => store.createInvite('parent', '111111111'),
+    (error) => error instanceof InviteError && /уже подключён/i.test(error.message),
+  );
+  await assert.rejects(
+    () => store.acceptInvite(pending.token, { id: '444444444', firstName: 'Мама' }),
+    (error) => error instanceof InviteError && /уже подключён/i.test(error.message),
+  );
+  assert.equal(await store.revokeAccessUser('333333333'), true);
+  const again = await store.createInvite('parent', '111111111');
+  assert.equal(again.role, 'parent');
+});
+
 test('access user can be revoked immediately', async () => {
   const store = await tempStore();
   const invite = await store.createInvite('parent', '111111111');

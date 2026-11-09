@@ -12,7 +12,7 @@ import {
   verifySessionToken,
 } from './src/auth.js';
 import { startReminderScheduler } from './src/reminders.js';
-import { Store } from './src/store.js';
+import { Store, familyParents } from './src/store.js';
 import { PostgresStore } from './src/postgres-store.js';
 import { notifyDose, sendTelegramMessage, startTelegramBot } from './src/telegram.js';
 import { ValidationError, schedulePlan } from './src/validation.js';
@@ -397,6 +397,7 @@ location.replace(target);
           recentChanges: await context.store.recentSettingsChanges(5),
           telegramConfigured: Boolean(context.botToken),
           role: user.role,
+          family: familyParents(state.access.users, context.adminId),
         });
       }
 

@@ -70,7 +70,7 @@ export function botActionFromText(text) {
   const value = String(text || '').trim();
   const actions = new Map([
     ['👶 Пригласить ребёнка', { command: 'invite_child', argument: '' }],
-    ['👨‍👩‍👧 Пригласить родителя', { command: 'invite_parent', argument: '' }],
+    ['Второй родитель', { command: 'invite_parent', argument: '' }],
     ['📊 Статистика', { command: 'stats', argument: '' }],
     ['👥 Пользователи', { command: 'users', argument: '' }],
     ['📲 Подключить Android', { command: 'android', argument: '' }],
@@ -94,7 +94,7 @@ export function mainMenuMarkup(role, appUrl) {
   if (role === 'admin') {
     rows.push([
       { text: '👶 Пригласить ребёнка' },
-      { text: '👨‍👩‍👧 Пригласить родителя' },
+      { text: 'Второй родитель' },
     ]);
     rows.push([
       { text: '📊 Статистика' },
@@ -158,7 +158,9 @@ async function handleBotMessage({ token, store, adminId, appUrl, botUsername, me
       await sendTelegramMessage({
         token,
         chatId,
-        text: `✅ Доступ подключён. Роль: ${roleName(user.role)}.`,
+        text: user.role === 'parent'
+          ? '✅ Вы подключены как второй родитель. Первый родитель — администратор.'
+          : `✅ Доступ подключён. Роль: ${roleName(user.role)}.`,
         replyMarkup: mainMenuMarkup(user.role, appUrl),
       });
       if (String(adminId) !== telegramId) {
@@ -207,7 +209,7 @@ async function handleBotMessage({ token, store, adminId, appUrl, botUsername, me
 
   if (parsed.command === 'help') {
     let text = 'Используйте кнопки меню ниже. «Открыть EpiApp» запускает веб-версию. «Подключить Android» создаёт одноразовую ссылку, которая сама откроет APK и передаст данные подключения.';
-    if (access.role === 'parent') text += '\n\nРодителю доступна статистика и изменение расписания/препарата в EpiApp.';
+    if (access.role === 'parent') text += '\n\nРодителю доступна статистика и схема. Второй родитель не обязателен: его приглашает администратор в Telegram.';
     if (access.role === 'admin') text += '\n\nАдминистратор также может приглашать ребёнка/родителя и управлять доступом.';
     await sendTelegramMessage({ token, chatId, text, replyMarkup: mainMenuMarkup(access.role, appUrl) });
     return;
@@ -245,14 +247,26 @@ async function handleBotMessage({ token, store, adminId, appUrl, botUsername, me
 
   if (parsed.command === 'invite_child' || parsed.command === 'invite_parent') {
     const role = parsed.command === 'invite_child' ? 'child' : 'parent';
-    const invite = await store.createInvite(role, telegramId);
-    const link = buildInviteStartLink(botUsername, invite.token);
-    await sendTelegramMessage({
-      token,
-      chatId,
-      text: `Одноразовое приглашение для роли «${roleName(role)}». Действует 24 часа. Перешлите это сообщение нужному человеку:\n\n${link}`,
-      replyMarkup: mainMenuMarkup('admin', appUrl),
-    });
+    try {
+      const invite = await store.createInvite(role, telegramId);
+      const link = buildInviteStartLink(botUsername, invite.token);
+      const text = role === 'parent'
+        ? `Одноразовое приглашение для второго родителя. Действует 24 часа. Второй родитель не обязателен. Перешлите это сообщение:\n\n${link}`
+        : `Одноразовое приглашение для роли «${roleName(role)}». Действует 24 часа. Перешлите это сообщение нужному человеку:\n\n${link}`;
+      await sendTelegramMessage({
+        token,
+        chatId,
+        text,
+        replyMarkup: mainMenuMarkup('admin', appUrl),
+      });
+    } catch (error) {
+      await sendTelegramMessage({
+        token,
+        chatId,
+        text: `❌ ${error.message}`,
+        replyMarkup: mainMenuMarkup('admin', appUrl),
+      });
+    }
     return;
   }
 
@@ -314,7 +328,7 @@ export async function startTelegramBot({ token, store, adminId, appUrl }) {
       { command: 'android', description: 'Подключить универсальный Android APK' },
       { command: 'stats', description: 'Статистика отметок' },
       { command: 'invite_child', description: 'Пригласить ребёнка' },
-      { command: 'invite_parent', description: 'Пригласить родителя' },
+      { command: 'invite_parent', description: 'Пригласить второго родителя' },
       { command: 'users', description: 'Пользователи' },
       { command: 'revoke', description: 'Отозвать доступ по Telegram ID' },
       { command: 'help', description: 'Помощь' },
