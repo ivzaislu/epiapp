@@ -1,5 +1,5 @@
-import { ensureTelegramSession, roleLabel } from './auth.js?v=15';
-import { childHistoryView } from './history.js?v=15';
+import { ensureTelegramSession, roleLabel } from './auth.js?v=16';
+import { childHistoryView } from './history.js?v=16';
 
 const $ = (id) => document.getElementById(id);
 
@@ -127,7 +127,7 @@ function paintChrome() {
   if (mode === 'child') {
     $('kicker').textContent = longDate(zone);
     $('title').textContent = name;
-    $('sub').textContent = medication;
+    $('sub').textContent = '';
     return;
   }
   const titles = {
@@ -143,32 +143,33 @@ function paintChrome() {
   $('sub').textContent = sub;
 }
 
+function prescription(item) {
+  const name = item.medicationName || state?.settings?.medicationName || 'Препарат не указан';
+  const dose = item.dose || 'Доза не указана';
+  return { name, dose, time: item.time || '' };
+}
+
 function doseRows(canTake) {
   const plan = planItems();
   const rows = plan.length ? plan : [
     { slot: 'morning', time: state.settings.morningTime, dose: state.settings.morningDose, label: state.settings.morningTime, medicationName: state.settings.medicationName },
     { slot: 'evening', time: state.settings.eveningTime, dose: state.settings.eveningDose, label: state.settings.eveningTime, medicationName: state.settings.medicationName },
   ];
-  const several = new Set(rows.map((item) => item.medicationId || item.medicationName)).size > 1;
   const nextDue = rows.find((item) => !state.todayDoses?.[item.slot] && isDue(item.time, state.settings.timezone));
-  let previousName = '';
   return rows.map((item) => {
-    const dose = state.todayDoses?.[item.slot];
+    const taken = state.todayDoses?.[item.slot];
     const due = isDue(item.time, state.settings.timezone);
+    const rx = prescription(item);
     let status = 'ещё не отмечено';
-    if (dose) status = `подтверждено в ${clock(dose.takenAt, state.settings.timezone)}`;
+    if (taken) status = `подтверждено в ${clock(taken.takenAt, state.settings.timezone)}`;
     else if (!canTake && !due) status = 'ещё не время';
-    const button = canTake && !dose
+    const button = canTake && !taken
       ? `<button class="${item.slot === nextDue?.slot ? 'primary' : 'quiet'} take" type="button" data-slot="${escapeHtml(item.slot)}">Я принял</button>`
       : '';
-    const group = several && item.medicationName !== previousName
-      ? `<p class="med-name">${escapeHtml(item.medicationName || 'Препарат')}</p>`
-      : '';
-    previousName = item.medicationName || '';
-    return `${group}<article class="dose${dose ? ' is-done' : ''}">
-      <h2>${escapeHtml(item.label || item.time)}</h2>
+    return `<article class="dose${taken ? ' is-done' : ''}">
+      <h2>${escapeHtml(rx.name)}</h2>
+      <p class="rx">${escapeHtml(rx.time)} · ${escapeHtml(rx.dose)}</p>
       <p class="status">${escapeHtml(status)}</p>
-      ${item.dose ? `<p class="meta">${escapeHtml(item.dose)}</p>` : ''}
       ${button}
     </article>`;
   }).join('');
@@ -204,11 +205,14 @@ function weekBlock() {
 function historyBlock(items, expanded, emptyText) {
   if (!items.length) return `<p class="help">${escapeHtml(emptyText)}</p>`;
   const view = childHistoryView(items, expanded);
-  const rows = view.visible.map((dose) => `
-    <div class="hist">
-      <span>${escapeHtml(labelForSlot(dose.slot))}</span>
+  const rows = view.visible.map((dose) => {
+    const item = planItems().find((entry) => entry.slot === dose.slot);
+    const rx = prescription(item || { time: labelForSlot(dose.slot), medicationName: '', dose: '' });
+    return `<div class="hist">
+      <span class="hist-main">${escapeHtml(rx.name)}<small>${escapeHtml(rx.time)}${rx.dose ? ` · ${escapeHtml(rx.dose)}` : ''}</small></span>
       <span>${escapeHtml(formatTakenAt(dose.takenAt, state.settings.timezone))}</span>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   const toggle = view.canToggle
     ? `<button class="texty" id="historyToggle" type="button">${escapeHtml(view.buttonLabel)}</button>`
     : '';
