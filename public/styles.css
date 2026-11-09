@@ -158,7 +158,7 @@ h2 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -0.01em; }
 .week-head,
 .lane {
   display: grid;
-  grid-template-columns: 42px repeat(var(--days, 7), minmax(0, 1fr));
+  grid-template-columns: 52px repeat(var(--days, 7), minmax(0, 1fr));
   align-items: center;
 }
 
@@ -186,6 +186,49 @@ h2 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -0.01em; }
 .lane { min-height: 22px; }
 
 .lane-name { color: var(--muted); font-size: 12px; }
+
+.med-name {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.med + .med {
+  margin-top: 16px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+
+.label-line {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.count {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.count-choice {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: var(--control);
+  background: transparent;
+  font-size: 15px;
+}
+
+.count-choice.on {
+  border-color: var(--ink);
+  font-weight: 650;
+}
+
+.add-med { margin-top: 8px; }
+
+.form .texty { margin-bottom: 0; }
 
 .lane .dot { justify-self: center; }
 

@@ -1,5 +1,5 @@
-import { ensureTelegramSession, roleLabel } from './auth.js?v=14';
-import { childHistoryView } from './history.js?v=14';
+import { ensureTelegramSession, roleLabel } from './auth.js?v=15';
+import { childHistoryView } from './history.js?v=15';
 
 const $ = (id) => document.getElementById(id);
 
@@ -16,6 +16,7 @@ let monthExpanded = false;
 let pendingSlot = null;
 let demo = false;
 let saving = false;
+let schemeDraft = null;
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -98,10 +99,30 @@ function slotPhrase(slot) {
   return slot.taken ? 'подтверждено' : 'нет отметки';
 }
 
+function medicationLine(source) {
+  const meds = source?.medications || [];
+  const names = meds.map((item) => item.name).filter(Boolean);
+  if (names.length) return names.join(' · ');
+  return source?.medicationName || 'Препарат не указан';
+}
+
+function planItems() {
+  return state?.settings?.plan || settings?.plan || [];
+}
+
+function labelForSlot(slot) {
+  const item = planItems().find((entry) => entry.slot === slot);
+  if (item) return item.label;
+  if (slot === 'morning') return state?.settings?.morningTime || 'Утро';
+  if (slot === 'evening') return state?.settings?.eveningTime || 'Вечер';
+  const time = String(slot || '').split('@')[1];
+  return time || 'Приём';
+}
+
 function paintChrome() {
   const zone = state?.settings?.timezone || settings?.timezone || 'Europe/Berlin';
   const name = state?.settings?.childName || settings?.childName || 'EpiApp';
-  const medication = state?.settings?.medicationName || settings?.medicationName || 'Препарат не указан';
+  const medication = medicationLine(state?.settings || settings);
   $('back').hidden = screen === 'today';
   if (mode === 'child') {
     $('kicker').textContent = longDate(zone);
@@ -123,22 +144,31 @@ function paintChrome() {
 }
 
 function doseRows(canTake) {
-  return ['morning', 'evening'].map((slot) => {
-    const dose = state.todayDoses?.[slot];
-    const label = slot === 'morning' ? 'Утро' : 'Вечер';
-    const time = state.settings[slot === 'morning' ? 'morningTime' : 'eveningTime'];
-    const amount = state.settings[slot === 'morning' ? 'morningDose' : 'eveningDose'] || '';
-    const due = isDue(time, state.settings.timezone);
+  const plan = planItems();
+  const rows = plan.length ? plan : [
+    { slot: 'morning', time: state.settings.morningTime, dose: state.settings.morningDose, label: state.settings.morningTime, medicationName: state.settings.medicationName },
+    { slot: 'evening', time: state.settings.eveningTime, dose: state.settings.eveningDose, label: state.settings.eveningTime, medicationName: state.settings.medicationName },
+  ];
+  const several = new Set(rows.map((item) => item.medicationId || item.medicationName)).size > 1;
+  const nextDue = rows.find((item) => !state.todayDoses?.[item.slot] && isDue(item.time, state.settings.timezone));
+  let previousName = '';
+  return rows.map((item) => {
+    const dose = state.todayDoses?.[item.slot];
+    const due = isDue(item.time, state.settings.timezone);
     let status = 'ещё не отмечено';
     if (dose) status = `подтверждено в ${clock(dose.takenAt, state.settings.timezone)}`;
     else if (!canTake && !due) status = 'ещё не время';
     const button = canTake && !dose
-      ? `<button class="${due ? 'primary' : 'quiet'} take" type="button" data-slot="${slot}">Я принял</button>`
+      ? `<button class="${item.slot === nextDue?.slot ? 'primary' : 'quiet'} take" type="button" data-slot="${escapeHtml(item.slot)}">Я принял</button>`
       : '';
-    return `<article class="dose${dose ? ' is-done' : ''}">
-      <h2>${label} · ${escapeHtml(time)}</h2>
+    const group = several && item.medicationName !== previousName
+      ? `<p class="med-name">${escapeHtml(item.medicationName || 'Препарат')}</p>`
+      : '';
+    previousName = item.medicationName || '';
+    return `${group}<article class="dose${dose ? ' is-done' : ''}">
+      <h2>${escapeHtml(item.label || item.time)}</h2>
       <p class="status">${escapeHtml(status)}</p>
-      ${amount ? `<p class="meta">${escapeHtml(amount)}</p>` : ''}
+      ${item.dose ? `<p class="meta">${escapeHtml(item.dose)}</p>` : ''}
       ${button}
     </article>`;
   }).join('');
@@ -155,15 +185,18 @@ function weekBlock() {
     const mark = day.localDate === today ? ' is-today' : '';
     return `<div class="day${mark}"><span>${escapeHtml(weekdayLabel(day.localDate))}</span><b>${Number(day.localDate.slice(8))}</b></div>`;
   }).join('');
-  const lane = (slot, label) => `<div class="lane"><span class="lane-name">${label}</span>${days.map((day) => {
+  const lanes = stats7.plan?.length ? stats7.plan : [
+    { slot: 'morning', label: '08:00' },
+    { slot: 'evening', label: '20:00' },
+  ];
+  const lane = (item) => `<div class="lane"><span class="lane-name">${escapeHtml(item.lane || item.label)}</span>${days.map((day) => {
     const mark = day.localDate === today ? ' is-today' : '';
-    return `<i class="dot ${dotClass(day.slots[slot])}${mark}" title="${label}, ${escapeHtml(day.localDate)}"></i>`;
+    return `<i class="dot ${dotClass(day.slots?.[item.slot])}${mark}" title="${escapeHtml(item.label)}, ${escapeHtml(day.localDate)}"></i>`;
   }).join('')}</div>`;
   return `<p class="sentence">${escapeHtml(sentence)}</p>
     <div class="week" style="--days:${days.length}">
       <div class="week-head"><span></span>${head}</div>
-      ${lane('morning', 'утро')}
-      ${lane('evening', 'вечер')}
+      ${lanes.map(lane).join('')}
     </div>
     <p class="legend"><span>Зелёная — подтверждено.</span><span>Пустая — нет отметки.</span><span>Серая — ещё не время.</span></p>`;
 }
@@ -173,7 +206,7 @@ function historyBlock(items, expanded, emptyText) {
   const view = childHistoryView(items, expanded);
   const rows = view.visible.map((dose) => `
     <div class="hist">
-      <span>${dose.slot === 'evening' ? 'Вечер' : 'Утро'}</span>
+      <span>${escapeHtml(labelForSlot(dose.slot))}</span>
       <span>${escapeHtml(formatTakenAt(dose.takenAt, state.settings.timezone))}</span>
     </div>`).join('');
   const toggle = view.canToggle
@@ -186,27 +219,84 @@ function field(name, label, value, extra = '') {
   return `<label for="${name}">${label}</label><input id="${name}" name="${name}" value="${escapeHtml(value)}" ${extra}>`;
 }
 
+function newMedId() {
+  const bytes = crypto.getRandomValues(new Uint8Array(4));
+  return `m${[...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('').slice(0, 7)}`;
+}
+
+function setIntakeCount(medication, count) {
+  const presets = ['08:00', '20:00', '14:00'];
+  const next = medication.intakes.slice(0, count).map((item) => ({ ...item }));
+  while (next.length < count) {
+    const used = new Set(next.map((item) => item.time));
+    next.push({ time: presets.find((item) => !used.has(item)) || '12:00', dose: next[0]?.dose || '' });
+  }
+  medication.intakes = next;
+}
+
+function ensureSchemeDraft() {
+  if (schemeDraft) return schemeDraft;
+  const source = settings?.medications?.length ? settings.medications : [{
+    id: 'legacy',
+    name: settings?.medicationName || '',
+    intakes: [
+      { time: settings?.morningTime || '08:00', dose: settings?.morningDose || '' },
+      { time: settings?.eveningTime || '20:00', dose: settings?.eveningDose || '' },
+    ],
+  }];
+  schemeDraft = structuredClone(source);
+  return schemeDraft;
+}
+
+function syncSchemeDraft(form) {
+  if (!form || !schemeDraft) return;
+  schemeDraft.forEach((medication, medIndex) => {
+    const name = form.elements[`med-name-${medIndex}`];
+    if (name) medication.name = name.value;
+    medication.intakes.forEach((intake, index) => {
+      const time = form.elements[`med-time-${medIndex}-${index}`];
+      const dose = form.elements[`med-dose-${medIndex}-${index}`];
+      if (time?.value) intake.time = time.value;
+      if (dose) intake.dose = dose.value;
+    });
+  });
+}
+
 function schemeScreen() {
+  const meds = ensureSchemeDraft();
+  const cards = meds.map((medication, medIndex) => {
+    const count = medication.intakes.length;
+    const choices = [1, 2, 3].map((value) => `
+      <button class="count-choice${count === value ? ' on' : ''}" type="button" data-count="${value}" data-med="${medIndex}">
+        ${['Один', 'Два', 'Три'][value - 1]}
+      </button>`).join('');
+    const intakes = medication.intakes.map((intake, index) => `
+      <div class="pair">
+        <div>${field(`med-time-${medIndex}-${index}`, count === 1 ? 'Время' : `Приём ${index + 1}`, intake.time, 'type="time" required')}</div>
+        <div>${field(`med-dose-${medIndex}-${index}`, 'Доза', intake.dose || '', 'maxlength="80" placeholder="1 таблетка" autocomplete="off"')}</div>
+      </div>`).join('');
+    const remove = meds.length > 1
+      ? `<button class="texty" type="button" data-remove-med="${medIndex}">Убрать препарат</button>`
+      : '';
+    return `<article class="med">
+      ${field(`med-name-${medIndex}`, meds.length > 1 ? `Препарат ${medIndex + 1}` : 'Название', medication.name || '', 'maxlength="100" autocomplete="off"')}
+      <p class="label-line">Сколько приёмов</p>
+      <div class="count">${choices}</div>
+      ${intakes}
+      ${remove}
+    </article>`;
+  }).join('');
   return `<form data-form="scheme" class="form">
     <fieldset>
       <legend>Кто</legend>
       ${field('childName', 'Имя', settings.childName, 'maxlength="50" required autocomplete="name"')}
-    </fieldset>
-    <fieldset>
-      <legend>Препарат</legend>
-      ${field('medicationName', 'Название', settings.medicationName || '', 'maxlength="100" autocomplete="off"')}
-      ${field('morningDose', 'Доза утром', settings.morningDose || '', 'maxlength="80" placeholder="Например, 1 таблетка" autocomplete="off"')}
-      ${field('eveningDose', 'Доза вечером', settings.eveningDose || '', 'maxlength="80" placeholder="Например, 1 таблетка" autocomplete="off"')}
-      <p class="help">Приложение не назначает препарат и не меняет дозу.</p>
-    </fieldset>
-    <fieldset>
-      <legend>Когда</legend>
-      <div class="pair">
-        <div>${field('morningTime', 'Утро', settings.morningTime, 'type="time" required')}</div>
-        <div>${field('eveningTime', 'Вечер', settings.eveningTime, 'type="time" required')}</div>
-      </div>
       ${field('timezone', 'Часовой пояс', settings.timezone, 'required placeholder="Europe/Berlin" autocomplete="off"')}
-      <p class="help">Например: Europe/Berlin или Europe/Moscow.</p>
+    </fieldset>
+    <fieldset>
+      <legend>Препараты</legend>
+      <div class="meds">${cards}</div>
+      ${meds.length < 6 ? '<button class="quiet add-med" type="button" data-add-med>Добавить препарат</button>' : ''}
+      <p class="help">У каждого препарата один, два или три приёма. Приложение не назначает препарат и не меняет дозу.</p>
     </fieldset>
     <button class="primary" type="submit">Сохранить схему</button>
     <p class="help">${escapeHtml(auditLine())}</p>
@@ -238,28 +328,29 @@ function monthScreen() {
   const sentence = stats.expected
     ? `За 30 дней отмечено ${stats.taken} из ${stats.expected}.`
     : 'За 30 дней время приёма ещё не наступило.';
-  const morning = stats.bySlot.morning;
-  const evening = stats.bySlot.evening;
+  const plan = stats.plan?.length ? stats.plan : [
+    { slot: 'morning', label: '08:00' },
+    { slot: 'evening', label: '20:00' },
+  ];
   const today = state?.today;
-  const cells = stats.days.map((day) => `
-    <div class="cell${day.localDate === today ? ' is-today' : ''}" title="${escapeHtml(day.localDate)}: утро — ${slotPhrase(day.slots.morning)}, вечер — ${slotPhrase(day.slots.evening)}">
+  const cells = stats.days.map((day) => {
+    const dots = plan.slice(0, 3).map((item) => `<i class="dot ${dotClass(day.slots?.[item.slot])}"></i>`).join('');
+    return `<div class="cell${day.localDate === today ? ' is-today' : ''}" title="${escapeHtml(day.localDate)}">
       <span>${Number(day.localDate.slice(8))}</span>
-      <i class="dot ${dotClass(day.slots.morning)}"></i>
-      <i class="dot ${dotClass(day.slots.evening)}"></i>
-    </div>`).join('');
+      ${dots}
+    </div>`;
+  }).join('');
   const days = [...stats.days].reverse();
   const view = childHistoryView(days, monthExpanded);
   const rows = view.visible.map((day) => `
     <div class="hist stacked">
       <span>${escapeHtml(day.localDate.slice(8))}.${escapeHtml(day.localDate.slice(5, 7))}</span>
-      <span>утро — ${slotPhrase(day.slots.morning)}</span>
-      <span>вечер — ${slotPhrase(day.slots.evening)}</span>
+      ${plan.map((item) => `<span>${escapeHtml(item.label)} — ${slotPhrase(day.slots?.[item.slot])}</span>`).join('')}
     </div>`).join('');
   const toggle = view.canToggle
     ? `<button class="texty" id="historyToggle" type="button">${escapeHtml(view.buttonLabel)}</button>`
     : '';
   return `<p class="sentence">${escapeHtml(sentence)}</p>
-    <p class="split">Утро: ${escapeHtml(morning.taken)} из ${escapeHtml(morning.expected)}. Вечер: ${escapeHtml(evening.taken)} из ${escapeHtml(evening.expected)}.</p>
     <p class="split">Полных дней подряд: ${escapeHtml(stats.currentStreak)}.</p>
     <div class="month">${cells}</div>
     <p class="legend"><span>Зелёная — подтверждено.</span><span>Пустая — нет отметки.</span><span>Серая — ещё не время.</span></p>
@@ -301,7 +392,7 @@ function parentToday() {
     </section>
     <section class="block">${weekBlock()}</section>
     <nav class="menu">
-      <button type="button" data-go="scheme"><span>Схема</span><small>имя, препарат, дозы и время</small></button>
+      <button type="button" data-go="scheme"><span>Схема</span><small>препараты и число приёмов</small></button>
       <button type="button" data-go="reminders"><span>Напоминания</span><small>Telegram, если отметки нет</small></button>
       <button type="button" data-go="month"><span>30 дней</span><small>те же точки за месяц</small></button>
       <button type="button" data-go="telegram"><span>Telegram</span><small>проверка, что сообщения доходят</small></button>
@@ -342,13 +433,8 @@ function readField(form, name, fallback) {
 
 function collect(form) {
   const reminders = form.dataset.form === 'reminders';
-  return {
+  const payload = {
     childName: readField(form, 'childName', settings.childName),
-    medicationName: readField(form, 'medicationName', settings.medicationName || ''),
-    morningDose: readField(form, 'morningDose', settings.morningDose || ''),
-    eveningDose: readField(form, 'eveningDose', settings.eveningDose || ''),
-    morningTime: readField(form, 'morningTime', settings.morningTime),
-    eveningTime: readField(form, 'eveningTime', settings.eveningTime),
     timezone: readField(form, 'timezone', settings.timezone),
     remindersEnabled: reminders ? readField(form, 'remindersEnabled', false) : settings.remindersEnabled !== false,
     reminderFirstMinutes: Number(readField(form, 'reminderFirstMinutes', settings.reminderFirstMinutes ?? 15)),
@@ -356,14 +442,19 @@ function collect(form) {
     reminderRepeatMinutes: Number(readField(form, 'reminderRepeatMinutes', settings.reminderRepeatMinutes ?? 15)),
     reminderStopMinutes: Number(readField(form, 'reminderStopMinutes', settings.reminderStopMinutes ?? 60)),
   };
+  if (!reminders) {
+    syncSchemeDraft(form);
+    payload.medications = schemeDraft;
+  }
+  return payload;
 }
 
 function openSheet(slot) {
   if (mode !== 'child' || !state) return;
   pendingSlot = slot;
-  const amount = slot === 'morning' ? state.settings.morningDose : state.settings.eveningDose;
-  const parts = [state.settings.medicationName, amount].filter(Boolean);
-  $('sheetTitle').textContent = slot === 'morning' ? 'Утреннее лекарство уже принято?' : 'Вечернее лекарство уже принято?';
+  const item = planItems().find((entry) => entry.slot === slot);
+  const parts = [item?.medicationName, item?.dose].filter(Boolean);
+  $('sheetTitle').textContent = item ? `Приём в ${item.time} уже принят?` : 'Лекарство уже принято?';
   $('sheetText').textContent = parts.length
     ? `${parts.join(' · ')}. Нажимайте «Да» только после приёма.`
     : 'Нажимайте «Да» только после приёма.';
@@ -421,6 +512,7 @@ async function save(form) {
     });
     settings = data.settings;
     settingsPack = { ...settingsPack, ...data, telegramConfigured: settingsPack?.telegramConfigured };
+    schemeDraft = null;
     toast('Сохранено.');
     await refresh();
   } catch (error) {
@@ -560,7 +652,31 @@ export function boot() {
   $('screen').addEventListener('click', (event) => {
     const go = event.target.closest('[data-go]');
     if (go) {
+      if (go.dataset.go === 'scheme') schemeDraft = null;
       screen = go.dataset.go;
+      render();
+      return;
+    }
+    const count = event.target.closest('[data-count]');
+    if (count) {
+      syncSchemeDraft(count.closest('form'));
+      const medication = schemeDraft?.[Number(count.dataset.med)];
+      if (medication) setIntakeCount(medication, Number(count.dataset.count));
+      render();
+      return;
+    }
+    if (event.target.closest('[data-add-med]')) {
+      syncSchemeDraft(event.target.closest('form'));
+      if (schemeDraft && schemeDraft.length < 6) {
+        schemeDraft.push({ id: newMedId(), name: '', intakes: [{ time: '08:00', dose: '' }, { time: '20:00', dose: '' }] });
+      }
+      render();
+      return;
+    }
+    const remove = event.target.closest('[data-remove-med]');
+    if (remove) {
+      syncSchemeDraft(remove.closest('form'));
+      schemeDraft?.splice(Number(remove.dataset.removeMed), 1);
       render();
       return;
     }

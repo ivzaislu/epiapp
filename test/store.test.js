@@ -111,6 +111,40 @@ test('dose storage is persisted as valid JSON', async () => {
   assert.equal(saved.doses[0].slot, 'morning');
 });
 
+test('parent can set several medications and one to three intakes', async () => {
+  const store = await tempStore();
+  const saved = await store.updateSettings({
+    childName: 'Маша',
+    timezone: 'Europe/Berlin',
+    medications: [
+      {
+        id: 'mabcdef1',
+        name: 'Утро',
+        intakes: [{ time: '08:00', dose: '1 таблетка' }],
+      },
+      {
+        id: 'mabcdef2',
+        name: 'Вечер',
+        intakes: [
+          { time: '14:00', dose: '5 мл' },
+          { time: '20:00', dose: '5 мл' },
+          { time: '22:00', dose: '5 мл' },
+        ],
+      },
+    ],
+  });
+  assert.equal(saved.medications.length, 2);
+  assert.equal(saved.medications[1].intakes.length, 3);
+  const now = new Date('2026-09-07T12:30:00.000Z');
+  const state = await store.childState(now);
+  assert.equal(state.settings.plan.length, 4);
+  await store.takeDose(state.settings.plan[0].slot, now);
+  await assert.rejects(() => store.takeDose('morning', now), DuplicateDoseError);
+  const stats = await store.statistics(1, now);
+  assert.equal(stats.expected, 2);
+  assert.equal(stats.taken, 1);
+});
+
 test('dateKey respects configured timezone', () => {
   const instant = new Date('2026-09-07T22:30:00.000Z');
   assert.equal(dateKey(instant, 'Europe/Berlin'), '2026-09-08');

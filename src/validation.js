@@ -1,13 +1,54 @@
+import { randomBytes } from 'node:crypto';
+
 export const SLOT_LABELS = {
   morning: 'утренний',
   evening: 'вечерний',
 };
 
+const MED_ID = /^(?:legacy|m[a-z0-9]{7})$/;
+const CUSTOM_SLOT = /^(?:legacy|m[a-z0-9]{7})@(?:[01]\d|2[0-3]):[0-5]\d$/;
+
 export function assertSlot(slot) {
-  if (slot !== 'morning' && slot !== 'evening') {
-    throw new ValidationError('Неизвестный приём лекарства.');
-  }
-  return slot;
+  if (slot === 'morning' || slot === 'evening' || CUSTOM_SLOT.test(String(slot || ''))) return slot;
+  throw new ValidationError('Неизвестный приём лекарства.');
+}
+
+export function schedulePlan(settings) {
+  const medications = Array.isArray(settings?.medications) ? settings.medications : [];
+  const classic = medications.length === 1 && medications[0]?.intakes?.length === 2;
+  const several = medications.length > 1;
+  const plan = [];
+  medications.forEach((medication, medIndex) => {
+    const name = medication.name || '';
+    medication.intakes.forEach((intake, index) => {
+      let slot = `${medication.id}@${intake.time}`;
+      if (classic && index === 0) slot = 'morning';
+      if (classic && index === 1) slot = 'evening';
+      const short = name || `Препарат ${medIndex + 1}`;
+      const label = several ? `${short} · ${intake.time}` : intake.time;
+      plan.push({
+        slot,
+        time: intake.time,
+        dose: intake.dose || '',
+        medicationId: medication.id,
+        medicationName: name,
+        label,
+        lane: intake.time,
+      });
+    });
+  });
+  const timeCount = {};
+  plan.forEach((item) => { timeCount[item.time] = (timeCount[item.time] || 0) + 1; });
+  plan.forEach((item) => {
+    if (timeCount[item.time] > 1) {
+      item.lane = (item.medicationName || 'препарат').slice(0, 8);
+    }
+  });
+  return plan;
+}
+
+function newMedicationId() {
+  return `m${randomBytes(4).toString('hex').slice(0, 7)}`;
 }
 
 export function assertTime(value, fieldName = 'Время') {
@@ -76,6 +117,76 @@ export function sanitizeChatIds(value) {
   return unique;
 }
 
+function cleanMedication(raw, usedIds) {
+  if (!raw || typeof raw !== 'object') throw new ValidationError('Некорректный препарат.');
+  let id = typeof raw.id === 'string' ? raw.id.trim() : '';
+  if (!MED_ID.test(id) || usedIds.has(id)) id = newMedicationId();
+  usedIds.add(id);
+  const name = sanitizeOptionalText(raw.name ?? '', 'Название препарата', 100);
+  if (!Array.isArray(raw.intakes) || raw.intakes.length < 1 || raw.intakes.length > 3) {
+    throw new ValidationError('У препарата может быть от одного до трёх приёмов.');
+  }
+  const seen = new Set();
+  const intakes = raw.intakes.map((intake, index) => {
+    const time = assertTime(intake?.time, `Время приёма ${index + 1}`);
+    if (seen.has(time)) throw new ValidationError('Время приёмов одного препарата не должно совпадать.');
+    seen.add(time);
+    return {
+      time,
+      dose: sanitizeOptionalText(intake?.dose ?? '', 'Доза', 80),
+    };
+  });
+  return { id, name, intakes };
+}
+
+function medicationsFromLegacy(input, current) {
+  return [{
+    id: 'legacy',
+    name: sanitizeOptionalText(input.medicationName ?? current.medicationName ?? '', 'Название препарата', 100),
+    intakes: [
+      {
+        time: assertTime(input.morningTime ?? current.morningTime ?? '08:00', 'Утреннее время'),
+        dose: sanitizeOptionalText(input.morningDose ?? current.morningDose ?? '', 'Утренняя доза', 80),
+      },
+      {
+        time: assertTime(input.eveningTime ?? current.eveningTime ?? '20:00', 'Вечернее время'),
+        dose: sanitizeOptionalText(input.eveningDose ?? current.eveningDose ?? '', 'Вечерняя доза', 80),
+      },
+    ],
+  }];
+}
+
+function sanitizeMedications(input, current) {
+  if (Array.isArray(input.medications)) {
+    if (input.medications.length < 1 || input.medications.length > 6) {
+      throw new ValidationError('Можно добавить от одного до шести препаратов.');
+    }
+    const usedIds = new Set();
+    return input.medications.map((medication) => cleanMedication(medication, usedIds));
+  }
+  const legacyKeys = ['medicationName', 'morningDose', 'eveningDose', 'morningTime', 'eveningTime'];
+  const editsLegacy = legacyKeys.some((key) => input[key] !== undefined);
+  if (!editsLegacy && Array.isArray(current.medications) && current.medications.length) {
+    const usedIds = new Set();
+    return current.medications.map((medication) => cleanMedication(medication, usedIds));
+  }
+  return medicationsFromLegacy(input, current);
+}
+
+function mirrorSchedule(medications) {
+  const plan = schedulePlan({ medications });
+  const first = plan[0];
+  const last = plan[plan.length - 1];
+  const names = medications.map((medication) => medication.name).filter(Boolean);
+  return {
+    medicationName: names.join(', '),
+    morningTime: first.time,
+    eveningTime: last.time,
+    morningDose: first.dose,
+    eveningDose: last.dose,
+  };
+}
+
 export function sanitizeSettings(input, current = {}) {
   const reminderFirstMinutes = sanitizeInteger(
     input.reminderFirstMinutes,
@@ -113,14 +224,13 @@ export function sanitizeSettings(input, current = {}) {
     throw new ValidationError('Остановка повторов должна быть не раньше срочного напоминания.');
   }
 
+  const medications = sanitizeMedications(input, current);
+
   return {
     childName: sanitizeName(input.childName ?? current.childName ?? 'Ребёнок'),
-    morningTime: assertTime(input.morningTime ?? current.morningTime ?? '08:00', 'Утреннее время'),
-    eveningTime: assertTime(input.eveningTime ?? current.eveningTime ?? '20:00', 'Вечернее время'),
+    ...mirrorSchedule(medications),
     timezone: assertTimezone(input.timezone ?? current.timezone ?? 'Europe/Berlin'),
-    medicationName: sanitizeOptionalText(input.medicationName ?? current.medicationName ?? '', 'Название препарата', 100),
-    morningDose: sanitizeOptionalText(input.morningDose ?? current.morningDose ?? '', 'Утренняя доза', 80),
-    eveningDose: sanitizeOptionalText(input.eveningDose ?? current.eveningDose ?? '', 'Вечерняя доза', 80),
+    medications,
     remindersEnabled: sanitizeBoolean(input.remindersEnabled, current.remindersEnabled ?? true),
     reminderFirstMinutes,
     reminderUrgentMinutes,

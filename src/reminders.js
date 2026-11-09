@@ -1,5 +1,6 @@
 import { dateKey } from './store.js';
 import { sendTelegramMessage } from './telegram.js';
+import { schedulePlan } from './validation.js';
 
 function minutesFromTime(value) {
   const [hours, minutes] = String(value || '00:00').split(':').map(Number);
@@ -45,24 +46,26 @@ function lateMinutesForDate({ targetDate, today, nowMinutes, scheduledMinutes })
   return Number.NaN;
 }
 
-function slotLabel(slot) {
-  return slot === 'morning' ? 'утреннем' : 'вечернем';
+function slotPhrase(slot, time) {
+  if (slot === 'morning') return 'утреннем приёме';
+  if (slot === 'evening') return 'вечернем приёме';
+  return `приёме в ${time}`;
 }
 
-export function buildReminderText({ recipientRole, childName, slot, stage }) {
-  const label = slotLabel(slot);
+export function buildReminderText({ recipientRole, childName, slot, stage, time = '' }) {
+  const label = slotPhrase(slot, time);
   const late = Math.max(stage.minute, Math.floor(stage.lateMinutes));
   if (recipientRole === 'child') {
     if (!stage.urgent) {
-      return `⏰ Напоминание EpiApp\n\nОтметки о ${label} приёме пока нет. Прошло около ${late} мин после заданного времени.\n\nЕсли лекарство уже принято — открой EpiApp и отметь приём.`;
+      return `⏰ Напоминание EpiApp\n\nОтметки о ${label} пока нет. Прошло около ${late} мин после заданного времени.\n\nЕсли лекарство уже принято — открой EpiApp и отметь приём.`;
     }
-    return `🚨 ВАЖНО — EpiApp\n\nОтметки о ${label} приёме нет уже около ${late} мин.\n\nЕсли лекарство уже принято — пожалуйста, открой EpiApp и отметь приём. Если нет — сообщи родителю.`;
+    return `🚨 ВАЖНО — EpiApp\n\nОтметки о ${label} нет уже около ${late} мин.\n\nЕсли лекарство уже принято — пожалуйста, открой EpiApp и отметь приём. Если нет — сообщи родителю.`;
   }
 
   if (!stage.urgent) {
-    return `⏰ EpiApp: у ${childName} пока нет отметки о ${label} приёме через ${late} мин после заданного времени.`;
+    return `⏰ EpiApp: у ${childName} пока нет отметки о ${label} через ${late} мин после заданного времени.`;
   }
-  return `🚨 ВАЖНО — EpiApp\n\nУ ${childName} нет отметки о ${label} приёме уже около ${late} мин. Пожалуйста, проверьте ситуацию.`;
+  return `🚨 ВАЖНО — EpiApp\n\nУ ${childName} нет отметки о ${label} уже около ${late} мин. Пожалуйста, проверьте ситуацию.`;
 }
 
 function appButton(url, text = '📱 Открыть EpiApp') {
@@ -102,23 +105,23 @@ export async function runReminderCheck({
   for (const id of childIds) if (/^\d{1,20}$/.test(id)) recipients.set(id, 'child');
   for (const id of parentIds) if (/^\d{1,20}$/.test(id) && !recipients.has(id)) recipients.set(id, 'parent');
 
+  const plan = schedulePlan(settings);
   let sent = 0;
   let failed = 0;
   for (const targetDate of candidates) {
-    for (const slot of ['morning', 'evening']) {
-      if (doseKeys.has(`${targetDate}:${slot}`)) continue;
-      const scheduled = slot === 'morning' ? settings.morningTime : settings.eveningTime;
+    for (const item of plan) {
+      if (doseKeys.has(`${targetDate}:${item.slot}`)) continue;
       const lateMinutes = lateMinutesForDate({
         targetDate,
         today,
         nowMinutes,
-        scheduledMinutes: minutesFromTime(scheduled),
+        scheduledMinutes: minutesFromTime(item.time),
       });
       const stage = reminderStage(settings, lateMinutes);
       if (!stage) continue;
 
       for (const [chatId, recipientRole] of recipients.entries()) {
-        const deliveryKey = `${targetDate}:${slot}:${stage.key}:${chatId}`;
+        const deliveryKey = `${targetDate}:${item.slot}:${stage.key}:${chatId}`;
         if (alreadySent.has(deliveryKey)) continue;
         const targetUrl = recipientRole === 'parent' ? `${appUrl.replace(/\/$/, '')}/parent` : appUrl.replace(/\/$/, '');
         try {
@@ -128,14 +131,15 @@ export async function runReminderCheck({
             text: buildReminderText({
               recipientRole,
               childName: settings.childName,
-              slot,
+              slot: item.slot,
+              time: item.time,
               stage,
             }),
             replyMarkup: appButton(targetUrl),
           });
           await store.recordReminderDelivery({
             localDate: targetDate,
-            slot,
+            slot: item.slot,
             stageKey: stage.key,
             chatId,
             sentAt: now,

@@ -15,7 +15,7 @@ import { startReminderScheduler } from './src/reminders.js';
 import { Store } from './src/store.js';
 import { PostgresStore } from './src/postgres-store.js';
 import { notifyDose, sendTelegramMessage, startTelegramBot } from './src/telegram.js';
-import { ValidationError } from './src/validation.js';
+import { ValidationError, schedulePlan } from './src/validation.js';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PUBLIC_DIR = join(ROOT, 'public');
@@ -191,6 +191,8 @@ function publicSettings(settings) {
     reminderUrgentMinutes: settings.reminderUrgentMinutes,
     reminderRepeatMinutes: settings.reminderRepeatMinutes,
     reminderStopMinutes: settings.reminderStopMinutes,
+    medications: settings.medications,
+    plan: schedulePlan(settings),
   };
 }
 
@@ -404,6 +406,7 @@ location.replace(target);
           reminderUrgentMinutes: input.reminderUrgentMinutes,
           reminderRepeatMinutes: input.reminderRepeatMinutes,
           reminderStopMinutes: input.reminderStopMinutes,
+          medications: input.medications ?? current.settings.medications,
         }, user);
         return json(res, 200, {
           settings: publicSettings(settings),

@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { assertSlot, sanitizeSettings } from './validation.js';
+import { assertSlot, sanitizeSettings, schedulePlan, ValidationError } from './validation.js';
 
 const DEFAULT_STATE = {
   version: 5,
@@ -89,7 +89,7 @@ function normalizeReminderDeliveries(value) {
   return value
     .filter((entry) => entry
       && /^\d{4}-\d{2}-\d{2}$/.test(String(entry.localDate || ''))
-      && ['morning', 'evening'].includes(entry.slot)
+      && (['morning', 'evening'].includes(entry.slot) || /^(?:legacy|m[a-z0-9]{7})@(?:[01]\d|2[0-3]):[0-5]\d$/.test(String(entry.slot || '')))
       && typeof entry.stageKey === 'string'
       && /^\d{1,20}$/.test(String(entry.chatId || ''))
       && typeof entry.sentAt === 'string')
@@ -97,7 +97,7 @@ function normalizeReminderDeliveries(value) {
 }
 
 export function createDefaultState() {
-  return clone(DEFAULT_STATE);
+  return normalizeState({});
 }
 
 export function normalizeState(parsed = {}) {
@@ -225,6 +225,9 @@ export class Store {
         'remindersEnabled', 'reminderFirstMinutes', 'reminderUrgentMinutes', 'reminderRepeatMinutes', 'reminderStopMinutes',
       ];
       const changedFields = fields.filter((field) => previous[field] !== next[field]);
+      if (JSON.stringify(previous.medications ?? null) !== JSON.stringify(next.medications ?? null)) {
+        changedFields.push('medications');
+      }
       state.settings = next;
       if (changedFields.length) {
         state.audit.push({
@@ -250,13 +253,19 @@ export class Store {
   async takeDose(slot, now = new Date(), actor = null) {
     assertSlot(slot);
     return this.mutate(async (state) => {
+      const plan = schedulePlan(state.settings);
+      const known = plan.some((item) => item.slot === slot);
+      const resolved = known
+        ? slot
+        : (slot === 'evening' ? plan[Math.min(1, plan.length - 1)] : plan[0])?.slot;
+      if (!resolved) throw new ValidationError('Схема приёма ещё не настроена.');
       const localDate = dateKey(now, state.settings.timezone);
-      const duplicate = state.doses.find((dose) => dose.localDate === localDate && dose.slot === slot);
-      if (duplicate) throw new DuplicateDoseError(slot, localDate);
+      const duplicate = state.doses.find((dose) => dose.localDate === localDate && dose.slot === resolved);
+      if (duplicate) throw new DuplicateDoseError(resolved, localDate);
 
       const dose = {
         id: randomUUID(),
-        slot,
+        slot: resolved,
         localDate,
         takenAt: now.toISOString(),
         takenByTelegramId: String(actor?.telegramId || ''),
@@ -286,6 +295,8 @@ export class Store {
         medicationName: state.settings.medicationName,
         morningDose: state.settings.morningDose,
         eveningDose: state.settings.eveningDose,
+        medications: state.settings.medications,
+        plan: schedulePlan(state.settings),
       },
       todayDoses,
       recentDoses: recent,
@@ -308,39 +319,40 @@ export class Store {
     const periodStart = trackingStart > windowStart ? trackingStart : windowStart;
     const currentTime = localTimeKey(now, state.settings.timezone);
     const doseMap = new Map(state.doses.map((dose) => [`${dose.localDate}:${dose.slot}`, dose]));
+    const plan = schedulePlan(state.settings);
     const rows = [];
 
     for (let key = periodStart; key <= today; key = addDaysKey(key, 1)) {
       const slotRows = {};
-      for (const slot of ['morning', 'evening']) {
-        const dose = doseMap.get(`${key}:${slot}`) || null;
-        const scheduled = slot === 'morning' ? state.settings.morningTime : state.settings.eveningTime;
-        const expected = key < today || Boolean(dose) || (key === today && currentTime >= scheduled);
-        slotRows[slot] = {
+      for (const item of plan) {
+        const dose = doseMap.get(`${key}:${item.slot}`) || null;
+        const expected = key < today || Boolean(dose) || (key === today && currentTime >= item.time);
+        slotRows[item.slot] = {
           expected,
           taken: Boolean(dose),
           takenAt: dose?.takenAt || null,
-          scheduled,
+          scheduled: item.time,
+          label: item.label,
         };
       }
-      const expected = Number(slotRows.morning.expected) + Number(slotRows.evening.expected);
-      const taken = Number(slotRows.morning.taken && slotRows.morning.expected) + Number(slotRows.evening.taken && slotRows.evening.expected);
+      const expected = plan.reduce((sum, item) => sum + Number(slotRows[item.slot].expected), 0);
+      const taken = plan.reduce((sum, item) => sum + Number(slotRows[item.slot].taken && slotRows[item.slot].expected), 0);
       rows.push({
         localDate: key,
         expected,
         taken,
         rate: expected ? Math.round((taken / expected) * 100) : null,
-        complete: expected === 2 && taken === 2,
+        complete: plan.length > 0 && expected === plan.length && taken === plan.length,
         slots: slotRows,
       });
     }
 
     const expected = rows.reduce((sum, row) => sum + row.expected, 0);
     const taken = rows.reduce((sum, row) => sum + row.taken, 0);
-    const bySlot = Object.fromEntries(['morning', 'evening'].map((slot) => {
-      const slotExpected = rows.filter((row) => row.slots[slot].expected).length;
-      const slotTaken = rows.filter((row) => row.slots[slot].expected && row.slots[slot].taken).length;
-      return [slot, {
+    const bySlot = Object.fromEntries(plan.map((item) => {
+      const slotExpected = rows.filter((row) => row.slots[item.slot].expected).length;
+      const slotTaken = rows.filter((row) => row.slots[item.slot].expected && row.slots[item.slot].taken).length;
+      return [item.slot, {
         expected: slotExpected,
         taken: slotTaken,
         rate: slotExpected ? Math.round((slotTaken / slotExpected) * 100) : null,
@@ -350,8 +362,8 @@ export class Store {
     let currentStreak = 0;
     for (let index = rows.length - 1; index >= 0; index -= 1) {
       const row = rows[index];
-      if (row.localDate === today && row.expected < 2) continue;
-      if (row.expected === 2 && row.taken === 2) currentStreak += 1;
+      if (row.localDate === today && row.expected < plan.length) continue;
+      if (plan.length > 0 && row.expected === plan.length && row.taken === plan.length) currentStreak += 1;
       else if (row.expected > 0) break;
     }
 
@@ -366,6 +378,7 @@ export class Store {
       completedDays: rows.filter((row) => row.complete).length,
       currentStreak,
       bySlot,
+      plan,
       days: rows,
     };
   }
