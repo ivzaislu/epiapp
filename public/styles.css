@@ -90,7 +90,23 @@ h2 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -0.01em; }
 
 .sub:empty { display: none; }
 
-#screen { margin-top: 12px; }
+.page.top {
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.top .identity {
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.top .emblem {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+}
+
+.top h1 { font-size: 20px; }
 
 .block {
   margin-top: 14px;
@@ -194,10 +210,13 @@ h2 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -0.01em; }
   white-space: nowrap;
 }
 
+.hist-main { gap: 0; }
+
 .hist-main small {
   color: var(--ink);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 650;
+  line-height: 1.2;
 }
 
 .hist-main b {
@@ -391,14 +410,14 @@ h2 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -0.01em; }
 .hist {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
-  padding: 9px 0;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
   border-top: 1px solid var(--line);
-  font-size: 15px;
+  font-size: 14px;
 }
 
-.block-title + .hist { border-top: 0; padding-top: 4px; }
+.block-title + .hist { border-top: 0; padding-top: 2px; }
 
 .block > .help + .hist { border-top: 1px solid var(--line); }
 
