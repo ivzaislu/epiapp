@@ -1,5 +1,5 @@
-import { ensureTelegramSession, roleLabel } from './auth.js?v=13';
-import { childHistoryView } from './history.js?v=13';
+import { ensureTelegramSession, roleLabel } from './auth.js?v=14';
+import { childHistoryView } from './history.js?v=14';
 
 const $ = (id) => document.getElementById(id);
 
@@ -165,7 +165,7 @@ function weekBlock() {
       ${lane('morning', 'утро')}
       ${lane('evening', 'вечер')}
     </div>
-    <p class="legend"><span><i class="dot done"></i>подтверждено</span><span><i class="dot open"></i>нет отметки</span><span><i class="dot wait"></i>ещё не время</span></p>`;
+    <p class="legend"><span>Зелёная — подтверждено.</span><span>Пустая — нет отметки.</span><span>Серая — ещё не время.</span></p>`;
 }
 
 function historyBlock(items, expanded, emptyText) {
@@ -179,7 +179,7 @@ function historyBlock(items, expanded, emptyText) {
   const toggle = view.canToggle
     ? `<button class="texty" id="historyToggle" type="button">${escapeHtml(view.buttonLabel)}</button>`
     : '';
-  return `<p class="help">${escapeHtml(view.metaLabel)}</p>${rows}${toggle}`;
+  return `${rows}${toggle}`;
 }
 
 function field(name, label, value, extra = '') {
@@ -262,12 +262,10 @@ function monthScreen() {
     <p class="split">Утро: ${escapeHtml(morning.taken)} из ${escapeHtml(morning.expected)}. Вечер: ${escapeHtml(evening.taken)} из ${escapeHtml(evening.expected)}.</p>
     <p class="split">Полных дней подряд: ${escapeHtml(stats.currentStreak)}.</p>
     <div class="month">${cells}</div>
-    <p class="legend"><span><i class="dot done"></i>подтверждено</span><span><i class="dot open"></i>нет отметки</span><span><i class="dot wait"></i>ещё не время</span></p>
+    <p class="legend"><span>Зелёная — подтверждено.</span><span>Пустая — нет отметки.</span><span>Серая — ещё не время.</span></p>
     <h2 class="block-title">По дням</h2>
-    <div class="list">
-      <p class="help">${escapeHtml(view.metaLabel)}</p>
-      ${rows}${toggle}
-    </div>`;
+    <p class="help">${escapeHtml(view.metaLabel)}</p>
+    ${rows}${toggle}`;
 }
 
 function telegramScreen() {
@@ -275,34 +273,40 @@ function telegramScreen() {
   const admin = user?.role === 'admin'
     ? '<p class="help">Пригласить ребёнка или родителя можно в чате с ботом.</p>'
     : '';
-  return `<div class="panel plain">
+  return `<section class="block">
       <p class="sentence">${ready
         ? 'Бот подключён. Сообщение уходит администратору и приглашённым родителям.'
         : 'Бот не настроен. Сообщения не отправляются.'}</p>
       <p class="help">Обычное уведомление не содержит название препарата и дозу.</p>
       ${admin}
-    </div>
-    <button id="testTelegram" class="primary" type="button"${ready ? '' : ' disabled'}>Отправить тест</button>`;
+      <button id="testTelegram" class="primary" type="button"${ready ? '' : ' disabled'}>Отправить тест</button>
+    </section>`;
 }
 
 function childScreen() {
-  return `<div class="panel">${doseRows(true)}</div>
-    <p class="note">Отметка появляется только после ответа сервера.</p>
-    <h2 class="block-title">Последние отметки</h2>
-    <div class="list">${historyBlock(state.recentDoses || [], historyExpanded, 'Пока нет отметок.')}</div>`;
+  return `<section class="block">
+      ${doseRows(true)}
+      <p class="note">Отметка появляется только после ответа сервера.</p>
+    </section>
+    <section class="block">
+      <h2 class="block-title">Последние отметки</h2>
+      ${historyBlock(state.recentDoses || [], historyExpanded, 'Пока нет отметок.')}
+    </section>`;
 }
 
 function parentToday() {
-  return `<div class="panel">${doseRows(false)}</div>
-    <p class="note">Подтвердить приём может только ребёнок.</p>
-    <section class="panel week-panel">${weekBlock()}</section>
+  return `<section class="block">
+      ${doseRows(false)}
+      <p class="note">Подтвердить приём может только ребёнок.</p>
+    </section>
+    <section class="block">${weekBlock()}</section>
     <nav class="menu">
       <button type="button" data-go="scheme"><span>Схема</span><small>имя, препарат, дозы и время</small></button>
       <button type="button" data-go="reminders"><span>Напоминания</span><small>Telegram, если отметки нет</small></button>
       <button type="button" data-go="month"><span>30 дней</span><small>те же точки за месяц</small></button>
       <button type="button" data-go="telegram"><span>Telegram</span><small>проверка, что сообщения доходят</small></button>
     </nav>
-    <p class="note">Вы вошли как ${escapeHtml(roleLabel(user?.role))}.</p>`;
+    <p class="note end">Вы вошли как ${escapeHtml(roleLabel(user?.role))}.</p>`;
 }
 
 function render() {
