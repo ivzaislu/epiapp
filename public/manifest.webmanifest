@@ -4,8 +4,8 @@
   "description": "Отметка утреннего и вечернего приёма",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f3f1ec",
-  "theme_color": "#f3f1ec",
+  "background_color": "#f6f3ee",
+  "theme_color": "#f6f3ee",
   "lang": "ru",
   "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
 }

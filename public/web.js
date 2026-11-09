@@ -1,5 +1,5 @@
-import { ensureTelegramSession } from './auth.js?v=11';
-import { childHistoryView } from './history.js?v=11';
+import { ensureTelegramSession, roleLabel } from './auth.js?v=12';
+import { childHistoryView } from './history.js?v=12';
 
 const $ = (id) => document.getElementById(id);
 
@@ -19,7 +19,11 @@ let saving = false;
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({
-    '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;',
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
   }[char]));
 }
 
@@ -106,11 +110,11 @@ function paintChrome() {
     return;
   }
   const titles = {
-    today: ['Сегодня', name, medication],
-    scheme: ['Схема', 'Что записано', 'Приложение не назначает препарат и не меняет дозу.'],
-    reminders: ['Напоминания', 'Если отметки нет', 'Сообщение в Telegram. Беззвучный режим оно не обходит.'],
+    today: [`Сегодня · ${longDate(zone)}`, name, medication],
+    scheme: ['Схема', name, ''],
+    reminders: ['Напоминания', name, ''],
     month: ['30 дней', name, ''],
-    telegram: ['Telegram', 'Куда уходит сообщение', 'Названия препарата и дозы в нём нет.'],
+    telegram: ['Telegram', name, ''],
   };
   const [kicker, title, sub] = titles[screen] || titles.today;
   $('kicker').textContent = kicker;
@@ -124,12 +128,14 @@ function doseRows(canTake) {
     const label = slot === 'morning' ? 'Утро' : 'Вечер';
     const time = state.settings[slot === 'morning' ? 'morningTime' : 'eveningTime'];
     const amount = state.settings[slot === 'morning' ? 'morningDose' : 'eveningDose'] || '';
-    const status = dose ? `подтверждено в ${clock(dose.takenAt, state.settings.timezone)}` : 'ещё не отмечено';
     const due = isDue(time, state.settings.timezone);
+    let status = 'ещё не отмечено';
+    if (dose) status = `подтверждено в ${clock(dose.takenAt, state.settings.timezone)}`;
+    else if (!canTake && !due) status = 'ещё не время';
     const button = canTake && !dose
       ? `<button class="${due ? 'primary' : 'quiet'} take" type="button" data-slot="${slot}">Я принял</button>`
       : '';
-    return `<article class="row${dose ? ' is-done' : ''}">
+    return `<article class="dose${dose ? ' is-done' : ''}">
       <h2>${label} · ${escapeHtml(time)}</h2>
       <p class="status">${escapeHtml(status)}</p>
       ${amount ? `<p class="meta">${escapeHtml(amount)}</p>` : ''}
@@ -144,16 +150,22 @@ function weekBlock() {
   const sentence = stats7.expected
     ? `За 7 дней отмечено ${stats7.taken} из ${stats7.expected}.`
     : 'За эту неделю время приёма ещё не наступило.';
-  const cells = (pick) => days.map((day) => pick(day)).join('');
+  const today = state?.today;
+  const head = days.map((day) => {
+    const mark = day.localDate === today ? ' is-today' : '';
+    return `<div class="day${mark}"><span>${escapeHtml(weekdayLabel(day.localDate))}</span><b>${Number(day.localDate.slice(8))}</b></div>`;
+  }).join('');
+  const lane = (slot, label) => `<div class="lane"><span class="lane-name">${label}</span>${days.map((day) => {
+    const mark = day.localDate === today ? ' is-today' : '';
+    return `<i class="dot ${dotClass(day.slots[slot])}${mark}" title="${label}, ${escapeHtml(day.localDate)}"></i>`;
+  }).join('')}</div>`;
   return `<p class="sentence">${escapeHtml(sentence)}</p>
     <div class="week" style="--days:${days.length}">
-      <div class="week-names">${cells((day) => `<span>${escapeHtml(weekdayLabel(day.localDate))}</span>`)}</div>
-      <div class="week-nums">${cells((day) => `<span>${Number(day.localDate.slice(8))}</span>`)}</div>
-      <div class="week-dots">${cells((day) => `<span class="dot ${dotClass(day.slots.morning)}" title="Утро, ${escapeHtml(day.localDate)}"></span>`)}</div>
-      <div class="week-dots">${cells((day) => `<span class="dot ${dotClass(day.slots.evening)}" title="Вечер, ${escapeHtml(day.localDate)}"></span>`)}</div>
+      <div class="week-head"><span></span>${head}</div>
+      ${lane('morning', 'утро')}
+      ${lane('evening', 'вечер')}
     </div>
-    <p class="legend">Верхний ряд — утро, нижний — вечер.</p>
-    <p class="legend"><i class="dot done"></i>подтверждено · <i class="dot open"></i>нет отметки · <i class="dot wait"></i>ещё не время</p>`;
+    <p class="legend"><span><i class="dot done"></i>подтверждено</span><span><i class="dot open"></i>нет отметки</span><span><i class="dot wait"></i>ещё не время</span></p>`;
 }
 
 function historyBlock(items, expanded, emptyText) {
@@ -175,15 +187,27 @@ function field(name, label, value, extra = '') {
 }
 
 function schemeScreen() {
-  return `<form data-form="scheme">
-    ${field('childName', 'Имя ребёнка', settings.childName, 'maxlength="50" required')}
-    ${field('medicationName', 'Препарат', settings.medicationName || '', 'maxlength="100"')}
-    ${field('morningDose', 'Доза утром', settings.morningDose || '', 'maxlength="80" placeholder="Например, 1 таблетка"')}
-    ${field('eveningDose', 'Доза вечером', settings.eveningDose || '', 'maxlength="80" placeholder="Например, 1 таблетка"')}
-    ${field('morningTime', 'Время утром', settings.morningTime, 'type="time" required')}
-    ${field('eveningTime', 'Время вечером', settings.eveningTime, 'type="time" required')}
-    ${field('timezone', 'Часовой пояс', settings.timezone, 'required placeholder="Europe/Berlin"')}
-    <p class="help">Например: Europe/Berlin или Europe/Moscow.</p>
+  return `<form data-form="scheme" class="form">
+    <fieldset>
+      <legend>Кто</legend>
+      ${field('childName', 'Имя', settings.childName, 'maxlength="50" required autocomplete="name"')}
+    </fieldset>
+    <fieldset>
+      <legend>Препарат</legend>
+      ${field('medicationName', 'Название', settings.medicationName || '', 'maxlength="100" autocomplete="off"')}
+      ${field('morningDose', 'Доза утром', settings.morningDose || '', 'maxlength="80" placeholder="Например, 1 таблетка" autocomplete="off"')}
+      ${field('eveningDose', 'Доза вечером', settings.eveningDose || '', 'maxlength="80" placeholder="Например, 1 таблетка" autocomplete="off"')}
+      <p class="help">Приложение не назначает препарат и не меняет дозу.</p>
+    </fieldset>
+    <fieldset>
+      <legend>Когда</legend>
+      <div class="pair">
+        <div>${field('morningTime', 'Утро', settings.morningTime, 'type="time" required')}</div>
+        <div>${field('eveningTime', 'Вечер', settings.eveningTime, 'type="time" required')}</div>
+      </div>
+      ${field('timezone', 'Часовой пояс', settings.timezone, 'required placeholder="Europe/Berlin" autocomplete="off"')}
+      <p class="help">Например: Europe/Berlin или Europe/Moscow.</p>
+    </fieldset>
     <button class="primary" type="submit">Сохранить схему</button>
     <p class="help">${escapeHtml(auditLine())}</p>
   </form>`;
@@ -192,15 +216,18 @@ function schemeScreen() {
 function remindersScreen() {
   const on = settings.remindersEnabled !== false;
   const number = (name, label, value, min, max) => field(
-    name, label, value, `type="number" min="${min}" max="${max}" step="1"${on ? '' : ' disabled'}`,
+    name, label, value, `inputmode="numeric" type="number" min="${min}" max="${max}" step="1"`,
   );
-  return `<form data-form="reminders">
+  return `<form data-form="reminders" class="form">
     <label class="toggle"><input name="remindersEnabled" type="checkbox"${on ? ' checked' : ''}><span>Писать в Telegram, пока отметки нет</span></label>
-    ${number('reminderFirstMinutes', 'Первое напоминание, минуты', settings.reminderFirstMinutes ?? 15, 5, 60)}
-    ${number('reminderUrgentMinutes', 'Срочное, минуты', settings.reminderUrgentMinutes ?? 30, 10, 120)}
-    ${number('reminderRepeatMinutes', 'Повторять каждые, минуты', settings.reminderRepeatMinutes ?? 15, 5, 60)}
-    ${number('reminderStopMinutes', 'Повторять не дольше, минуты', settings.reminderStopMinutes ?? 60, 15, 240)}
-    <p class="help">Обычно: через 15 минут, срочное через 30, затем каждые 15 минут до часа.</p>
+    <fieldset id="reminderFields"${on ? '' : ' disabled'}>
+      <legend>Когда писать</legend>
+      ${number('reminderFirstMinutes', 'Первое напоминание, минуты', settings.reminderFirstMinutes ?? 15, 5, 60)}
+      ${number('reminderUrgentMinutes', 'Срочное, минуты', settings.reminderUrgentMinutes ?? 30, 10, 120)}
+      ${number('reminderRepeatMinutes', 'Повторять каждые, минуты', settings.reminderRepeatMinutes ?? 15, 5, 60)}
+      ${number('reminderStopMinutes', 'Повторять не дольше, минуты', settings.reminderStopMinutes ?? 60, 15, 240)}
+      <p class="help">Обычно: через 15 минут, срочное через 30, затем каждые 15 минут до часа. Беззвучный режим это не обходит.</p>
+    </fieldset>
     <button class="primary" type="submit">Сохранить напоминания</button>
   </form>`;
 }
@@ -213,8 +240,9 @@ function monthScreen() {
     : 'За 30 дней время приёма ещё не наступило.';
   const morning = stats.bySlot.morning;
   const evening = stats.bySlot.evening;
+  const today = state?.today;
   const cells = stats.days.map((day) => `
-    <div class="cell" title="${escapeHtml(day.localDate)}: утро — ${slotPhrase(day.slots.morning)}, вечер — ${slotPhrase(day.slots.evening)}">
+    <div class="cell${day.localDate === today ? ' is-today' : ''}" title="${escapeHtml(day.localDate)}: утро — ${slotPhrase(day.slots.morning)}, вечер — ${slotPhrase(day.slots.evening)}">
       <span>${Number(day.localDate.slice(8))}</span>
       <i class="dot ${dotClass(day.slots.morning)}"></i>
       <i class="dot ${dotClass(day.slots.evening)}"></i>
@@ -222,20 +250,24 @@ function monthScreen() {
   const days = [...stats.days].reverse();
   const view = childHistoryView(days, monthExpanded);
   const rows = view.visible.map((day) => `
-    <div class="hist">
+    <div class="hist stacked">
       <span>${escapeHtml(day.localDate.slice(8))}.${escapeHtml(day.localDate.slice(5, 7))}</span>
-      <span>утро: ${slotPhrase(day.slots.morning)} · вечер: ${slotPhrase(day.slots.evening)}</span>
+      <span>утро — ${slotPhrase(day.slots.morning)}</span>
+      <span>вечер — ${slotPhrase(day.slots.evening)}</span>
     </div>`).join('');
   const toggle = view.canToggle
     ? `<button class="texty" id="historyToggle" type="button">${escapeHtml(view.buttonLabel)}</button>`
     : '';
   return `<p class="sentence">${escapeHtml(sentence)}</p>
-    <p class="help">Утро: ${morning.taken} из ${morning.expected}. Вечер: ${evening.taken} из ${evening.expected}. Полных дней подряд: ${stats.currentStreak}.</p>
+    <p class="split">Утро: ${escapeHtml(morning.taken)} из ${escapeHtml(morning.expected)}. Вечер: ${escapeHtml(evening.taken)} из ${escapeHtml(evening.expected)}.</p>
+    <p class="split">Полных дней подряд: ${escapeHtml(stats.currentStreak)}.</p>
     <div class="month">${cells}</div>
-    <p class="legend"><i class="dot done"></i>подтверждено · <i class="dot open"></i>нет отметки · <i class="dot wait"></i>ещё не время</p>
+    <p class="legend"><span><i class="dot done"></i>подтверждено</span><span><i class="dot open"></i>нет отметки</span><span><i class="dot wait"></i>ещё не время</span></p>
     <h2 class="block-title">По дням</h2>
-    <p class="help">${escapeHtml(view.metaLabel)}</p>
-    ${rows}${toggle}`;
+    <div class="list">
+      <p class="help">${escapeHtml(view.metaLabel)}</p>
+      ${rows}${toggle}
+    </div>`;
 }
 
 function telegramScreen() {
@@ -243,11 +275,13 @@ function telegramScreen() {
   const admin = user?.role === 'admin'
     ? '<p class="help">Пригласить ребёнка или родителя можно в чате с ботом.</p>'
     : '';
-  return `<p class="sentence">${ready
-    ? 'Бот подключён. Сообщение уходит администратору и приглашённым родителям.'
-    : 'Бот не настроен. Сообщения не отправляются.'}</p>
-    <p class="help">Обычное уведомление не содержит название препарата и дозу.</p>
-    ${admin}
+  return `<div class="panel plain">
+      <p class="sentence">${ready
+        ? 'Бот подключён. Сообщение уходит администратору и приглашённым родителям.'
+        : 'Бот не настроен. Сообщения не отправляются.'}</p>
+      <p class="help">Обычное уведомление не содержит название препарата и дозу.</p>
+      ${admin}
+    </div>
     <button id="testTelegram" class="primary" type="button"${ready ? '' : ' disabled'}>Отправить тест</button>`;
 }
 
@@ -255,19 +289,20 @@ function childScreen() {
   return `<div class="panel">${doseRows(true)}</div>
     <p class="note">Отметка появляется только после ответа сервера.</p>
     <h2 class="block-title">Последние отметки</h2>
-    ${historyBlock(state.recentDoses || [], historyExpanded, 'Пока нет отметок.')}`;
+    <div class="list">${historyBlock(state.recentDoses || [], historyExpanded, 'Пока нет отметок.')}</div>`;
 }
 
 function parentToday() {
   return `<div class="panel">${doseRows(false)}</div>
     <p class="note">Подтвердить приём может только ребёнок.</p>
-    <section class="panel">${weekBlock()}</section>
-    <nav class="panel menu">
-      <button type="button" data-go="scheme">Схема<span>имя, препарат, дозы и время</span></button>
-      <button type="button" data-go="reminders">Напоминания<span>Telegram, если отметки нет</span></button>
-      <button type="button" data-go="month">30 дней<span>те же точки за месяц</span></button>
-      <button type="button" data-go="telegram">Telegram<span>проверка, что сообщения доходят</span></button>
-    </nav>`;
+    <section class="panel week-panel">${weekBlock()}</section>
+    <nav class="menu">
+      <button type="button" data-go="scheme"><span>Схема</span><small>имя, препарат, дозы и время</small></button>
+      <button type="button" data-go="reminders"><span>Напоминания</span><small>Telegram, если отметки нет</small></button>
+      <button type="button" data-go="month"><span>30 дней</span><small>те же точки за месяц</small></button>
+      <button type="button" data-go="telegram"><span>Telegram</span><small>проверка, что сообщения доходят</small></button>
+    </nav>
+    <p class="note">Вы вошли как ${escapeHtml(roleLabel(user?.role))}.</p>`;
 }
 
 function render() {
@@ -480,7 +515,7 @@ function applyDemo() {
     today: dateKey(0),
     settings: base,
     todayDoses: {
-      evening: { slot: 'evening', takenAt: new Date(Date.now() - 26 * 3600000).toISOString() },
+      evening: { slot: 'evening', takenAt: new Date(Date.now() - 2 * 3600000).toISOString() },
     },
     recentDoses: [
       { slot: 'evening', takenAt: new Date(Date.now() - 26 * 3600000).toISOString() },
@@ -504,8 +539,8 @@ function showApp() {
 function paintTelegram() {
   const telegram = window.Telegram?.WebApp;
   try {
-    telegram?.setHeaderColor?.('#f3f1ec');
-    telegram?.setBackgroundColor?.('#f3f1ec');
+    telegram?.setHeaderColor?.('#f6f3ee');
+    telegram?.setBackgroundColor?.('#f6f3ee');
   } catch { /* старые клиенты Telegram */ }
 }
 
@@ -536,10 +571,8 @@ export function boot() {
   });
   $('screen').addEventListener('change', (event) => {
     if (event.target.name !== 'remindersEnabled') return;
-    const form = event.target.form;
-    const enabled = event.target.checked;
-    ['reminderFirstMinutes', 'reminderUrgentMinutes', 'reminderRepeatMinutes', 'reminderStopMinutes']
-      .forEach((name) => { form.elements[name].disabled = !enabled; });
+    const fields = event.target.form.querySelector('#reminderFields');
+    if (fields) fields.disabled = !event.target.checked;
   });
   $('screen').addEventListener('submit', (event) => {
     event.preventDefault();
@@ -563,6 +596,10 @@ export function boot() {
     user = { role: mode === 'parent' ? 'parent' : 'child', telegramId: '0' };
     applyDemo();
     showApp();
+    const requested = params.get('screen');
+    if (mode === 'parent' && ['scheme', 'reminders', 'month', 'telegram'].includes(requested)) {
+      screen = requested;
+    }
     render();
     return;
   }

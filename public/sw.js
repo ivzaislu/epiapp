@@ -1,4 +1,4 @@
-const CACHE = 'epiapp-v11';
+const CACHE = 'epiapp-v12';
 const STATIC = ['/styles.css', '/icon.svg', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
