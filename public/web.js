@@ -1,5 +1,5 @@
-import { ensureTelegramSession, roleLabel } from './auth.js?v=17';
-import { childHistoryView } from './history.js?v=17';
+import { ensureTelegramSession, roleLabel } from './auth.js?v=19';
+import { childHistoryView } from './history.js?v=19';
 
 const $ = (id) => document.getElementById(id);
 
@@ -200,7 +200,7 @@ function weekBlock() {
       <div class="week-head"><span></span>${head}</div>
       ${lanes.map(lane).join('')}
     </div>
-    <p class="legend"><span>Зелёная — подтверждено.</span><span>Пустая — нет отметки.</span><span>Серая — ещё не время.</span></p>`;
+    <p class="legend"><span>Синяя — подтверждено.</span><span>Пустая — нет отметки.</span><span>Светлая — ещё не время.</span></p>`;
 }
 
 function historyBlock(items, expanded, emptyText) {
@@ -358,7 +358,7 @@ function monthScreen() {
   return `<p class="sentence">${escapeHtml(sentence)}</p>
     <p class="split">Полных дней подряд: ${escapeHtml(stats.currentStreak)}.</p>
     <div class="month">${cells}</div>
-    <p class="legend"><span>Зелёная — подтверждено.</span><span>Пустая — нет отметки.</span><span>Серая — ещё не время.</span></p>
+    <p class="legend"><span>Синяя — подтверждено.</span><span>Пустая — нет отметки.</span><span>Светлая — ещё не время.</span></p>
     <h2 class="block-title">По дням</h2>
     <p class="help">${escapeHtml(view.metaLabel)}</p>
     ${rows}${toggle}`;
@@ -640,8 +640,8 @@ function showApp() {
 function paintTelegram() {
   const telegram = window.Telegram?.WebApp;
   try {
-    telegram?.setHeaderColor?.('#f6f3ee');
-    telegram?.setBackgroundColor?.('#f6f3ee');
+    telegram?.setHeaderColor?.('#315bd6');
+    telegram?.setBackgroundColor?.('#ffffff');
   } catch { /* старые клиенты Telegram */ }
 }
 
