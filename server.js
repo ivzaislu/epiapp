@@ -75,7 +75,7 @@ async function body(req) {
 
 async function serveStatic(req, res, pathname) {
   let relative = pathname === '/' ? 'index.html' : pathname.slice(1);
-  if (relative === 'parent') relative = 'parent.html';
+  if (relative === 'parent' || relative === 'parent.html') relative = 'index.html';
   const filePath = resolve(PUBLIC_DIR, relative);
   if (filePath !== PUBLIC_DIR && !filePath.startsWith(`${PUBLIC_DIR}${sep}`)) return false;
   try {

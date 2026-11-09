@@ -1,5 +1,7 @@
 # Native Android EpiApp
 
+На ветке `web-next` этого клиента нет. APK и инструкция к нему живут в ветке `android-next`. Ниже — прежнее описание, оно к сборке этой ветки не относится.
+
 The Android application is a native Kotlin client. Child mode uses Jetpack Compose and Material 3 (v0.6.0); WebView is not used.
 
 The backend, Telegram bot and PostgreSQL database are hosted on Northflank. The APK connects to that service over HTTPS.

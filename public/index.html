@@ -3,62 +3,42 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#f6f7f5">
-  <meta name="description" content="Простая отметка приёма лекарства с уведомлением родителя">
+  <meta name="theme-color" content="#f3f1ec">
+  <meta name="description" content="Отметка утреннего и вечернего приёма. Родитель видит статус, отметить может только ребёнок.">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=10">
+  <link rel="stylesheet" href="/styles.css?v=11">
   <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
   <title>EpiApp</title>
 </head>
 <body>
-  <main class="shell" id="accessGate">
-    <section class="pin-gate">
-      <div class="panel">
-        <h1>Доступ к EpiApp</h1>
-        <p class="help" id="accessMessage">Проверяю Telegram-аккаунт…</p>
-      </div>
+  <div class="wrap">
+    <section id="gate">
+      <p class="kicker">EpiApp</p>
+      <h1>Доступ</h1>
+      <p class="sub" id="gateMessage">Проверяю Telegram-аккаунт…</p>
     </section>
-  </main>
 
-  <main class="shell hidden" id="appShell">
-    <header class="topbar">
-      <div class="brand"><span class="brand-mark">✓</span><span>EpiApp</span></div>
-      <a class="link-button hidden" id="parentLink" href="/parent">Родителю</a>
-    </header>
-
-    <p class="page-kicker" id="todayLabel">Загрузка…</p>
-    <h1 class="page-title" id="greeting">Сегодня</h1>
-    <p class="med-line" id="medicationLine"></p>
-    <button class="alarm-line hidden" id="alarmLine" type="button"></button>
-
-    <section class="dose-list" id="doseList"></section>
-    <p class="fine" id="saveNote"></p>
-
-    <section class="quiet-block">
-      <div class="history-heading">
-        <div>
-          <h2>Последние отметки</h2>
-          <div class="help" id="historyMeta">Показываю последние 4 отметки</div>
-        </div>
-        <span class="history-count" id="historyCount">0</span>
-      </div>
-      <div class="history" id="history"><div class="empty">Загрузка…</div></div>
-      <button class="expand-button hidden" id="historyToggle" type="button" aria-expanded="false">Ещё</button>
+    <section id="app" hidden>
+      <header class="top">
+        <button id="back" type="button" hidden>Назад</button>
+        <p class="kicker" id="kicker"></p>
+        <h1 id="title"></h1>
+        <p class="sub" id="sub"></p>
+      </header>
+      <div id="screen"></div>
     </section>
-  </main>
+  </div>
 
-  <div class="modal-backdrop" id="confirmModal" aria-hidden="true">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
-      <h2 id="confirmTitle">Ты уже выпил(а) лекарство?</h2>
-      <p id="confirmDoseText">Нажимай «Да» только после приёма. Отметка сразу сохранится и родителю может прийти уведомление.</p>
-      <div class="modal-actions">
-        <button class="secondary" id="cancelConfirm">Нет</button>
-        <button class="primary" id="acceptConfirm">Да, отметить</button>
-      </div>
+  <div id="sheet" class="sheet" hidden>
+    <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+      <h2 id="sheetTitle"></h2>
+      <p id="sheetText"></p>
+      <button id="sheetYes" class="primary" type="button">Да, отметить</button>
+      <button id="sheetNo" class="quiet" type="button">Нет, ещё нет</button>
     </div>
   </div>
-  <div class="toast" id="toast"></div>
-  <script type="module" src="/app.js?v=10"></script>
+  <div id="toast" class="toast" role="status"></div>
+  <script type="module" src="/app.js?v=11"></script>
 </body>
 </html>

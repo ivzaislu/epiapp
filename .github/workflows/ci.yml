@@ -45,7 +45,6 @@ jobs:
       - name: Installer and signing script syntax checks
         run: |
           bash -n install.sh
-          bash -n scripts/create-android-release-key.sh
 
   postgres:
     name: PostgreSQL store
