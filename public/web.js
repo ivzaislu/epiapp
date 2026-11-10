@@ -1,5 +1,5 @@
-import { ensureTelegramSession, roleLabel } from './auth.js?v=25';
-import { childHistoryView } from './history.js?v=25';
+import { ensureTelegramSession } from './auth.js?v=26';
+import { childHistoryView } from './history.js?v=26';
 
 const $ = (id) => document.getElementById(id);
 
@@ -188,6 +188,7 @@ function paintChrome() {
   const zone = state?.settings?.timezone || settings?.timezone || 'Europe/Berlin';
   const name = state?.settings?.childName || settings?.childName || 'EpiApp';
   $('back').hidden = screen === 'today';
+  $('gear').hidden = screen !== 'today';
   if (screen === 'settings') {
     $('kicker').textContent = mode === 'child' ? 'Ребёнок' : 'Родитель';
     $('title').textContent = 'Настройки';
@@ -242,8 +243,10 @@ function doseRows(canTake) {
         <p class="dose-amount">${escapeHtml(rx.dose)}</p>
         <p class="status">${escapeHtml(status)}</p>
       </div>
-      <time class="when">${escapeHtml(rx.time)}</time>
-      ${button}
+      <div class="dose-side">
+        <time class="when">${escapeHtml(rx.time)}</time>
+        ${button}
+      </div>
     </article>`;
   }).join('');
 }
@@ -470,10 +473,7 @@ function childScreen() {
     <section class="block">
       <h2 class="block-title">Последние отметки</h2>
       ${historyBlock(state.recentDoses || [], historyExpanded, 'Пока нет отметок.')}
-    </section>
-    <nav class="menu">
-      <button type="button" data-go="settings"><span>Настройки</span><small>только на этом телефоне</small></button>
-    </nav>`;
+    </section>`;
 }
 
 function parentToday() {
@@ -482,14 +482,12 @@ function parentToday() {
       <p class="note">Подтвердить приём может только ребёнок.</p>
     </section>
     <section class="block">${weekBlock()}</section>
-    <nav class="menu">
+    <nav class="menu tiles">
       <button type="button" data-go="scheme"><span>Схема</span><small>препараты и число приёмов</small></button>
       <button type="button" data-go="reminders"><span>Напоминания</span><small>Telegram, если отметки нет</small></button>
       <button type="button" data-go="month"><span>30 дней</span><small>те же точки за месяц</small></button>
       <button type="button" data-go="telegram"><span>Семья</span><small>два родителя, второй через Telegram</small></button>
-      <button type="button" data-go="settings"><span>Настройки</span><small>только на этом телефоне</small></button>
-    </nav>
-    <p class="note end">Вы вошли как ${escapeHtml(roleLabel(user?.role))}.</p>`;
+    </nav>`;
 }
 
 function prefSwitch(name, label, on) {
@@ -773,6 +771,10 @@ export function boot() {
   paintTelegram();
   $('back').addEventListener('click', () => {
     screen = 'today';
+    render();
+  });
+  $('gear').addEventListener('click', () => {
+    screen = 'settings';
     render();
   });
   $('screen').addEventListener('click', (event) => {
