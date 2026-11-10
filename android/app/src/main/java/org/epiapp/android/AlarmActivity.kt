@@ -32,6 +32,18 @@ class AlarmActivity : AppCompatActivity() {
         })
         root.addView(Button(this).apply {
             text = "Открыть кабинет"
+            isAllCaps = false
+            setTextColor(0xFFFFFFFF.toInt())
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(0xFF315bd6.toInt())
+                cornerRadius = 28f
+            }
+            val params = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            )
+            params.topMargin = 36
+            layoutParams = params
             setOnClickListener {
                 startActivity(android.content.Intent(this@AlarmActivity, MainActivity::class.java))
                 finish()
