@@ -218,6 +218,12 @@ window.epiappBack = () => {
   return true;
 };
 
+function setKicker(text, isDate) {
+  const node = $('kicker');
+  node.textContent = text;
+  node.classList.toggle('is-date', Boolean(isDate));
+}
+
 function paintChrome() {
   const zone = state?.settings?.timezone || settings?.timezone || 'Europe/Berlin';
   const name = state?.settings?.childName || settings?.childName || 'EpiApp';
@@ -225,26 +231,26 @@ function paintChrome() {
   $('gear').classList.toggle('is-back', !home);
   $('gear').setAttribute('aria-label', home ? 'Настройки' : 'Назад');
   if (screen === 'settings') {
-    $('kicker').textContent = mode === 'child' ? 'Ребёнок' : 'Родитель';
+    setKicker(mode === 'child' ? 'Ребёнок' : 'Родитель', false);
     $('title').textContent = 'Настройки';
-    $('sub').textContent = 'Только для себя';
+    $('sub').textContent = '';
     return;
   }
   if (mode === 'child') {
-    $('kicker').textContent = longDate(zone);
+    setKicker(longDate(zone), true);
     $('title').textContent = name;
     $('sub').textContent = '';
     return;
   }
   const titles = {
-    today: [`Сегодня · ${longDate(zone)}`, name, ''],
-    scheme: ['Схема', name, ''],
-    reminders: ['Напоминания', name, ''],
-    month: ['30 дней', name, ''],
-    telegram: ['Семья', name, ''],
+    today: [`Сегодня · ${longDate(zone)}`, name, '', true],
+    scheme: ['Схема', name, '', false],
+    reminders: ['Напоминания', name, '', false],
+    month: ['30 дней', name, '', false],
+    telegram: ['Семья', name, '', false],
   };
-  const [kicker, title, sub] = titles[screen] || titles.today;
-  $('kicker').textContent = kicker;
+  const [kicker, title, sub, isDate] = titles[screen] || titles.today;
+  setKicker(kicker, isDate);
   $('title').textContent = title;
   $('sub').textContent = sub;
 }
@@ -518,15 +524,15 @@ function parentToday() {
     </section>
     <section class="block">${weekBlock()}</section>
     <nav class="menu tiles">
-      <button type="button" data-go="scheme"><span>Схема</span><small>препараты и число приёмов</small></button>
-      <button type="button" data-go="reminders"><span>Напоминания</span><small>Telegram, если отметки нет</small></button>
-      <button type="button" data-go="month"><span>30 дней</span><small>те же точки за месяц</small></button>
-      <button type="button" data-go="telegram"><span>Семья</span><small>два родителя, второй через Telegram</small></button>
+      <button type="button" data-go="scheme"><span>Схема</span><small>препарат и приёмы</small></button>
+      <button type="button" data-go="reminders"><span>Напоминания</span><small>если отметки нет</small></button>
+      <button type="button" data-go="month"><span>30 дней</span><small>точки за месяц</small></button>
+      <button type="button" data-go="telegram"><span>Семья</span><small>второй родитель</small></button>
     </nav>`;
 }
 
-function prefSwitch(name, label, on) {
-  return `<label class="switch"><span>${label}</span><input type="checkbox" data-pref="${name}"${on ? ' checked' : ''}></label>`;
+function prefSwitch(name, label, hint, on) {
+  return `<label class="switch"><span>${label}<small>${hint}</small></span><input type="checkbox" data-pref="${name}"${on ? ' checked' : ''}></label>`;
 }
 
 function settingsScreen() {
@@ -537,19 +543,19 @@ function settingsScreen() {
       <span>${item.name}</span>
     </button>`).join('');
   const confirm = mode === 'child'
-    ? prefSwitch('confirmTake', 'Спрашивать перед отметкой', prefs.confirmTake)
+    ? prefSwitch('confirmTake', 'Спрашивать перед отметкой', 'Перед кнопкой «Я принял»', prefs.confirmTake)
     : '';
   return `<section class="block">
-      <p class="sentence">Эти настройки не общие. У ребёнка и у родителя свои.</p>
-      <p class="label-line">Цвет</p>
+      <p class="sentence">Только на этом телефоне. У ребёнка и у родителя свои.</p>
+      <p class="label-line">Цвет кнопок и эмблемы</p>
       <div class="swatches">${items}</div>
-      ${prefSwitch('largeText', 'Крупный текст', prefs.largeText)}
-      ${prefSwitch('compact', 'Плотный список', prefs.compact)}
-      ${prefSwitch('hints', 'Подсказки', prefs.hints)}
-      ${prefSwitch('showDate', 'Дата в шапке', prefs.showDate)}
-      ${prefSwitch('emblem', 'Эмблема', prefs.emblem)}
+      <p class="help">Фон остаётся белым.</p>
+      ${prefSwitch('largeText', 'Крупный текст', 'Имя, доза и заголовки', prefs.largeText)}
+      ${prefSwitch('compact', 'Плотный список', 'Меньше воздуха в карточках и истории', prefs.compact)}
+      ${prefSwitch('hints', 'Подсказки', 'Короткие фразы на сегодняшнем экране', prefs.hints)}
+      ${prefSwitch('showDate', 'Дата в шапке', 'День под эмблемой. Название экрана остаётся', prefs.showDate)}
+      ${prefSwitch('emblem', 'Эмблема', 'Галочка слева в шапке', prefs.emblem)}
       ${confirm}
-      <p class="help">Белый фон остаётся. Цвет меняет кнопки, метки и эмблему.</p>
     </section>`;
 }
 
