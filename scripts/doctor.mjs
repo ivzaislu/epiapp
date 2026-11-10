@@ -74,10 +74,13 @@ else warn('Environment file', 'No .env or /etc/epiapp/epiapp.env found; using pr
 
 const botToken = String(env.TELEGRAM_BOT_TOKEN || '').trim();
 const adminId = String(env.TELEGRAM_ADMIN_ID || '').trim();
-const appBaseUrl = String(env.APP_BASE_URL || '').trim();
+const configuredOrigin = String(env.APP_BASE_URL || '').trim();
+const northflankHost = String(env.NF_HOSTS || '').split(',').map((host) => host.trim()).find(Boolean);
+const appBaseUrl = configuredOrigin || (northflankHost ? `https://${northflankHost}` : '');
 const appDomain = String(env.APP_DOMAIN || '').trim();
 const port = Number(env.PORT || 3000);
 const dataFile = String(env.DATA_FILE || '').trim();
+const databaseUrl = String(env.DATABASE_URL || env.POSTGRES_URI || '').trim();
 
 if (/^\d{6,15}:[A-Za-z0-9_-]{20,}$/.test(botToken)) pass('TELEGRAM_BOT_TOKEN', 'Configured (value hidden).');
 else fail('TELEGRAM_BOT_TOKEN', 'Missing or does not look like a Telegram bot token.');
@@ -86,7 +89,7 @@ if (/^\d{1,20}$/.test(adminId)) pass('TELEGRAM_ADMIN_ID', adminId);
 else fail('TELEGRAM_ADMIN_ID', 'Must contain only the numeric Telegram user ID.');
 
 const origin = validateOrigin(appBaseUrl);
-if (origin) pass('APP_BASE_URL', origin);
+if (origin) pass(configuredOrigin ? 'APP_BASE_URL' : 'NF_HOSTS', origin);
 else fail('APP_BASE_URL', 'Must be a public HTTPS origin without a path, query or fragment.');
 
 if (dockerMode) {
@@ -105,7 +108,11 @@ if (dockerMode) {
 if (Number.isInteger(port) && port > 0 && port <= 65535) pass('PORT', String(port));
 else fail('PORT', 'Must be an integer from 1 to 65535.');
 
-if (dataFile) {
+if (databaseUrl) {
+  pass('PostgreSQL', 'Connection URI configured (value hidden).');
+} else if (env.EPIAPP_REQUIRE_POSTGRES === '1') {
+  fail('PostgreSQL', 'Set DATABASE_URL or POSTGRES_URI.');
+} else if (dataFile) {
   try {
     await access(dirname(dataFile), fsConstants.W_OK);
     pass('Data directory', `${dirname(dataFile)} is writable by the current user.`);

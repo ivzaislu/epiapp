@@ -1,6 +1,6 @@
 # EpiApp
 
-EpiApp — self-hosted приложение для одной семьи: ребёнок отмечает утро и вечер, родитель видит отметки и свою схему. Ветка `web-next` — это сервер и веб-кабинет. APK здесь нет, он остаётся в ветке `android-next`.
+EpiApp — приложение для одной семьи. Ребёнок подтверждает приём, родитель видит отметки и управляет схемой. Ветка `web-next` содержит сервер, веб-кабинет и Android-модуль с WebView и локальными будильниками.
 
 > EpiApp не назначает дозировку, не меняет лечение и не подсказывает, что делать при пропущенной дозе. Он хранит схему, которую внесли родители, и фиксирует пользовательские отметки.
 
@@ -8,11 +8,12 @@ EpiApp — self-hosted приложение для одной семьи: реб
 
 - роли `admin`, `parent`, `child`;
 - Telegram-auth и одноразовые семейные приглашения;
-- настраиваемая таблетница: препарат, утренняя/вечерняя доза и время;
+- настраиваемая схема до шести препаратов, от одного до трёх приёмов для каждого;
 - статистика и график для родителей;
 - Telegram-уведомления и эскалация при отсутствии отметки;
-- веб-кабинет: две отметки на сегодня, неделя точками, схема и напоминания отдельными экранами;
-- серверные API для прежнего Android-клиента из ветки `android-next` (самого APK в этой ветке нет);
+- веб-кабинет с сегодняшними отметками, статистикой и импортом истории для администратора;
+- подключение Android через Telegram и одноразовую ссылку;
+- Northflank с постоянным хранилищем PostgreSQL;
 - Docker Compose + Caddy для простого self-host с automatic HTTPS;
 - systemd/Nginx вариант для ручной установки;
 - JSON storage с атомарной записью;
@@ -34,14 +35,18 @@ EpiApp — self-hosted приложение для одной семьи: реб
                   веб-кабинет
 ```
 
-Кабинет открывается кнопкой бота «Открыть EpiApp». Ребёнок попадает на сегодняшние отметки, родитель — на тот же день и неделю. Прежний APK описан в ветке `android-next`.
+Кабинет открывается кнопкой бота «Открыть EpiApp». Ребёнок попадает на сегодняшние отметки, родитель видит схему и статистику. Android-модуль описан в [docs/ANDROID.md](docs/ANDROID.md).
+
+## Northflank
+
+Используйте Combined Service из ветки `web-next`, Dockerfile в корне и приватный PostgreSQL addon. См. инструкции по [развёртыванию на Northflank](docs/NORTHFLANK.md) и [переносу с VPS](docs/MIGRATION.md).
 
 ## Быстрый старт: Docker
 
 Нужны сервер, домен, Docker Compose, Telegram bot token и числовой Telegram ID администратора.
 
 ```bash
-git clone https://github.com/ivzaislu/epiapp.git
+git clone --branch web-next https://github.com/ivzaislu/epiapp.git
 cd epiapp
 cp .env.example .env
 nano .env
@@ -89,15 +94,13 @@ npm run doctor
 
 Аккаунт из `TELEGRAM_ADMIN_ID` получает роль `admin`. Затем через кнопки бота можно пригласить ребёнка и второго родителя. Кнопка «Открыть EpiApp» открывает кабинет.
 
-Прежний Android-клиент и код подключения телефона остаются в ветке `android-next`. На `web-next` APK не собирается.
-
 ## Документация
 
 - [docs/INSTALL.md](docs/INSTALL.md) — установка с нуля;
 - [docs/DOCKER.md](docs/DOCKER.md) — Docker Compose + Caddy;
 - [docs/SYSTEMD.md](docs/SYSTEMD.md) — Node.js + systemd;
 - [docs/TELEGRAM.md](docs/TELEGRAM.md) — бот, admin и приглашения;
-- [docs/ANDROID.md](docs/ANDROID.md) — APK остаётся в ветке `android-next`, не здесь;
+- [docs/ANDROID.md](docs/ANDROID.md) — подключение и сборка Android-модуля;
 - [docs/HTTPS.md](docs/HTTPS.md) — DNS, firewall и TLS;
 - [docs/BACKUP.md](docs/BACKUP.md) — backup/restore;
 - [docs/UPDATE.md](docs/UPDATE.md) — обновление;
@@ -127,20 +130,15 @@ bash -n install.sh
 npm run doctor:offline
 ```
 
-CI этой ветки — проверки Node. Сборки APK здесь нет.
+CI проверяет Node, PostgreSQL и Docker-образ. APK собирается отдельно в Android Studio.
 
 ## Данные
 
-Один экземпляр использует один JSON store. По умолчанию:
+На Northflank состояние хранится в PostgreSQL. При локальном развёртывании без URI PostgreSQL приложение использует JSON:
 
 ```text
 systemd: /var/lib/epiapp/epiapp.json
 Docker:  /data/epiapp.json inside epiapp-data volume
 ```
 
-Регулярные backup обязательны для production self-host.
-
-
-## Northflank
-
-Экспериментальная облачная ветка: `northflank`. План развёртывания и ограничения: [docs/NORTHFLANK.md](docs/NORTHFLANK.md).
+Для обоих вариантов см. [резервное копирование](docs/BACKUP.md).

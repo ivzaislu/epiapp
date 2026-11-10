@@ -3,6 +3,8 @@ import { dirname } from 'node:path';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { assertSlot, sanitizeSettings, schedulePlan, ValidationError } from './validation.js';
 
+const DEFAULT_DOSE_RETENTION = 730;
+
 const DEFAULT_STATE = {
   version: 5,
   settings: {
@@ -148,6 +150,12 @@ function addDaysKey(key, amount) {
   return date.toISOString().slice(0, 10);
 }
 
+function validDateKey(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
 function localTimeKey(date, timeZone) {
   const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone,
@@ -289,9 +297,55 @@ export class Store {
         takenAt: now.toISOString(),
         takenByTelegramId: String(actor?.telegramId || ''),
       };
+      // Keep the history window already retained after an import.
+      const retention = Math.max(DEFAULT_DOSE_RETENTION, state.doses.length);
       state.doses.push(dose);
-      if (state.doses.length > 730) state.doses = state.doses.slice(-730);
+      if (state.doses.length > retention) state.doses = state.doses.slice(-retention);
       return { dose: clone(dose), settings: clone(state.settings) };
+    });
+  }
+
+  async importLegacyDoses(input) {
+    if (!Array.isArray(input?.doses) || input.doses.length > DEFAULT_DOSE_RETENTION) {
+      throw new ValidationError(`Ожидалась история из резервной копии EpiApp (до ${DEFAULT_DOSE_RETENTION} отметок).`);
+    }
+    const doses = input.doses.map((entry, index) => {
+      const { id, slot, localDate, takenAt } = entry ?? {};
+      const time = typeof takenAt === 'string' && new Date(takenAt);
+      if (typeof id !== 'string' || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id)
+        || (slot !== 'morning' && slot !== 'evening')
+        || !validDateKey(localDate)
+        || !time || !Number.isFinite(time.getTime()) || time.toISOString() !== takenAt) {
+        throw new ValidationError(`Некорректная отметка в резервной копии (строка ${index + 1}).`);
+      }
+      return { id, slot, localDate, takenAt, takenByTelegramId: '' };
+    });
+
+    return this.mutate((state) => {
+      const slots = new Set(schedulePlan(state.settings).map((item) => item.slot));
+      const classic = slots.has('morning') && slots.has('evening');
+      const mapping = classic ? { morning: 'morning', evening: 'evening' } : input.mapping;
+      const ids = new Set(state.doses.map((dose) => dose.id));
+      const pending = doses.filter((dose) => !ids.has(dose.id));
+      const requiredSlots = new Set(pending.map((dose) => dose.slot));
+      if ([...requiredSlots].some((slot) => !slots.has(mapping?.[slot]))
+        || (requiredSlots.size === 2 && mapping.morning === mapping.evening)) {
+        throw new ValidationError('Выберите разные приёмы из текущей схемы для старых утренних и вечерних отметок.');
+      }
+
+      const keys = new Set(state.doses.map((dose) => `${dose.localDate}:${dose.slot}`));
+      let imported = 0;
+      for (const dose of pending) {
+        const slot = mapping[dose.slot];
+        const key = `${dose.localDate}:${slot}`;
+        if (ids.has(dose.id) || keys.has(key)) continue;
+        state.doses.push({ ...dose, slot });
+        ids.add(dose.id);
+        keys.add(key);
+        imported += 1;
+      }
+      if (imported) state.doses.sort((left, right) => left.takenAt.localeCompare(right.takenAt));
+      return { imported, skipped: doses.length - imported };
     });
   }
 
@@ -314,6 +368,11 @@ export class Store {
         medicationName: state.settings.medicationName,
         morningDose: state.settings.morningDose,
         eveningDose: state.settings.eveningDose,
+        remindersEnabled: state.settings.remindersEnabled,
+        reminderFirstMinutes: state.settings.reminderFirstMinutes,
+        reminderUrgentMinutes: state.settings.reminderUrgentMinutes,
+        reminderRepeatMinutes: state.settings.reminderRepeatMinutes,
+        reminderStopMinutes: state.settings.reminderStopMinutes,
         medications: state.settings.medications,
         plan: schedulePlan(state.settings),
         accent: state.settings.accent,
@@ -323,11 +382,15 @@ export class Store {
     };
   }
 
-  async statistics(days = 7, now = new Date()) {
+  async statistics(days = 7, now = new Date(), through = null) {
     const state = await this.read();
     const windowDays = Math.max(1, Math.min(90, Number(days) || 7));
     const today = dateKey(now, state.settings.timezone);
-    const windowStart = addDaysKey(today, -(windowDays - 1));
+    if (through !== null && (!validDateKey(through) || through > today)) {
+      throw new ValidationError('Выберите дату окончания периода не позднее сегодняшней.');
+    }
+    const periodEnd = through ?? today;
+    const windowStart = addDaysKey(periodEnd, -(windowDays - 1));
     const trackingCandidates = [
       ...state.doses.map((dose) => dose.localDate).filter((key) => /^\d{4}-\d{2}-\d{2}$/.test(String(key))),
       ...state.audit.map((entry) => {
@@ -342,7 +405,7 @@ export class Store {
     const plan = schedulePlan(state.settings);
     const rows = [];
 
-    for (let key = periodStart; key <= today; key = addDaysKey(key, 1)) {
+    for (let key = periodStart; key <= periodEnd; key = addDaysKey(key, 1)) {
       const slotRows = {};
       for (const item of plan) {
         const dose = doseMap.get(`${key}:${item.slot}`) || null;
@@ -390,7 +453,7 @@ export class Store {
     return {
       requestedDays: windowDays,
       periodStart,
-      periodEnd: today,
+      periodEnd,
       expected,
       taken,
       missed: Math.max(0, expected - taken),

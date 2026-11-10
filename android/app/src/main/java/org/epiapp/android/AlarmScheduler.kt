@@ -38,6 +38,7 @@ object AlarmScheduler {
         val plan = root.optJSONArray("plan") ?: return
         val manager = context.getSystemService(AlarmManager::class.java)
         for (code in FIRST_CODE until LAST_CODE) manager.cancel(pending(context, code, Intent(context, AlarmReceiver::class.java)))
+        if (!reminders) return
 
         var code = FIRST_CODE
         for (index in 0 until plan.length()) {
@@ -53,7 +54,6 @@ object AlarmScheduler {
                 if (!dose.isAfter(now) || taken) dose = dose.plusDays(1)
             }
             place(context, manager, code++, dose.toInstant().toEpochMilli(), item, "dose")
-            if (!reminders) continue
             val open = now.withHour(hour).withMinute(minute).withSecond(0).withNano(0)
             if (taken) continue
             val marks = linkedSetOf(first)

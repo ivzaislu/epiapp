@@ -63,3 +63,13 @@ test('sanitizeSettings validates reminder escalation order', () => {
 test('sanitizeSettings rejects malformed Telegram chat ids', () => {
   assert.throws(() => sanitizeSettings({ telegramChatIds: ['@username'] }), ValidationError);
 });
+
+test('old settings payloads cannot replace a multi-intake plan', () => {
+  const current = sanitizeSettings({
+    medications: [{ id: 'm1234567', name: 'Example', intakes: [{ time: '08:00' }, { time: '12:00' }, { time: '20:00' }] }],
+  });
+  const updated = sanitizeSettings({ medicationName: current.medicationName, remindersEnabled: false }, current);
+  assert.deepEqual(updated.medications, current.medications);
+  assert.equal(updated.remindersEnabled, false);
+  assert.throws(() => sanitizeSettings({ morningTime: '09:00' }, current), ValidationError);
+});

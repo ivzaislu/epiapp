@@ -58,6 +58,20 @@ test('PostgreSQL transaction prevents concurrent duplicate dose writes', { skip:
   });
 });
 
+test('PostgreSQL merges a legacy history once across concurrent connections', { skip: !DATABASE_URL }, async () => {
+  await withStores(2, async ([left, right]) => {
+    const settings = await left.updateSettings({ childName: 'New instance' });
+    const legacy = {
+      doses: [{ id: randomUUID(), slot: 'evening', localDate: '2025-01-05', takenAt: '2025-01-05T19:00:00.000Z' }],
+    };
+    const results = await Promise.all([left.importLegacyDoses(legacy), right.importLegacyDoses(legacy)]);
+    assert.equal(results.reduce((total, result) => total + result.imported, 0), 1);
+    assert.deepEqual((await right.read()).settings, settings);
+    const stats = await right.statistics(30, new Date('2026-01-01T00:00:00.000Z'), '2025-01-05');
+    assert.equal(stats.taken, 1);
+  });
+});
+
 test('PostgreSQL store keeps only hashes for Android device credentials', { skip: !DATABASE_URL }, async () => {
   await withStores(1, async ([store]) => {
     const invite = await store.createInvite('child', '111111111');

@@ -601,7 +601,9 @@ label {
 
 input[type="text"],
 input[type="time"],
+input[type="date"],
 input[type="number"],
+select,
 input:not([type]) {
   width: 100%;
   height: 44px;
@@ -610,6 +612,16 @@ input:not([type]) {
   border-radius: var(--control);
   background: #fff;
   font-size: 16px;
+}
+
+.form input[type="file"] {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.form[data-form="history-period"] .quiet {
+  margin: 8px 0 14px;
 }
 
 input:disabled,

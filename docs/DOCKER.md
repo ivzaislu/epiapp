@@ -27,9 +27,8 @@ DNS вашего домена уже должен указывать на сер
 ## Настройка
 
 ```bash
-git clone https://github.com/ivzaislu/epiapp.git
+git clone --branch web-next https://github.com/ivzaislu/epiapp.git
 cd epiapp
-git checkout epiappapk
 cp .env.example .env
 nano .env
 ```

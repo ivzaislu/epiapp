@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createHmac } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -109,6 +109,7 @@ test('invited child authenticates but cannot open parent settings', async () => 
   const store = await tempStore();
   const invite = await store.createInvite('child', ADMIN_ID);
   await store.acceptInvite(invite.token, { id: '222222222', firstName: 'Child' });
+  await store.updateSettings({ remindersEnabled: false, reminderFirstMinutes: 20 });
   const server = createServer({ store, botToken: BOT_TOKEN, adminId: ADMIN_ID });
   const port = await listen(server);
   const baseUrl = `http://127.0.0.1:${port}`;
@@ -116,6 +117,56 @@ test('invited child authenticates but cannot open parent settings', async () => 
     const cookie = await authenticate(baseUrl, '222222222');
     const response = await fetch(`${baseUrl}/api/parent/settings`, { headers: { cookie } });
     assert.equal(response.status, 403);
+    const state = await fetch(`${baseUrl}/api/state`, { headers: { cookie } });
+    const { settings } = await state.json();
+    assert.equal(settings.remindersEnabled, false);
+    assert.equal(settings.reminderFirstMinutes, 20);
+  } finally {
+    await close(server);
+  }
+});
+
+test('only the admin can merge a legacy backup and its marks appear in an older period', async () => {
+  const store = await tempStore();
+  const invite = await store.createInvite('parent', ADMIN_ID);
+  await store.acceptInvite(invite.token, { id: '333333333', firstName: 'Parent' });
+  const existing = await store.takeDose('morning', new Date('2025-01-05T07:00:00.000Z'));
+  const before = await store.read();
+  const server = createServer({ store, botToken: BOT_TOKEN, adminId: ADMIN_ID });
+  const port = await listen(server);
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const doses = [
+    { id: randomUUID(), slot: 'morning', localDate: '2025-01-05', takenAt: '2025-01-05T07:05:00.000Z' },
+    { id: randomUUID(), slot: 'evening', localDate: '2025-01-05', takenAt: '2025-01-05T19:00:00.000Z' },
+  ];
+
+  try {
+    const admin = await authenticate(baseUrl, ADMIN_ID);
+    const parent = await authenticate(baseUrl, '333333333');
+    const upload = (cookie, data = doses) => fetch(`${baseUrl}/api/parent/stats/import`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ doses: data, settings: { childName: 'Old name' }, access: { users: [] } }),
+    });
+    assert.equal((await upload(parent)).status, 403);
+    assert.equal((await upload(admin, [doses[0], { ...doses[1], localDate: '2025-02-30' }])).status, 400);
+    assert.deepEqual(await store.read(), before);
+
+    const result = await upload(admin);
+    assert.equal(result.status, 200);
+    assert.deepEqual(await result.json(), { imported: 1, skipped: 1 });
+    assert.deepEqual(await (await upload(admin)).json(), { imported: 0, skipped: 2 });
+    const after = await store.read();
+    assert.deepEqual(after.settings, before.settings);
+    assert.deepEqual(after.access, before.access);
+    assert.deepEqual(after.doses[0], existing.dose);
+
+    const response = await fetch(`${baseUrl}/api/parent/stats?days=30&through=2025-01-05`, { headers: { cookie: parent } });
+    assert.equal(response.status, 200);
+    const { stats } = await response.json();
+    assert.equal(stats.periodEnd, '2025-01-05');
+    assert.equal(stats.taken, 2);
+    assert.equal(stats.days.at(-1).slots.evening.takenAt, doses[1].takenAt);
   } finally {
     await close(server);
   }

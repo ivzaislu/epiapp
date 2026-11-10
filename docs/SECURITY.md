@@ -9,6 +9,7 @@ EpiApp хранит семейные данные и должен рассмат
 - `TELEGRAM_BOT_TOKEN`;
 - SSH/server credentials;
 - production `.env`;
+- URI базы PostgreSQL;
 - Android release signing key и его пароли.
 
 Не коммитьте их в Git. Если bot token когда-либо оказался в публичном репозитории/issue/log, отзовите его через BotFather и выпустите новый.
@@ -29,7 +30,7 @@ Internet -> 80/443 reverse proxy -> private EpiApp :3000
 
 ## HTTPS
 
-Telegram Mini App и Android pairing требуют HTTPS. Универсальный APK отказывается подключаться к `http://`.
+Для Telegram Mini App и подключения Android на production используйте HTTPS. Debug-сборка APK допускает HTTP для локальной разработки.
 
 Следите за автоматическим продлением сертификата и периодически проверяйте public `/healthz`.
 
@@ -43,11 +44,11 @@ Web/Telegram:
 
 Android:
 
-- pairing code одноразовый, шестизначный и живёт 5 минут;
+- основное подключение использует одноразовую ссылку на пять минут, сервер также принимает шестизначный код прежних клиентов;
 - endpoint ограничивает число попыток;
 - после pairing выдаётся случайный 256-bit device-token;
 - сервер хранит только SHA-256 hash token;
-- raw token хранится на Android в зашифрованном виде через Android Keystore;
+- raw token хранится в приватных настройках Android-приложения;
 - каждый native session/schedule запрос повторно проверяет, что владелец устройства всё ещё имеет доступ.
 
 ## Отзыв

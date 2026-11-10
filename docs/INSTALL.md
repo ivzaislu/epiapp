@@ -1,6 +1,6 @@
 # Установка EpiApp с нуля
 
-Эта инструкция предназначена для отдельного семейного self-hosted экземпляра EpiApp.
+Эта инструкция предназначена для VPS или другого Linux-сервера. Для Northflank используйте [отдельную инструкцию](NORTHFLANK.md).
 
 EpiApp не назначает лечение и не подсказывает, что делать при пропущенной дозе. Родители сами вносят назначенную схему; приложение хранит отметки и отправляет напоминания.
 
@@ -36,9 +36,8 @@ epiapp.example.com -> PUBLIC_SERVER_IP
 ## 3. Скачайте EpiApp
 
 ```bash
-git clone https://github.com/ivzaislu/epiapp.git
+git clone --branch web-next https://github.com/ivzaislu/epiapp.git
 cd epiapp
-git checkout epiappapk
 ```
 
 ## 4. Выберите способ установки
@@ -104,10 +103,7 @@ sudo env EPIAPP_ENV_FILE=/etc/epiapp/epiapp.env node scripts/doctor.mjs
 
 ## 8. Android
 
-Универсальный APK не содержит адрес конкретного сервера. При первом запуске он просит:
-
-1. HTTPS-адрес вашего EpiApp (`APP_BASE_URL`);
-2. одноразовый шестизначный код из кнопки бота `📲 Подключить Android`.
+В Telegram нажмите **Подключить Android → Открыть в EpiApp**. Одноразовая ссылка передаёт APK адрес сервера и данные подключения.
 
 Подробнее: [ANDROID.md](ANDROID.md).
 

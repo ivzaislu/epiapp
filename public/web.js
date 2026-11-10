@@ -83,6 +83,7 @@ let settings = null;
 let settingsPack = null;
 let stats7 = null;
 let stats30 = null;
+let monthThrough = '';
 let historyExpanded = false;
 let pendingSlot = null;
 let demo = false;
@@ -469,16 +470,40 @@ function remindersScreen() {
 
 function monthScreen() {
   const stats = stats30;
-  if (!stats?.days?.length) return '<p class="sentence">За 30 дней данных ещё нет.</p>';
+  const periodForm = demo ? '' : `<form data-form="history-period" class="form">
+    <label for="history-through">30 дней по дату</label>
+    <input type="date" id="history-through" name="through" max="${escapeHtml(state.today)}" value="${escapeHtml(stats?.periodEnd || state.today)}" required>
+    <button class="quiet" type="submit">Показать период</button>
+  </form>`;
+  const importForm = user?.role === 'admin' ? historyImportForm() : '';
+  if (!stats?.days?.length) return `${periodForm}<p class="sentence">За этот период данных нет.</p>${importForm}`;
   const sentence = stats.expected
     ? `За 30 дней отмечено ${stats.taken} из ${stats.expected}.`
     : 'За 30 дней время приёма ещё не наступило.';
   const plan = fallbackPlan(stats);
   const boards = weeksOf(stats.days).map((week) => marksBoard(week, plan)).join('');
-  return `<p class="sentence">${escapeHtml(sentence)}</p>
+  return `${periodForm}<p class="sentence">${escapeHtml(sentence)}</p>
     <p class="split">Полных дней подряд: ${escapeHtml(stats.currentStreak)}.</p>
     <div class="weeks">${boards}</div>
-    ${statusLegend()}`;
+    ${statusLegend()}
+    ${importForm}`;
+}
+
+function historyImportForm() {
+  const plan = planItems();
+  const classic = plan.some(({ slot }) => slot === 'morning') && plan.some(({ slot }) => slot === 'evening');
+  const options = plan.map(({ slot, label }) => `<option value="${escapeHtml(slot)}">${escapeHtml(label)}</option>`).join('');
+  const select = (slot, label) => `<label>${label}
+    <select name="${slot}"><option value="">Выберите приём</option>${options}</select></label>`;
+  return `<form data-form="import-history" class="form">
+    <fieldset>
+      <legend>Импорт истории</legend>
+      <p class="help">Выберите epiapp.json со старого сервера EpiApp. Из файла будут перенесены отметки о приёме. Уже существующие отметки сохраняются.</p>
+      <label>Резервная копия <input type="file" name="backup" accept=".json,application/json" required></label>
+      ${classic ? '' : `${select('morning', 'Старый утренний приём')}${select('evening', 'Старый вечерний приём')}`}
+    </fieldset>
+    <button class="primary" type="submit">Импортировать отметки</button>
+  </form>`;
 }
 
 function telegramScreen() {
@@ -687,6 +712,64 @@ async function save(form) {
   }
 }
 
+async function importHistory(form) {
+  const button = form.querySelector('button[type="submit"]');
+  const file = form.elements.backup.files[0];
+  if (!file) return;
+  button.disabled = true;
+  try {
+    if (file.size > 2 * 1024 * 1024) throw new Error('Резервная копия больше 2 МБ.');
+    let backup;
+    try {
+      backup = JSON.parse(await file.text());
+    } catch {
+      throw new Error('Не удалось прочитать файл JSON.');
+    }
+    if (!Array.isArray(backup?.doses) || backup.doses.length > 730) {
+      throw new Error('Выберите резервную копию EpiApp со старого сервера.');
+    }
+    const doses = backup.doses.map((entry) => {
+      const { id, slot, localDate, takenAt } = entry ?? {};
+      return { id, slot, localDate, takenAt };
+    });
+    const mapping = Object.fromEntries(['morning', 'evening'].map((slot) => [slot, form.elements[slot]?.value]));
+    const { imported, skipped } = await api('/api/parent/stats/import', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ doses, mapping }),
+    });
+    form.reset();
+    toast(`Добавлено: ${imported}. Уже было: ${skipped}.`);
+    await refresh().catch(() => toast('История сохранена. Обновите страницу, чтобы увидеть отметки.'));
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function monthPath(through) {
+  const params = new URLSearchParams({ days: '30' });
+  if (through) params.set('through', through);
+  return `/api/parent/stats?${params}`;
+}
+
+async function showHistoryPeriod(form) {
+  const through = form.elements.through.value;
+  const button = form.querySelector('button[type="submit"]');
+  button.disabled = true;
+  try {
+    const data = await api(monthPath(through));
+    monthThrough = through === state.today ? '' : through;
+    stats30 = data.stats;
+    if (screen === 'month') render();
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 async function sendTest() {
   const button = $('testTelegram');
   if (!button || button.disabled) return;
@@ -704,7 +787,7 @@ async function sendTest() {
 function publishNativeSchedule() {
   const native = window.EpiAppNative;
   if (!native?.syncSchedule || !state?.settings) return;
-  const plan = planItems().map((item) => ({
+  const plan = (mode === 'child' ? planItems() : []).map((item) => ({
     slot: item.slot,
     time: item.time,
     dose: item.dose || '',
@@ -730,7 +813,7 @@ async function refresh() {
     const [today, week, month, pack] = await Promise.all([
       api('/api/state'),
       api('/api/parent/stats?days=7'),
-      api('/api/parent/stats?days=30'),
+      api(monthPath(monthThrough)),
       api('/api/parent/settings'),
     ]);
     state = today;
@@ -910,7 +993,9 @@ export function boot() {
       toast('Это пример экрана. Изменения не сохраняются.');
       return;
     }
-    save(event.target);
+    if (event.target.dataset.form === 'history-period') showHistoryPeriod(event.target);
+    else if (event.target.dataset.form === 'import-history') importHistory(event.target);
+    else save(event.target);
   });
   $('sheetNo').addEventListener('click', closeSheet);
   $('sheetYes').addEventListener('click', confirmTake);

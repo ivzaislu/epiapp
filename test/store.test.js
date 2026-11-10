@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -73,6 +74,31 @@ test('statistics count elapsed scheduled slots and expose parent summary', async
   assert.equal(stats.bySlot.morning.taken, 3);
   assert.equal(stats.bySlot.evening.taken, 2);
   assert.equal(stats.currentStreak, 1);
+});
+
+test('legacy doses require distinct, existing slots for a custom medication plan', async () => {
+  const store = await tempStore();
+  await store.updateSettings({
+    medications: [
+      { id: 'm1234567', name: 'Example', intakes: [{ time: '08:00' }, { time: '12:00' }, { time: '20:00' }] },
+    ],
+  });
+  const doses = [
+    { id: randomUUID(), slot: 'morning', localDate: '2025-01-05', takenAt: '2025-01-05T07:00:00.000Z' },
+    { id: randomUUID(), slot: 'evening', localDate: '2025-01-05', takenAt: '2025-01-05T19:00:00.000Z' },
+  ];
+  await assert.rejects(store.importLegacyDoses({ doses }), /Выберите разные приёмы/);
+  await assert.rejects(store.importLegacyDoses({
+    doses, mapping: { morning: 'm1234567@08:00', evening: 'm1234567@08:00' },
+  }), /Выберите разные приёмы/);
+
+  const input = { doses, mapping: { morning: 'm1234567@08:00', evening: 'm1234567@20:00' } };
+  const results = await Promise.all([store.importLegacyDoses(input), store.importLegacyDoses(input)]);
+  assert.deepEqual(results, [{ imported: 2, skipped: 0 }, { imported: 0, skipped: 2 }]);
+  const stats = await store.statistics(1, new Date('2025-01-06T08:00:00.000Z'), '2025-01-05');
+  assert.equal(stats.expected, 3);
+  assert.equal(stats.taken, 2);
+  assert.equal(stats.days[0].slots['m1234567@12:00'].taken, false);
 });
 
 test('Android pairing code is single-use and raw device token is never persisted', async () => {

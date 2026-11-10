@@ -57,12 +57,12 @@ function json(res, status, payload, headers = {}) {
   res.end(JSON.stringify(payload));
 }
 
-async function body(req) {
+async function body(req, limit = 32_768) {
   const chunks = [];
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > 32_768) throw new ValidationError('Слишком большой запрос.');
+    if (size > limit) throw new ValidationError('Слишком большой запрос.');
     chunks.push(chunk);
   }
   if (chunks.length === 0) return {};
@@ -225,8 +225,13 @@ export function createServer(options = {}) {
     const url = new URL(req.url, 'http://localhost');
     try {
       if (req.method === 'GET' && url.pathname === '/healthz') {
-        await context.store.read();
-        return json(res, 200, { ok: true });
+        try {
+          await context.store.read();
+          return json(res, 200, { ok: true });
+        } catch (error) {
+          console.error('EpiApp storage healthcheck failed:', error);
+          return json(res, 503, { ok: false });
+        }
       }
 
       if (req.method === 'GET' && url.pathname === '/android/connect') {
@@ -403,10 +408,8 @@ location.replace(target);
 
       if (req.method === 'POST' && url.pathname === '/api/parent/settings') {
         const user = await requireUser(req, context, ['parent', 'admin']);
-        const current = await context.store.read();
         const input = await body(req);
         const settings = await context.store.updateSettings({
-          ...current.settings,
           childName: input.childName,
           morningTime: input.morningTime,
           eveningTime: input.eveningTime,
@@ -419,7 +422,7 @@ location.replace(target);
           reminderUrgentMinutes: input.reminderUrgentMinutes,
           reminderRepeatMinutes: input.reminderRepeatMinutes,
           reminderStopMinutes: input.reminderStopMinutes,
-          medications: input.medications ?? current.settings.medications,
+          medications: input.medications,
         }, user);
         return json(res, 200, {
           settings: publicSettings(settings),
@@ -430,7 +433,17 @@ location.replace(target);
       if (req.method === 'GET' && url.pathname === '/api/parent/stats') {
         await requireUser(req, context, ['parent', 'admin']);
         const days = Number(url.searchParams.get('days') || 7);
-        return json(res, 200, { stats: await context.store.statistics(days) });
+        const through = url.searchParams.get('through');
+        return json(res, 200, { stats: await context.store.statistics(days, undefined, through) });
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/parent/stats/import') {
+        await requireUser(req, context, ['admin']);
+        if (req.headers['content-type']?.split(';')[0].trim().toLowerCase() !== 'application/json') {
+          throw new ValidationError('Ожидался JSON.');
+        }
+        const input = await body(req, 256 * 1024);
+        return json(res, 200, await context.store.importLegacyDoses(input));
       }
 
       if (req.method === 'POST' && url.pathname === '/api/parent/telegram/test') {
@@ -461,6 +474,10 @@ location.replace(target);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === normalize(process.argv[1])) {
+  if (process.env.EPIAPP_REQUIRE_POSTGRES === '1' && !DATABASE_URL) {
+    console.error('EpiApp requires PostgreSQL. Set DATABASE_URL or POSTGRES_URI.');
+    process.exit(1);
+  }
   const server = createServer();
   server.listen(PORT, HOST, () => {
     console.log(`EpiApp: http://${HOST}:${PORT}`);

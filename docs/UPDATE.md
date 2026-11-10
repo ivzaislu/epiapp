@@ -2,6 +2,10 @@
 
 Перед любым обновлением сделайте backup по [BACKUP.md](BACKUP.md).
 
+## Northflank
+
+Сделайте копию PostgreSQL addon. Выберите сборку из `web-next` и обновите сервис по [NORTHFLANK.md](NORTHFLANK.md). После обновления проверьте `/healthz`, Telegram-бота и сохранённые отметки.
+
 ## Docker Compose
 
 Из checkout:
@@ -9,8 +13,8 @@
 ```bash
 git status --short
 git fetch origin
-git checkout main
-git pull --ff-only origin main
+git checkout web-next
+git pull --ff-only origin web-next
 docker compose up -d --build
 ```
 
@@ -31,8 +35,8 @@ npm run doctor
 cd ~/epiapp
 git status --short
 git fetch origin
-git checkout main
-git pull --ff-only origin main
+git checkout web-next
+git pull --ff-only origin web-next
 sudo ./install.sh
 ```
 

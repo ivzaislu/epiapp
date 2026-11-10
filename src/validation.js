@@ -141,7 +141,7 @@ function cleanMedication(raw, usedIds) {
 
 function medicationsFromLegacy(input, current) {
   return [{
-    id: 'legacy',
+    id: current.medications?.[0]?.id || 'legacy',
     name: sanitizeOptionalText(input.medicationName ?? current.medicationName ?? '', 'Название препарата', 100),
     intakes: [
       {
@@ -165,10 +165,16 @@ function sanitizeMedications(input, current) {
     return input.medications.map((medication) => cleanMedication(medication, usedIds));
   }
   const legacyKeys = ['medicationName', 'morningDose', 'eveningDose', 'morningTime', 'eveningTime'];
-  const editsLegacy = legacyKeys.some((key) => input[key] !== undefined);
-  if (!editsLegacy && Array.isArray(current.medications) && current.medications.length) {
-    const usedIds = new Set();
-    return current.medications.map((medication) => cleanMedication(medication, usedIds));
+  const editsLegacy = legacyKeys.some((key) => input[key] != null && input[key] !== current[key]);
+  if (Array.isArray(current.medications) && current.medications.length) {
+    if (!editsLegacy) {
+      const usedIds = new Set();
+      return current.medications.map((medication) => cleanMedication(medication, usedIds));
+    }
+    if (current.medications.length !== 1 || current.medications[0].intakes.length !== 2) {
+      throw new ValidationError('Для изменения этой схемы откройте текущий веб-кабинет.');
+    }
+    return [cleanMedication(medicationsFromLegacy(input, current)[0], new Set())];
   }
   return medicationsFromLegacy(input, current);
 }

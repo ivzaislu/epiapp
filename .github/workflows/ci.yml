@@ -49,7 +49,10 @@ jobs:
 
   postgres:
     name: PostgreSQL store
-    if: github.ref_name == 'northflank' || github.ref_name == 'android-native' || github.head_ref == 'northflank' || github.head_ref == 'android-native' || github.base_ref == 'northflank' || github.base_ref == 'android-native'
+    if: >-
+      contains(fromJSON('["northflank","android-native","web-next"]'), github.ref_name)
+      || contains(fromJSON('["northflank","android-native","web-next"]'), github.head_ref)
+      || contains(fromJSON('["northflank","android-native","web-next"]'), github.base_ref)
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -85,7 +88,10 @@ jobs:
 
   selfhost:
     name: Self-host Docker stack
-    if: github.ref_name == 'epiappapk' || github.ref_name == 'main' || github.ref_name == 'northflank' || github.ref_name == 'android-native' || github.head_ref == 'epiappapk' || github.head_ref == 'northflank' || github.head_ref == 'android-native' || github.base_ref == 'main'
+    if: >-
+      contains(fromJSON('["epiappapk","main","northflank","android-native","web-next"]'), github.ref_name)
+      || contains(fromJSON('["epiappapk","northflank","android-native","web-next"]'), github.head_ref)
+      || contains(fromJSON('["main","web-next"]'), github.base_ref)
     runs-on: ubuntu-latest
 
     steps:
@@ -135,7 +141,7 @@ jobs:
   android:
     name: Android APKs
     # Android APKs for android-native are built locally via Android Studio.
-    if: github.ref_name != 'android-native' && github.head_ref != 'android-native' && github.ref_name != 'web-next' && github.head_ref != 'web-next' && (github.ref_name == 'epiappapk' || github.ref_name == 'main' || github.ref_name == 'northflank' || github.head_ref == 'epiappapk' || github.head_ref == 'northflank' || github.base_ref == 'main')
+    if: github.ref_name != 'android-native' && github.head_ref != 'android-native' && github.ref_name != 'web-next' && github.head_ref != 'web-next' && github.base_ref != 'web-next' && (github.ref_name == 'epiappapk' || github.ref_name == 'main' || github.ref_name == 'northflank' || github.head_ref == 'epiappapk' || github.head_ref == 'northflank' || github.base_ref == 'main')
     runs-on: ubuntu-latest
 
     steps:

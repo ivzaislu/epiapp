@@ -3,7 +3,7 @@
   "version": "1.2.0-selfhost",
   "private": true,
   "type": "module",
-  "description": "Self-hosted family medication check-in. This branch is the web cabinet; the Android app stays on android-next.",
+  "description": "Family medication check-in with a web cabinet and Android companion.",
   "scripts": {
     "dev": "node --watch server.js",
     "start": "node server.js",

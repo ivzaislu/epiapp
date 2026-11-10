@@ -5,9 +5,8 @@
 ## Установка приложения
 
 ```bash
-git clone https://github.com/ivzaislu/epiapp.git
+git clone --branch web-next https://github.com/ivzaislu/epiapp.git
 cd epiapp
-git checkout main
 sudo ./install.sh
 ```
 
