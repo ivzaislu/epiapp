@@ -1,5 +1,5 @@
-import { ensureTelegramSession } from './auth.js?v=27';
-import { childHistoryView } from './history.js?v=27';
+import { ensureTelegramSession } from './auth.js?v=28';
+import { childHistoryView } from './history.js?v=28';
 
 const $ = (id) => document.getElementById(id);
 
@@ -183,6 +183,40 @@ function labelForSlot(slot) {
   const time = String(slot || '').split('@')[1];
   return time || 'Приём';
 }
+
+function showScreen(next) {
+  if (next === screen) return;
+  if (next === 'today') schemeDraft = null;
+  if (next !== 'today' && history.state?.epi && history.state.epi !== 'today') {
+    screen = next;
+    history.replaceState({ epi: next }, '');
+    render();
+    syncTelegramBack();
+    return;
+  }
+  if (next === 'today' && history.state?.epi && history.state.epi !== 'today') {
+    history.back();
+    return;
+  }
+  screen = next;
+  if (next === 'today') history.replaceState({ epi: 'today' }, '');
+  else history.pushState({ epi: next }, '');
+  render();
+  syncTelegramBack();
+}
+
+function syncTelegramBack() {
+  const button = window.Telegram?.WebApp?.BackButton;
+  if (!button) return;
+  if (screen === 'today') button.hide();
+  else button.show();
+}
+
+window.epiappBack = () => {
+  if (screen === 'today') return false;
+  showScreen('today');
+  return true;
+};
 
 function paintChrome() {
   const zone = state?.settings?.timezone || settings?.timezone || 'Europe/Berlin';
@@ -770,17 +804,22 @@ export function boot() {
   const demoName = params.get('demo');
   demo = demoName === '1' || demoName === 'child' || demoName === 'parent';
   paintTelegram();
-  $('gear').addEventListener('click', () => {
-    if (screen !== 'today') schemeDraft = null;
-    screen = screen === 'today' ? 'settings' : 'today';
+  if (!history.state?.epi) history.replaceState({ epi: 'today' }, '');
+  window.addEventListener('popstate', () => {
+    screen = history.state?.epi && history.state.epi !== 'today' ? history.state.epi : 'today';
+    if (screen === 'today') schemeDraft = null;
     render();
+    syncTelegramBack();
+  });
+  window.Telegram?.WebApp?.BackButton?.onClick(() => showScreen('today'));
+  $('gear').addEventListener('click', () => {
+    showScreen(screen === 'today' ? 'settings' : 'today');
   });
   $('screen').addEventListener('click', (event) => {
     const go = event.target.closest('[data-go]');
     if (go) {
       if (go.dataset.go === 'scheme') schemeDraft = null;
-      screen = go.dataset.go;
-      render();
+      showScreen(go.dataset.go);
       return;
     }
     const accent = event.target.closest('[data-accent]');
