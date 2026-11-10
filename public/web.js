@@ -1,5 +1,5 @@
-import { ensureTelegramSession } from './auth.js?v=28';
-import { childHistoryView } from './history.js?v=28';
+import { ensureTelegramSession } from './auth.js?v=30';
+import { childHistoryView } from './history.js?v=30';
 
 const $ = (id) => document.getElementById(id);
 
@@ -154,6 +154,10 @@ function dateKey(offset, timeZone = 'Europe/Berlin') {
   }).format(now);
 }
 
+function statusLegend() {
+  return `<p class="legend"><span>Синяя — подтверждено.</span><span>Пустая — нет отметки.</span><span>Светлая — ещё не время.</span></p>`;
+}
+
 function weekdayLabel(key) {
   const [year, month, day] = key.split('-').map(Number);
   return new Intl.DateTimeFormat('ru-RU', { weekday: 'short', timeZone: 'UTC' })
@@ -161,14 +165,15 @@ function weekdayLabel(key) {
     .replace('.', '');
 }
 
+function mondayIndex(key) {
+  const [year, month, day] = key.split('-').map(Number);
+  const weekday = new Date(Date.UTC(year, month - 1, day, 12)).getUTCDay();
+  return (weekday + 6) % 7;
+}
+
 function dotClass(slot) {
   if (!slot?.expected) return 'wait';
   return slot.taken ? 'done' : 'open';
-}
-
-function slotPhrase(slot) {
-  if (!slot?.expected) return 'ещё не время';
-  return slot.taken ? 'подтверждено' : 'нет отметки';
 }
 
 function planItems() {
@@ -316,7 +321,7 @@ function weekBlock() {
       <div class="week-head"><span></span>${head}</div>
       ${lanes.map(lane).join('')}
     </div>
-    <p class="legend"><span>Синяя — подтверждено.</span><span>Пустая — нет отметки.</span><span>Светлая — ещё не время.</span></p>`;
+    ${statusLegend()}`;
 }
 
 function historyBlock(items, expanded, emptyText) {
@@ -454,6 +459,12 @@ function monthScreen() {
     { slot: 'evening', label: '20:00' },
   ];
   const today = state?.today;
+  const pad = mondayIndex(stats.days[0].localDate);
+  const blanks = Array.from({ length: pad }, () => '<div class="cell is-empty"></div>').join('');
+  const head = Array.from({ length: 7 }, (_, index) => {
+    const day = String(index + 1).padStart(2, '0');
+    return `<div class="cell head"><span>${escapeHtml(weekdayLabel(`2024-01-${day}`))}</span></div>`;
+  }).join('');
   const cells = stats.days.map((day) => {
     const dots = plan.slice(0, 3).map((item) => `<i class="dot ${dotClass(day.slots?.[item.slot])}"></i>`).join('');
     return `<div class="cell${day.localDate === today ? ' is-today' : ''}" title="${escapeHtml(day.localDate)}">
@@ -464,17 +475,17 @@ function monthScreen() {
   const days = [...stats.days].reverse();
   const view = childHistoryView(days, monthExpanded);
   const rows = view.visible.map((day) => `
-    <div class="hist stacked">
+    <div class="hist">
       <span>${escapeHtml(day.localDate.slice(8))}.${escapeHtml(day.localDate.slice(5, 7))}</span>
-      ${plan.map((item) => `<span>${escapeHtml(item.label)} — ${slotPhrase(day.slots?.[item.slot])}</span>`).join('')}
+      <span class="marks">${plan.map((item) => `<b>${escapeHtml(item.label)} <i class="dot ${dotClass(day.slots?.[item.slot])}"></i></b>`).join('')}</span>
     </div>`).join('');
   const toggle = view.canToggle
     ? `<button class="texty" id="historyToggle" type="button">${escapeHtml(view.buttonLabel)}</button>`
     : '';
   return `<p class="sentence">${escapeHtml(sentence)}</p>
     <p class="split">Полных дней подряд: ${escapeHtml(stats.currentStreak)}.</p>
-    <div class="month">${cells}</div>
-    <p class="legend"><span>Синяя — подтверждено.</span><span>Пустая — нет отметки.</span><span>Светлая — ещё не время.</span></p>
+    <div class="month">${head}${blanks}${cells}</div>
+    ${statusLegend()}
     <h2 class="block-title">По дням</h2>
     <p class="help">${escapeHtml(view.metaLabel)}</p>
     ${rows}${toggle}`;
