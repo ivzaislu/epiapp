@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.EpiApp" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorPrimary">#315bd6</item>
+        <item name="colorPrimaryDark">#2749ad</item>
+        <item name="android:statusBarColor">#f7f8fb</item>
+        <item name="android:navigationBarColor">#f7f8fb</item>
+        <item name="android:windowBackground">#f7f8fb</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

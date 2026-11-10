@@ -1,5 +1,5 @@
-import { ensureTelegramSession } from './auth.js?v=31';
-import { childHistoryView } from './history.js?v=31';
+import { ensureTelegramSession } from './auth.js?v=32';
+import { childHistoryView } from './history.js?v=32';
 
 const $ = (id) => document.getElementById(id);
 
@@ -701,6 +701,28 @@ async function sendTest() {
   }
 }
 
+function publishNativeSchedule() {
+  const native = window.EpiAppNative;
+  if (!native?.syncSchedule || !state?.settings) return;
+  const plan = planItems().map((item) => ({
+    slot: item.slot,
+    time: item.time,
+    dose: item.dose || '',
+    medicationName: item.medicationName || '',
+    taken: Boolean(state.todayDoses?.[item.slot]),
+  }));
+  native.syncSchedule(JSON.stringify({
+    timezone: state.settings.timezone || 'Europe/Berlin',
+    remindersEnabled: state.settings.remindersEnabled !== false,
+    reminderFirstMinutes: state.settings.reminderFirstMinutes ?? 15,
+    reminderUrgentMinutes: state.settings.reminderUrgentMinutes ?? 30,
+    reminderRepeatMinutes: state.settings.reminderRepeatMinutes ?? 15,
+    reminderStopMinutes: state.settings.reminderStopMinutes ?? 60,
+    childName: state.settings.childName || '',
+    plan,
+  }));
+}
+
 async function refresh() {
   if (mode === 'child') {
     state = await api('/api/state');
@@ -718,6 +740,7 @@ async function refresh() {
     settings = pack.settings;
   }
   render();
+  publishNativeSchedule();
 }
 
 function demoStats(count) {
