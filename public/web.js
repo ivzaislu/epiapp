@@ -1,5 +1,5 @@
-import { ensureTelegramSession } from './auth.js?v=26';
-import { childHistoryView } from './history.js?v=26';
+import { ensureTelegramSession } from './auth.js?v=27';
+import { childHistoryView } from './history.js?v=27';
 
 const $ = (id) => document.getElementById(id);
 
@@ -187,8 +187,9 @@ function labelForSlot(slot) {
 function paintChrome() {
   const zone = state?.settings?.timezone || settings?.timezone || 'Europe/Berlin';
   const name = state?.settings?.childName || settings?.childName || 'EpiApp';
-  $('back').hidden = screen === 'today';
-  $('gear').hidden = screen !== 'today';
+  const home = screen === 'today';
+  $('gear').classList.toggle('is-back', !home);
+  $('gear').setAttribute('aria-label', home ? 'Настройки' : 'Назад');
   if (screen === 'settings') {
     $('kicker').textContent = mode === 'child' ? 'Ребёнок' : 'Родитель';
     $('title').textContent = 'Настройки';
@@ -769,12 +770,9 @@ export function boot() {
   const demoName = params.get('demo');
   demo = demoName === '1' || demoName === 'child' || demoName === 'parent';
   paintTelegram();
-  $('back').addEventListener('click', () => {
-    screen = 'today';
-    render();
-  });
   $('gear').addEventListener('click', () => {
-    screen = 'settings';
+    if (screen !== 'today') schemeDraft = null;
+    screen = screen === 'today' ? 'settings' : 'today';
     render();
   });
   $('screen').addEventListener('click', (event) => {
