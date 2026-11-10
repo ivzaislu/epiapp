@@ -354,6 +354,10 @@ h2 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -0.01em; }
 
 .day.is-today b { color: var(--blue); }
 
+.weeks .week + .week { margin-top: 12px; }
+
+.dot.is-empty { visibility: hidden; }
+
 .lane { min-height: 22px; }
 
 .lane-name { color: var(--muted); font-size: 12px; }
@@ -547,19 +551,6 @@ h2 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -0.01em; }
   font-variant-numeric: tabular-nums;
 }
 
-.hist.stacked { display: block; padding: 12px 0; }
-
-.hist.stacked span,
-.hist.stacked span:last-child {
-  display: block;
-  text-align: left;
-  font-weight: 400;
-}
-
-.hist.stacked span:first-child { font-weight: 650; }
-
-.hist.stacked span + span { margin-top: 2px; color: var(--muted); }
-
 .texty {
   display: block;
   margin: 0 0 10px;
@@ -649,41 +640,6 @@ fieldset:disabled { opacity: 0.55; }
   margin-top: 1px;
   accent-color: var(--blue);
 }
-
-.month {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 2px;
-  margin-top: 6px;
-}
-
-.cell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  padding: 2px 0 3px;
-  border-radius: 8px;
-  color: var(--muted);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.cell.head { padding-bottom: 0; font-size: 11px; }
-
-.cell.is-empty { visibility: hidden; }
-
-.cell.is-today { background: var(--today); color: var(--ink); }
-
-.hist span.marks {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  color: var(--ink);
-  font-weight: 650;
-}
-
-.marks .dot { margin-left: 3px; }
 
 .sheet {
   position: fixed;

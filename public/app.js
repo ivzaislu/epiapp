@@ -1,3 +1,3 @@
-import { boot } from './web.js?v=30';
+import { boot } from './web.js?v=31';
 
 boot();

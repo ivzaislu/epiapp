@@ -1,5 +1,5 @@
-import { ensureTelegramSession } from './auth.js?v=30';
-import { childHistoryView } from './history.js?v=30';
+import { ensureTelegramSession } from './auth.js?v=31';
+import { childHistoryView } from './history.js?v=31';
 
 const $ = (id) => document.getElementById(id);
 
@@ -84,7 +84,6 @@ let settingsPack = null;
 let stats7 = null;
 let stats30 = null;
 let historyExpanded = false;
-let monthExpanded = false;
 let pendingSlot = null;
 let demo = false;
 let saving = false;
@@ -297,30 +296,50 @@ function doseRows(canTake) {
   }).join('');
 }
 
+function fallbackPlan(stats) {
+  return stats?.plan?.length ? stats.plan : [
+    { slot: 'morning', label: '08:00' },
+    { slot: 'evening', label: '20:00' },
+  ];
+}
+
+function marksBoard(days, plan) {
+  const today = state?.today;
+  const head = days.map((day) => {
+    if (!day) return '<div class="day"></div>';
+    const mark = day.localDate === today ? ' is-today' : '';
+    return `<div class="day${mark}"><span>${escapeHtml(weekdayLabel(day.localDate))}</span><b>${Number(day.localDate.slice(8))}</b></div>`;
+  }).join('');
+  const lane = (item) => `<div class="lane"><span class="lane-name">${escapeHtml(item.lane || item.label)}</span>${days.map((day) => {
+    if (!day) return '<i class="dot is-empty"></i>';
+    return `<i class="dot ${dotClass(day.slots?.[item.slot])}" title="${escapeHtml(item.label)}, ${escapeHtml(day.localDate)}"></i>`;
+  }).join('')}</div>`;
+  return `<div class="week" style="--days:${days.length}">
+      <div class="week-head"><span></span>${head}</div>
+      ${plan.map(lane).join('')}
+    </div>`;
+}
+
+function weeksOf(days) {
+  if (!days.length) return [];
+  const slots = [...Array(mondayIndex(days[0].localDate)).fill(null), ...days];
+  const weeks = [];
+  for (let index = 0; index < slots.length; index += 7) {
+    const week = slots.slice(index, index + 7);
+    while (week.length < 7) week.push(null);
+    weeks.push(week);
+  }
+  return weeks;
+}
+
 function weekBlock() {
   const days = stats7?.days || [];
   if (!days.length) return '<p class="sentence">За 7 дней отметок ещё нет.</p>';
   const sentence = stats7.expected
     ? `За 7 дней отмечено ${stats7.taken} из ${stats7.expected}.`
     : 'За эту неделю время приёма ещё не наступило.';
-  const today = state?.today;
-  const head = days.map((day) => {
-    const mark = day.localDate === today ? ' is-today' : '';
-    return `<div class="day${mark}"><span>${escapeHtml(weekdayLabel(day.localDate))}</span><b>${Number(day.localDate.slice(8))}</b></div>`;
-  }).join('');
-  const lanes = stats7.plan?.length ? stats7.plan : [
-    { slot: 'morning', label: '08:00' },
-    { slot: 'evening', label: '20:00' },
-  ];
-  const lane = (item) => `<div class="lane"><span class="lane-name">${escapeHtml(item.lane || item.label)}</span>${days.map((day) => {
-    const mark = day.localDate === today ? ' is-today' : '';
-    return `<i class="dot ${dotClass(day.slots?.[item.slot])}${mark}" title="${escapeHtml(item.label)}, ${escapeHtml(day.localDate)}"></i>`;
-  }).join('')}</div>`;
   return `<p class="sentence">${escapeHtml(sentence)}</p>
-    <div class="week" style="--days:${days.length}">
-      <div class="week-head"><span></span>${head}</div>
-      ${lanes.map(lane).join('')}
-    </div>
+    ${marksBoard(days, fallbackPlan(stats7))}
     ${statusLegend()}`;
 }
 
@@ -454,41 +473,12 @@ function monthScreen() {
   const sentence = stats.expected
     ? `За 30 дней отмечено ${stats.taken} из ${stats.expected}.`
     : 'За 30 дней время приёма ещё не наступило.';
-  const plan = stats.plan?.length ? stats.plan : [
-    { slot: 'morning', label: '08:00' },
-    { slot: 'evening', label: '20:00' },
-  ];
-  const today = state?.today;
-  const pad = mondayIndex(stats.days[0].localDate);
-  const blanks = Array.from({ length: pad }, () => '<div class="cell is-empty"></div>').join('');
-  const head = Array.from({ length: 7 }, (_, index) => {
-    const day = String(index + 1).padStart(2, '0');
-    return `<div class="cell head"><span>${escapeHtml(weekdayLabel(`2024-01-${day}`))}</span></div>`;
-  }).join('');
-  const cells = stats.days.map((day) => {
-    const dots = plan.slice(0, 3).map((item) => `<i class="dot ${dotClass(day.slots?.[item.slot])}"></i>`).join('');
-    return `<div class="cell${day.localDate === today ? ' is-today' : ''}" title="${escapeHtml(day.localDate)}">
-      <span>${Number(day.localDate.slice(8))}</span>
-      ${dots}
-    </div>`;
-  }).join('');
-  const days = [...stats.days].reverse();
-  const view = childHistoryView(days, monthExpanded);
-  const rows = view.visible.map((day) => `
-    <div class="hist">
-      <span>${escapeHtml(day.localDate.slice(8))}.${escapeHtml(day.localDate.slice(5, 7))}</span>
-      <span class="marks">${plan.map((item) => `<b>${escapeHtml(item.label)} <i class="dot ${dotClass(day.slots?.[item.slot])}"></i></b>`).join('')}</span>
-    </div>`).join('');
-  const toggle = view.canToggle
-    ? `<button class="texty" id="historyToggle" type="button">${escapeHtml(view.buttonLabel)}</button>`
-    : '';
+  const plan = fallbackPlan(stats);
+  const boards = weeksOf(stats.days).map((week) => marksBoard(week, plan)).join('');
   return `<p class="sentence">${escapeHtml(sentence)}</p>
     <p class="split">Полных дней подряд: ${escapeHtml(stats.currentStreak)}.</p>
-    <div class="month">${head}${blanks}${cells}</div>
-    ${statusLegend()}
-    <h2 class="block-title">По дням</h2>
-    <p class="help">${escapeHtml(view.metaLabel)}</p>
-    ${rows}${toggle}`;
+    <div class="weeks">${boards}</div>
+    ${statusLegend()}`;
 }
 
 function telegramScreen() {
@@ -876,8 +866,7 @@ export function boot() {
       }
     }
     if (event.target.id === 'historyToggle') {
-      if (screen === 'month') monthExpanded = !monthExpanded;
-      else historyExpanded = !historyExpanded;
+      historyExpanded = !historyExpanded;
       render();
     }
     if (event.target.id === 'testTelegram') sendTest();
