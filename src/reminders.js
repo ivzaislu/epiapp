@@ -1,5 +1,5 @@
 import { dateKey } from './store.js';
-import { sendTelegramMessage } from './telegram.js';
+import { buildDoseMessage, sendTelegramMessage } from './telegram.js';
 import { schedulePlan } from './validation.js';
 
 function minutesFromTime(value) {
@@ -72,6 +72,47 @@ function appButton(url, text = '📱 Открыть EpiApp') {
   return { inline_keyboard: [[{ text, web_app: { url } }]] };
 }
 
+export function parentNotificationFeed(state, { now = new Date(), since = null } = {}) {
+  const settings = state.settings;
+  const cutoff = Math.max(now.getTime() - 24 * 3600_000, since?.getTime() ?? 0);
+  const notifications = state.doses
+    .filter((dose) => Date.parse(dose.takenAt) >= cutoff && Date.parse(dose.takenAt) <= now.getTime())
+    .map((dose) => ({
+      id: `taken:${dose.id}`,
+      tag: `taken:${dose.id}`,
+      type: 'taken',
+      at: dose.takenAt,
+      title: 'Приём подтверждён',
+      body: buildDoseMessage({
+        childName: settings.childName, slot: dose.slot, takenAt: dose.takenAt, timeZone: settings.timezone,
+      }),
+    }));
+  const activeReminderTags = [];
+  const today = dateKey(now, settings.timezone);
+  const nowMinutes = localMinutes(now, settings.timezone);
+  const recorded = new Set(state.doses.map((dose) => `${dose.localDate}:${dose.slot}`));
+  for (const localDate of [today, previousDateKey(today)]) {
+    for (const item of schedulePlan(settings)) {
+      if (recorded.has(`${localDate}:${item.slot}`)) continue;
+      const stage = reminderStage(settings, lateMinutesForDate({
+        targetDate: localDate, today, nowMinutes, scheduledMinutes: minutesFromTime(item.time),
+      }));
+      if (!stage) continue;
+      const tag = `reminder:${localDate}:${item.slot}`;
+      activeReminderTags.push(tag);
+      const at = new Date(Math.floor(now.getTime() / 60_000) * 60_000 - (stage.lateMinutes - stage.minute) * 60_000);
+      if (at.getTime() < cutoff) continue;
+      notifications.push({
+        id: `${tag}:${stage.key}`, tag, type: 'reminder', at: at.toISOString(),
+        title: stage.urgent ? 'Долго нет отметки' : 'Пока нет отметки',
+        body: buildReminderText({ recipientRole: 'parent', childName: settings.childName, slot: item.slot, time: item.time, stage }),
+      });
+    }
+  }
+  notifications.sort((left, right) => left.at.localeCompare(right.at));
+  return { notifications: notifications.slice(-50), activeReminderTags, checkedAt: now.toISOString() };
+}
+
 export async function runReminderCheck({
   store,
   token,
@@ -84,7 +125,7 @@ export async function runReminderCheck({
   if (!token || !/^\d{1,20}$/.test(String(adminId || ''))) return { sent: 0, failed: 0 };
   const state = await store.read();
   const settings = state.settings;
-  if (!settings.remindersEnabled) return { sent: 0, failed: 0 };
+  if (!settings.remindersEnabled || settings.telegramRemindersEnabled === false) return { sent: 0, failed: 0 };
 
   const today = dateKey(now, settings.timezone);
   const candidates = [today, previousDateKey(today)];

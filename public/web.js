@@ -83,6 +83,7 @@ let settings = null;
 let settingsPack = null;
 let stats7 = null;
 let stats30 = null;
+let parentAlerts = [];
 let monthThrough = '';
 let historyExpanded = false;
 let pendingSlot = null;
@@ -253,6 +254,7 @@ function paintChrome() {
     reminders: ['Напоминания', name, '', false],
     month: ['30 дней', name, '', false],
     telegram: ['Семья', name, '', false],
+    notifications: ['Оповещения', name, '', false],
   };
   const [kicker, title, sub, isDate] = titles[screen] || titles.today;
   setKicker(kicker, isDate);
@@ -455,9 +457,10 @@ function remindersScreen() {
     name, label, value, `inputmode="numeric" type="number" min="${min}" max="${max}" step="1"`,
   );
   return `<form data-form="reminders" class="form">
-    <label class="toggle"><input name="remindersEnabled" type="checkbox"${on ? ' checked' : ''}><span>Писать в Telegram, пока отметки нет</span></label>
+    <label class="toggle"><input name="remindersEnabled" type="checkbox"${on ? ' checked' : ''}><span>Напоминать, пока отметки нет</span></label>
     <fieldset id="reminderFields"${on ? '' : ' disabled'}>
-      <legend>Когда писать</legend>
+      <legend>Когда напоминать</legend>
+      <label class="toggle"><input name="telegramRemindersEnabled" type="checkbox"${settings.telegramRemindersEnabled !== false ? ' checked' : ''}><span>Отправлять напоминания в Telegram</span></label>
       ${number('reminderFirstMinutes', 'Первое напоминание, минуты', settings.reminderFirstMinutes ?? 15, 5, 60)}
       ${number('reminderUrgentMinutes', 'Срочное, минуты', settings.reminderUrgentMinutes ?? 30, 10, 120)}
       ${number('reminderRepeatMinutes', 'Повторять каждые, минуты', settings.reminderRepeatMinutes ?? 15, 5, 60)}
@@ -465,7 +468,34 @@ function remindersScreen() {
       <p class="help">Обычно: через 15 минут, срочное через 30, затем каждые 15 минут до часа. Беззвучный режим это не обходит.</p>
     </fieldset>
     <button class="primary" type="submit">Сохранить напоминания</button>
-  </form>`;
+  </form>${parentAppControls()}`;
+}
+
+function parentAppControls() {
+  const native = window.EpiAppNative;
+  if (!native?.parentNotificationStatus) {
+    return '<section class="block"><h2 class="block-title">Оповещения в приложении</h2><p class="help">Откройте кабинет в Android-приложении EpiApp 0.7.4 или новее, чтобы получать оповещения на телефоне.</p></section>';
+  }
+  let status;
+  try { status = JSON.parse(native.parentNotificationStatus()); } catch { return ''; }
+  return `<section class="block" data-parent-controls>
+    <h2 class="block-title">Оповещения на этом телефоне</h2>
+    <label class="toggle"><input type="checkbox" data-parent-alerts${status.enabled ? ' checked' : ''}><span>Получать оповещения для родителя</span></label>
+    <p class="help">Подтверждения ребёнка и сообщения об отсутствии отметки. В фоне проверяем примерно раз в 15 минут. Android может задерживать проверку.</p>
+    <p class="help">${status.permission ? 'Уведомления Android разрешены.' : 'Уведомления Android выключены. Разрешите их в настройках телефона.'}</p>
+    ${status.lastCheck ? `<p class="help">Последняя проверка: ${escapeHtml(formatTakenAt(status.lastCheck, settings.timezone))}</p>` : ''}
+    <button type="button" class="quiet" data-parent-test${status.enabled && status.permission ? '' : ' disabled'}>Проверить оповещение</button>
+    <button type="button" class="texty" data-notification-settings>Настройки уведомлений Android</button>
+  </section>`;
+}
+
+function notificationsScreen() {
+  const rows = [...parentAlerts].reverse().map((item) => `<article class="block">
+    <h2 class="block-title">${escapeHtml(item.title)}</h2>
+    <p class="sentence">${escapeHtml(item.body)}</p>
+    <p class="help">${escapeHtml(formatTakenAt(item.at, state.settings.timezone))}</p>
+  </article>`).join('');
+  return `<p class="help">Подтверждения за последние сутки и текущие напоминания.</p>${rows || '<p class="sentence">Новых оповещений пока нет.</p>'}${parentAppControls()}`;
 }
 
 function monthScreen() {
@@ -552,6 +582,7 @@ function parentToday() {
     <nav class="menu tiles">
       <button type="button" data-go="scheme"><span>Схема</span><small>препарат и приёмы</small></button>
       <button type="button" data-go="reminders"><span>Напоминания</span><small>если отметки нет</small></button>
+      <button type="button" data-go="notifications"><span>Оповещения</span><small>сообщения для родителя</small></button>
       <button type="button" data-go="month"><span>30 дней</span><small>точки за месяц</small></button>
       <button type="button" data-go="telegram"><span>Семья</span><small>второй родитель</small></button>
     </nav>`;
@@ -594,6 +625,7 @@ function render() {
   else if (screen === 'reminders') root.innerHTML = remindersScreen();
   else if (screen === 'month') root.innerHTML = monthScreen();
   else if (screen === 'telegram') root.innerHTML = telegramScreen();
+  else if (screen === 'notifications') root.innerHTML = notificationsScreen();
   else root.innerHTML = parentToday();
 }
 
@@ -623,6 +655,7 @@ function collect(form) {
     childName: readField(form, 'childName', settings.childName),
     timezone: readField(form, 'timezone', settings.timezone),
     remindersEnabled: reminders ? readField(form, 'remindersEnabled', false) : settings.remindersEnabled !== false,
+    telegramRemindersEnabled: reminders ? readField(form, 'telegramRemindersEnabled', false) : settings.telegramRemindersEnabled !== false,
     reminderFirstMinutes: Number(readField(form, 'reminderFirstMinutes', settings.reminderFirstMinutes ?? 15)),
     reminderUrgentMinutes: Number(readField(form, 'reminderUrgentMinutes', settings.reminderUrgentMinutes ?? 30)),
     reminderRepeatMinutes: Number(readField(form, 'reminderRepeatMinutes', settings.reminderRepeatMinutes ?? 15)),
@@ -810,20 +843,23 @@ async function refresh() {
   if (mode === 'child') {
     state = await api('/api/state');
   } else {
-    const [today, week, month, pack] = await Promise.all([
+    const [today, week, month, pack, alerts] = await Promise.all([
       api('/api/state'),
       api('/api/parent/stats?days=7'),
       api(monthPath(monthThrough)),
       api('/api/parent/settings'),
+      api('/api/parent/notifications'),
     ]);
     state = today;
     stats7 = week.stats;
     stats30 = month.stats;
     settingsPack = pack;
     settings = pack.settings;
+    parentAlerts = alerts.notifications;
   }
   render();
   publishNativeSchedule();
+  if (mode === 'parent') window.EpiAppNative?.checkParentNotifications?.();
 }
 
 function demoStats(count) {
@@ -913,6 +949,10 @@ function paintTelegram() {
 }
 
 export function boot() {
+  window.epiappParentNotificationsChanged = () => {
+    const controls = $('screen').querySelector('[data-parent-controls]');
+    if (controls) controls.outerHTML = parentAppControls();
+  };
   const params = new URLSearchParams(location.search);
   const demoName = params.get('demo');
   demo = demoName === '1' || demoName === 'child' || demoName === 'parent';
@@ -929,6 +969,15 @@ export function boot() {
     showScreen(screen === 'today' ? 'settings' : 'today');
   });
   $('screen').addEventListener('click', (event) => {
+    if (event.target.closest('[data-parent-test]')) {
+      const sent = window.EpiAppNative?.testParentNotification?.();
+      toast(sent ? 'Тестовое оповещение отправлено на этот телефон.' : 'Разрешите оповещения в настройках телефона.', !sent);
+      return;
+    }
+    if (event.target.closest('[data-notification-settings]')) {
+      window.EpiAppNative?.openNotificationSettings?.();
+      return;
+    }
     const go = event.target.closest('[data-go]');
     if (go) {
       if (go.dataset.go === 'scheme') schemeDraft = null;
@@ -978,6 +1027,11 @@ export function boot() {
     if (event.target.id === 'testTelegram') sendTest();
   });
   $('screen').addEventListener('change', (event) => {
+    if (event.target.hasAttribute('data-parent-alerts')) {
+      window.EpiAppNative?.setParentNotificationsEnabled?.(event.target.checked);
+      toast(event.target.checked ? 'Оповещения на этом телефоне включены.' : 'Оповещения на этом телефоне выключены.');
+      return;
+    }
     const pref = event.target.dataset.pref;
     if (pref) {
       savePrefs({ [pref]: event.target.checked });
@@ -1013,7 +1067,7 @@ export function boot() {
     applyDemo();
     showApp();
     const requested = params.get('screen');
-    if (mode === 'parent' && ['scheme', 'reminders', 'month', 'telegram'].includes(requested)) {
+    if (mode === 'parent' && ['scheme', 'reminders', 'month', 'telegram', 'notifications'].includes(requested)) {
       screen = requested;
     }
     render();
@@ -1037,7 +1091,8 @@ export function boot() {
       throw error;
     }
     setInterval(() => {
-      if (screen === 'today' && $('sheet').hidden) refresh().catch(() => undefined);
+      if (['today', 'notifications', 'reminders'].includes(screen) && $('sheet').hidden
+        && !$('screen').querySelector('form')) refresh().catch(() => undefined);
     }, 30000);
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js?v=11').catch(() => undefined);
   }).catch((error) => {

@@ -172,6 +172,36 @@ test('only the admin can merge a legacy backup and its marks appear in an older 
   }
 });
 
+test('notification feed is available to parent sessions and parent devices only', async () => {
+  const store = await tempStore();
+  for (const [role, id] of [['parent', '333333333'], ['child', '222222222']]) {
+    const invite = await store.createInvite(role, ADMIN_ID);
+    await store.acceptInvite(invite.token, { id, firstName: 'Fixture' });
+  }
+  await store.takeDose('morning');
+  const server = createServer({ store, botToken: BOT_TOKEN, adminId: ADMIN_ID });
+  const port = await listen(server);
+  const origin = `http://127.0.0.1:${port}`;
+  try {
+    const endpoint = origin + '/api/parent/notifications';
+    assert.equal((await fetch(endpoint)).status, 401);
+    const child = await authenticate(origin, '222222222');
+    assert.equal((await fetch(endpoint, { headers: { cookie: child } })).status, 403);
+    const parent = await authenticate(origin, '333333333');
+    const feed = await (await fetch(endpoint, { headers: { cookie: parent } })).json();
+    assert.equal(feed.notifications.filter((item) => item.type === 'taken').length, 1);
+    assert.equal((await fetch(endpoint + '?since=invalid', { headers: { cookie: parent } })).status, 400);
+    const code = await store.createDevicePairCode('333333333');
+    const device = await store.pairDevice(code.code, { deviceName: 'Parent fixture' });
+    const headers = { authorization: `Bearer ${device.deviceToken}` };
+    assert.equal((await fetch(endpoint, { headers })).status, 200);
+    await store.revokeAccessUser('333333333');
+    assert.equal((await fetch(endpoint, { headers })).status, 401);
+  } finally {
+    await close(server);
+  }
+});
+
 test('invited parent can manage medication settings and read statistics', async () => {
   const store = await tempStore();
   const invite = await store.createInvite('parent', ADMIN_ID);

@@ -45,7 +45,7 @@ jobs:
           sdkmanager 'platforms;android-35' 'build-tools;34.0.0' 'platform-tools'
 
       - name: Build debug APK
-        run: gradle --no-daemon -p android :app:assembleDebug
+        run: gradle --no-daemon --max-workers=2 -p android :app:testDebugUnitTest :app:assembleDebug
 
       - name: Verify and package APK
         run: |
@@ -73,7 +73,7 @@ jobs:
 
           Коммит ${GITHUB_SHA}.
 
-          Исправлены текст Telegram-уведомления и полноэкранный показ обычного напоминания «Нет отметки».
+          Добавлены оповещения в родительском кабинете и Android-приложении. Настройки Telegram и оповещений на телефоне разделены. В фоне приложение проверяет сервер примерно раз в 15 минут, Android может задерживать проверку.
 
           APK подписан тестовым ключом GitHub Actions. При несовпадении подписи с установленным APK потребуется переустановка и повторное подключение через Telegram. Ключ debug-сборки может меняться между запусками CI.
 

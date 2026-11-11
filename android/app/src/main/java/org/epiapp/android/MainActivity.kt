@@ -32,6 +32,7 @@ import java.net.URL
 
 class MainActivity : AppCompatActivity() {
     private val prefs by lazy { getSharedPreferences("epiapp", MODE_PRIVATE) }
+    private var cabinet: WebView? = null
     private var pendingFile: ValueCallback<Array<Uri>>? = null
     private val filePicker = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val callback = pendingFile
@@ -49,6 +50,21 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleConnect(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshNotificationControls()
+    }
+
+    private fun refreshNotificationControls() {
+        cabinet?.evaluateJavascript("window.epiappParentNotificationsChanged?.()", null)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        refreshNotificationControls()
+        ParentNotifications.checkNow(this)
     }
 
     private fun askNotifications() {
@@ -101,7 +117,7 @@ class MainActivity : AppCompatActivity() {
         val deviceToken = JSONObject(response.body).optString("deviceToken")
         if (deviceToken.isBlank()) throw IllegalStateException("Сервер не выдал ключ устройства.")
         storeCookie(origin, response.cookie)
-        prefs.edit().putString("origin", origin).putString("deviceToken", deviceToken).apply()
+        ParentNotifications.configure(this, origin, deviceToken, JSONObject(response.body).getJSONObject("user"))
     }
 
     private fun restoreSession(origin: String, token: String) {
@@ -111,6 +127,7 @@ class MainActivity : AppCompatActivity() {
             "Bearer $token",
         )
         storeCookie(origin, response.cookie)
+        ParentNotifications.configure(this, origin, token, JSONObject(response.body).getJSONObject("user"))
     }
 
     private fun post(url: String, json: String, authorization: String? = null): HttpResult {
@@ -173,6 +190,11 @@ class MainActivity : AppCompatActivity() {
                     input.error = "Нужен адрес https"
                     return@setOnClickListener
                 }
+                if (prefs.getString("origin", "") != origin) {
+                    ParentNotifications.revoke(this@MainActivity, prefs.getString("deviceToken", "").orEmpty())
+                    prefs.edit().remove("deviceToken").apply()
+                    AlarmScheduler.saveAndSchedule(this@MainActivity, """{"plan":[],"remindersEnabled":false}""")
+                }
                 prefs.edit().putString("origin", origin).apply()
                 showCabinet(origin)
             }
@@ -183,6 +205,7 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     private fun showCabinet(origin: String) {
         val web = WebView(this)
+        cabinet = web
         CookieManager.getInstance().setAcceptCookie(true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, true)
         web.settings.javaScriptEnabled = true
@@ -217,7 +240,7 @@ class MainActivity : AppCompatActivity() {
         })
         setContentView(web)
         web.loadUrl(origin)
-        askExactAlarms()
+        if (prefs.getString("accountRole", "") == "child") askExactAlarms()
     }
 
     private fun askExactAlarms() {
@@ -240,7 +263,39 @@ class MainActivity : AppCompatActivity() {
     private inner class Bridge {
         @JavascriptInterface
         fun syncSchedule(json: String) {
-            runOnUiThread { AlarmScheduler.saveAndSchedule(this@MainActivity, json) }
+            runOnUiThread {
+                val schedule = JSONObject(json)
+                if (prefs.getString("accountRole", "") != "child") schedule.put("plan", org.json.JSONArray())
+                AlarmScheduler.saveAndSchedule(this@MainActivity, schedule.toString())
+            }
+        }
+
+        @JavascriptInterface
+        fun parentNotificationStatus(): String = ParentNotifications.status(this@MainActivity)
+
+        @JavascriptInterface
+        fun setParentNotificationsEnabled(enabled: Boolean) {
+            runOnUiThread {
+                ParentNotifications.setEnabled(this@MainActivity, enabled)
+                if (enabled) askNotifications()
+                refreshNotificationControls()
+            }
+        }
+
+        @JavascriptInterface
+        fun checkParentNotifications() {
+            ParentNotifications.checkNow(this@MainActivity)
+        }
+
+        @JavascriptInterface
+        fun testParentNotification(): Boolean = ParentNotifications.sendTest(this@MainActivity)
+
+        @JavascriptInterface
+        fun openNotificationSettings() {
+            runOnUiThread {
+                startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
+            }
         }
     }
 

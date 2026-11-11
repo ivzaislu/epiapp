@@ -27,6 +27,7 @@ test('sanitizeSettings accepts a normal family configuration', () => {
     morningDose: '1 таблетка',
     eveningDose: '1/2 таблетки',
     remindersEnabled: true,
+    telegramRemindersEnabled: true,
     reminderFirstMinutes: 15,
     reminderUrgentMinutes: 30,
     reminderRepeatMinutes: 15,

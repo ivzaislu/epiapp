@@ -244,6 +244,7 @@ export function sanitizeSettings(input, current = {}) {
     timezone: assertTimezone(input.timezone ?? current.timezone ?? 'Europe/Berlin'),
     medications,
     remindersEnabled: sanitizeBoolean(input.remindersEnabled, current.remindersEnabled ?? true),
+    telegramRemindersEnabled: sanitizeBoolean(input.telegramRemindersEnabled, current.telegramRemindersEnabled ?? true),
     reminderFirstMinutes,
     reminderUrgentMinutes,
     reminderRepeatMinutes,

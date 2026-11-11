@@ -11,7 +11,7 @@ import {
   validateTelegramInitData,
   verifySessionToken,
 } from './src/auth.js';
-import { startReminderScheduler } from './src/reminders.js';
+import { parentNotificationFeed, startReminderScheduler } from './src/reminders.js';
 import { Store, familyParents } from './src/store.js';
 import { PostgresStore } from './src/postgres-store.js';
 import { notifyDose, sendTelegramMessage, startTelegramBot } from './src/telegram.js';
@@ -187,6 +187,7 @@ function publicSettings(settings) {
     morningDose: settings.morningDose,
     eveningDose: settings.eveningDose,
     remindersEnabled: settings.remindersEnabled,
+    telegramRemindersEnabled: settings.telegramRemindersEnabled,
     reminderFirstMinutes: settings.reminderFirstMinutes,
     reminderUrgentMinutes: settings.reminderUrgentMinutes,
     reminderRepeatMinutes: settings.reminderRepeatMinutes,
@@ -418,6 +419,7 @@ location.replace(target);
           morningDose: input.morningDose,
           eveningDose: input.eveningDose,
           remindersEnabled: input.remindersEnabled,
+          telegramRemindersEnabled: input.telegramRemindersEnabled,
           reminderFirstMinutes: input.reminderFirstMinutes,
           reminderUrgentMinutes: input.reminderUrgentMinutes,
           reminderRepeatMinutes: input.reminderRepeatMinutes,
@@ -435,6 +437,14 @@ location.replace(target);
         const days = Number(url.searchParams.get('days') || 7);
         const through = url.searchParams.get('through');
         return json(res, 200, { stats: await context.store.statistics(days, undefined, through) });
+      }
+
+      if (req.method === 'GET' && url.pathname === '/api/parent/notifications') {
+        await requireUser(req, context, ['parent', 'admin']);
+        const value = url.searchParams.get('since');
+        const since = value ? new Date(value) : null;
+        if (since && !Number.isFinite(since.getTime())) throw new ValidationError('Некорректное время проверки.');
+        return json(res, 200, parentNotificationFeed(await context.store.read(), { since }));
       }
 
       if (req.method === 'POST' && url.pathname === '/api/parent/stats/import') {

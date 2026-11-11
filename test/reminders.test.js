@@ -3,7 +3,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { buildReminderText, reminderStage, runReminderCheck } from '../src/reminders.js';
+import { buildReminderText, parentNotificationFeed, reminderStage, runReminderCheck } from '../src/reminders.js';
 import { Store } from '../src/store.js';
 
 async function tempStore() {
@@ -26,6 +26,38 @@ test('reminder stages escalate at configured times', () => {
   assert.equal(reminderStage(settings, 46).key, 'urgent-45');
   assert.equal(reminderStage(settings, 61).key, 'urgent-60');
   assert.equal(reminderStage(settings, 76), null);
+});
+
+test('parent app feed works independently of Telegram and clears reminders after confirmation', async () => {
+  const store = await tempStore();
+  await store.updateSettings({
+    timezone: 'UTC', telegramRemindersEnabled: false, medicationName: 'Private medicine', morningDose: 'Private dose',
+  });
+  const now = new Date('2026-11-10T08:31:00.000Z');
+  const state = await store.read();
+  const feed = parentNotificationFeed(state, { now });
+  assert.equal(feed.notifications.length, 1);
+  assert.equal(feed.notifications[0].title, 'Долго нет отметки');
+  assert.equal(feed.notifications[0].at, '2026-11-10T08:30:00.000Z');
+  assert.doesNotMatch(feed.notifications[0].body, /Private/);
+  assert.equal(feed.activeReminderTags.length, 1);
+  assert.equal(parentNotificationFeed(state, { now, since: new Date('2026-11-10T08:30:01Z') }).notifications.length, 0);
+  assert.deepEqual(await runReminderCheck({ store, token: 'fixture', adminId: '111', appUrl: 'https://fixture.example', now }), { sent: 0, failed: 0 });
+  await store.takeDose('morning', now);
+  const confirmed = parentNotificationFeed(await store.read(), { now });
+  assert.equal(confirmed.notifications.length, 1);
+  assert.equal(confirmed.notifications[0].type, 'taken');
+  assert.deepEqual(confirmed.activeReminderTags, []);
+  await store.updateSettings({ remindersEnabled: false });
+  assert.equal(parentNotificationFeed(await store.read(), { now }).notifications[0].type, 'taken');
+});
+
+test('parent app feed carries overdue evening reminders across midnight', async () => {
+  const store = await tempStore();
+  await store.updateSettings({ timezone: 'UTC', eveningTime: '23:50' });
+  const feed = parentNotificationFeed(await store.read(), { now: new Date('2026-11-11T00:21:00Z') });
+  assert.equal(feed.notifications[0].id, 'reminder:2026-11-10:evening:urgent-30');
+  assert.equal(feed.notifications[0].at, '2026-11-11T00:20:00.000Z');
 });
 
 test('reminder text does not expose medication or dose', () => {

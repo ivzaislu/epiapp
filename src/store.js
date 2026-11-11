@@ -248,7 +248,7 @@ export class Store {
       const next = sanitizeSettings(input, previous);
       const fields = [
         'childName', 'morningTime', 'eveningTime', 'timezone', 'medicationName', 'morningDose', 'eveningDose',
-        'remindersEnabled', 'reminderFirstMinutes', 'reminderUrgentMinutes', 'reminderRepeatMinutes', 'reminderStopMinutes',
+        'remindersEnabled', 'telegramRemindersEnabled', 'reminderFirstMinutes', 'reminderUrgentMinutes', 'reminderRepeatMinutes', 'reminderStopMinutes',
         'accent',
       ];
       const changedFields = fields.filter((field) => previous[field] !== next[field]);
