@@ -41,7 +41,9 @@ class AlarmReceiver : BroadcastReceiver() {
             .setCategory(if (doseAlarm) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_REMINDER)
             .setAutoCancel(true)
             .setContentIntent(content)
-            .setFullScreenIntent(content, doseAlarm)
+            .apply {
+                if (doseAlarm) setFullScreenIntent(content, true)
+            }
             .build()
         manager.notify(if (doseAlarm) 1 else 2, notification)
         if (doseAlarm) context.startActivity(open)

@@ -24,6 +24,18 @@ test('notifyDose does not attempt network when Telegram is not configured', asyn
   assert.deepEqual(result, { configured: false, sent: 0, failed: 0, errors: [] });
 });
 
+test('custom intake notifications mention the intake once', () => {
+  for (const slot of ['m1234567@12:00', 'legacy@12:00']) {
+    const message = buildDoseMessage({
+      childName: 'Аня', slot, takenAt: '2026-09-07T10:04:00.000Z', timeZone: 'Europe/Berlin',
+    });
+    assert.equal(message, '✅ Аня: приём отмечен в 12:04.');
+  }
+  assert.equal(buildDoseMessage({
+    childName: 'Аня', slot: 'evening', takenAt: '2026-09-07T18:04:00.000Z', timeZone: 'Europe/Berlin',
+  }), '✅ Аня: вечерний приём отмечен в 20:04.');
+});
+
 test('parses admin invitation and revoke commands', () => {
   assert.deepEqual(parseBotCommand('/invite_child'), { command: 'invite_child', argument: '' });
   assert.deepEqual(parseBotCommand('/revoke 123456789'), { command: 'revoke', argument: '123456789' });

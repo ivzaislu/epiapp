@@ -10,9 +10,10 @@ export function formatLocalTime(date, timeZone) {
 }
 
 export function buildDoseMessage({ childName, slot, takenAt, timeZone }) {
-  const label = SLOT_LABELS[slot] ?? 'приём';
+  const slotLabel = SLOT_LABELS[slot];
+  const label = slotLabel ? `${slotLabel} приём` : 'приём';
   const time = formatLocalTime(new Date(takenAt), timeZone);
-  return `✅ ${childName}: ${label} приём отмечен в ${time}.`;
+  return `✅ ${childName}: ${label} отмечен в ${time}.`;
 }
 
 async function telegramRequest(token, method, payload = undefined, timeoutMs = 8000) {
