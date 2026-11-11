@@ -130,7 +130,7 @@ bash -n install.sh
 npm run doctor:offline
 ```
 
-CI проверяет Node, PostgreSQL и Docker-образ. APK собирается отдельно в Android Studio.
+CI проверяет Node, PostgreSQL и Docker-образ. Workflow `Android debug prerelease` публикует тестовый APK при повышении версии на `web-next`. Подписанная release-сборка описана в [docs/RELEASE.md](docs/RELEASE.md).
 
 ## Данные
 

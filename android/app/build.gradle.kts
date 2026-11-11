@@ -11,8 +11,8 @@ android {
         applicationId = "org.epiapp.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 34
-        versionName = "0.7.2"
+        versionCode = 35
+        versionName = "0.7.3"
     }
 
     buildTypes {
