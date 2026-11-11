@@ -400,6 +400,7 @@ location.replace(target);
         const state = await context.store.read();
         return json(res, 200, {
           settings: publicSettings(state.settings),
+          timezones: [...new Set(['UTC', state.settings.timezone, ...Intl.supportedValuesOf('timeZone')])].sort(),
           recentChanges: await context.store.recentSettingsChanges(5),
           telegramConfigured: Boolean(context.botToken),
           role: user.role,

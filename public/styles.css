@@ -33,7 +33,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-button, input { font: inherit; color: inherit; }
+button, input, select { font: inherit; color: inherit; }
 
 button { cursor: pointer; }
 
@@ -752,3 +752,27 @@ html.no-emblem .identity { grid-template-columns: minmax(0, 1fr); }
 @media (prefers-reduced-motion: reduce) {
   .toast { transition: none; }
 }
+
+
+.scheme-list { display: grid; gap: 8px; margin: 10px 0; }
+.scheme-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  width: 100%; padding: 14px; border: 1px solid var(--line); border-radius: 14px;
+  background: #fff; text-align: left;
+}
+.scheme-row > span:first-child { min-width: 0; }
+.scheme-row strong { display: block; overflow-wrap: anywhere; font-size: 16px; font-weight: 650; }
+.scheme-row small { display: block; margin-top: 4px; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.row-arrow { flex: none; color: var(--blue); font-size: 26px; }
+.profile-row { padding: 10px 14px; background: #f7f9fe; }
+.profile-row small { margin-top: 0; }
+.editor-form { min-height: 100%; display: flex; flex-direction: column; }
+.intake-list { margin-top: 16px; }
+.form fieldset.intake-editor { padding: 12px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 14px; }
+.form .intake-editor legend { float: none; width: auto; padding: 0 4px; margin: 0; }
+.editor-actions { position: sticky; bottom: -8px; margin-top: auto; padding: 12px 0 2px; background: var(--paper); }
+.editor-actions .help:empty { display: none; }
+.editor-actions .help { margin: 0 0 6px; }
+.danger { color: var(--danger); }
+input[type="search"] { width: 100%; min-width: 0; height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--control); font-size: 16px; background: #fff; }
+.form select { min-width: 0; max-width: 100%; padding-right: 24px; }

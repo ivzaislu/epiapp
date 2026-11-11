@@ -90,6 +90,9 @@ let pendingSlot = null;
 let demo = false;
 let saving = false;
 let schemeDraft = null;
+let editingMedication = null;
+let editorBaseline = null;
+const zoneLabels = new Map();
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -192,12 +195,14 @@ function labelForSlot(slot) {
 
 function showScreen(next) {
   if (next === screen) return;
+  if (!leaveEditor()) return;
   if (next === 'today') schemeDraft = null;
   if (next !== 'today' && history.state?.epi && history.state.epi !== 'today') {
     screen = next;
     history.replaceState({ epi: next }, '');
     render();
     syncTelegramBack();
+    if (next === 'profile') editorBaseline = editorSnapshot();
     return;
   }
   if (next === 'today' && history.state?.epi && history.state.epi !== 'today') {
@@ -209,6 +214,7 @@ function showScreen(next) {
   else history.pushState({ epi: next }, '');
   render();
   syncTelegramBack();
+  if (next === 'profile') editorBaseline = editorSnapshot();
 }
 
 function syncTelegramBack() {
@@ -220,7 +226,7 @@ function syncTelegramBack() {
 
 window.epiappBack = () => {
   if (screen === 'today') return false;
-  showScreen('today');
+  goBack();
   return true;
 };
 
@@ -251,6 +257,8 @@ function paintChrome() {
   const titles = {
     today: [`Сегодня · ${longDate(zone)}`, name, '', true],
     scheme: ['Схема', name, '', false],
+    medication: ['Препарат', editingMedication === null ? name : schemeDraft?.[editingMedication]?.name || 'Новый препарат', '', false],
+    profile: ['Настройки ребёнка', name, '', false],
     reminders: ['Напоминания', name, '', false],
     month: ['30 дней', name, '', false],
     telegram: ['Семья', name, '', false],
@@ -410,45 +418,135 @@ function syncSchemeDraft(form) {
   });
 }
 
+const CITY_NAMES = {
+  'Europe/Berlin': 'Берлин', 'Europe/Moscow': 'Москва', 'Europe/Istanbul': 'Стамбул',
+  'Europe/Kiev': 'Киев', 'Europe/Kyiv': 'Киев', 'Europe/London': 'Лондон',
+  'Europe/Paris': 'Париж', 'Europe/Warsaw': 'Варшава', 'Europe/Minsk': 'Минск',
+  'Asia/Dubai': 'Дубай', 'Asia/Almaty': 'Алматы', 'Asia/Tashkent': 'Ташкент',
+  'Asia/Bishkek': 'Бишкек', 'Asia/Yekaterinburg': 'Екатеринбург', 'Asia/Novosibirsk': 'Новосибирск',
+  'Asia/Vladivostok': 'Владивосток', 'Asia/Tokyo': 'Токио', 'America/New_York': 'Нью-Йорк',
+  'America/Los_Angeles': 'Лос-Анджелес', 'UTC': 'Всемирное время',
+};
+
+function timezoneLabel(zone) {
+  if (!zoneLabels.has(zone)) {
+    let offset = '';
+    try {
+      offset = new Intl.DateTimeFormat('ru-RU', { timeZone: zone, timeZoneName: 'longOffset' })
+        .formatToParts(new Date()).find((part) => part.type === 'timeZoneName')?.value || '';
+    } catch { /* The server may support a newer timezone database than this WebView. */ }
+    zoneLabels.set(zone, [CITY_NAMES[zone], zone, offset.replace('GMT', 'UTC')].filter(Boolean).join(' · '));
+  }
+  return zoneLabels.get(zone);
+}
+
+function timezoneOptions(selected, query = '') {
+  const zones = settingsPack?.timezones || (typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : []);
+  const search = query.trim().toLocaleLowerCase('ru');
+  return [...new Set(['UTC', selected, ...zones])].sort().filter((zone) => zone === selected
+    || timezoneLabel(zone).toLocaleLowerCase('ru').includes(search))
+    .map((zone) => `<option value="${escapeHtml(zone)}"${zone === selected ? ' selected' : ''}>${escapeHtml(timezoneLabel(zone))}</option>`).join('');
+}
+
 function schemeScreen() {
-  const meds = ensureSchemeDraft();
-  const cards = meds.map((medication, medIndex) => {
-    const count = medication.intakes.length;
-    const choices = [1, 2, 3].map((value) => `
-      <button class="count-choice${count === value ? ' on' : ''}" type="button" data-count="${value}" data-med="${medIndex}">
-        ${['Один', 'Два', 'Три'][value - 1]}
-      </button>`).join('');
-    const intakes = medication.intakes.map((intake, index) => `
-      <div class="pair">
-        <div>${field(`med-time-${medIndex}-${index}`, count === 1 ? 'Время' : `Приём ${index + 1}`, intake.time, 'type="time" required')}</div>
-        <div>${field(`med-dose-${medIndex}-${index}`, 'Доза', intake.dose || '', 'maxlength="80" placeholder="1 таблетка" autocomplete="off"')}</div>
-      </div>`).join('');
-    const remove = meds.length > 1
-      ? `<button class="texty" type="button" data-remove-med="${medIndex}">Убрать препарат</button>`
-      : '';
-    return `<article class="med">
-      ${field(`med-name-${medIndex}`, meds.length > 1 ? `Препарат ${medIndex + 1}` : 'Название', medication.name || '', 'maxlength="100" autocomplete="off"')}
-      <p class="label-line">Сколько приёмов</p>
-      <div class="count">${choices}</div>
-      ${intakes}
-      ${remove}
-    </article>`;
-  }).join('');
-  return `<form data-form="scheme" class="form">
-    <fieldset>
-      <legend>Кто</legend>
-      ${field('childName', 'Имя', settings.childName, 'maxlength="50" required autocomplete="name"')}
-      ${field('timezone', 'Часовой пояс', settings.timezone, 'required placeholder="Europe/Berlin" autocomplete="off"')}
-    </fieldset>
-    <fieldset>
-      <legend>Препараты</legend>
-      <div class="meds">${cards}</div>
-      ${meds.length < 6 ? '<button class="quiet add-med" type="button" data-add-med>Добавить препарат</button>' : ''}
-      <p class="help">У каждого препарата один, два или три приёма. Приложение не назначает препарат и не меняет дозу.</p>
-    </fieldset>
-    <button class="primary" type="submit">Сохранить схему</button>
-    <p class="help">${escapeHtml(auditLine())}</p>
+  const meds = settings.medications?.length ? settings.medications : ensureSchemeDraft();
+  const rows = meds.map((medication, index) => `<button type="button" class="scheme-row" data-edit-med="${index}">
+    <span><strong>${escapeHtml(medication.name || 'Препарат без названия')}</strong>
+    <small>${medication.intakes.map((item) => `${escapeHtml(item.time)} · ${escapeHtml(item.dose || 'Доза не указана')}`).join('<br>')}</small></span>
+    <span class="row-arrow" aria-hidden="true">›</span>
+  </button>`).join('');
+  return `<button type="button" class="scheme-row profile-row" data-go="profile">
+    <span><strong>${escapeHtml(settings.childName)}</strong><small>${escapeHtml(CITY_NAMES[settings.timezone] || settings.timezone)}</small></span>
+    <span class="row-arrow" aria-hidden="true">›</span>
+  </button>
+  <section class="block"><h2 class="block-title">Препараты</h2>
+    <div class="scheme-list">${rows}</div>
+    ${meds.length < 6 ? '<button class="quiet add-med" type="button" data-add-med>＋ Добавить препарат</button>' : ''}
+    <p class="help">Нажмите на препарат, чтобы изменить его приёмы.</p>
+  </section><p class="help">${escapeHtml(auditLine())}</p>`;
+}
+
+function medicationScreen() {
+  const medIndex = editingMedication;
+  const medication = schemeDraft?.[medIndex];
+  if (!medication) return schemeScreen();
+  const count = medication.intakes.length;
+  const choices = [1, 2, 3].map((value) => `<button class="count-choice${count === value ? ' on' : ''}" type="button"
+    data-count="${value}" data-med="${medIndex}" aria-pressed="${count === value}">${value}</button>`).join('');
+  const intakes = medication.intakes.map((intake, index) => `<fieldset class="intake-editor">
+    <legend>Приём ${index + 1}</legend><div class="pair">
+      <div>${field(`med-time-${medIndex}-${index}`, 'Время', intake.time, 'type="time" required')}</div>
+      <div>${field(`med-dose-${medIndex}-${index}`, 'Доза', intake.dose || '', 'maxlength="80" placeholder="1 таблетка" autocomplete="off"')}</div>
+    </div></fieldset>`).join('');
+  const existing = settings.medications?.some((item) => item.id === medication.id);
+  return `<form data-form="medication" class="form editor-form">
+    ${field(`med-name-${medIndex}`, 'Название препарата', medication.name || '', 'maxlength="100" required autocomplete="off"')}
+    <p class="label-line">Количество приёмов в день</p><div class="count">${choices}</div>
+    <div class="intake-list">${intakes}</div>
+    <p class="help">Укажите схему, назначенную врачом. Приложение не меняет дозу.</p>
+    ${existing && schemeDraft.length > 1 ? `<button class="texty danger" type="button" data-remove-med="${medIndex}">Удалить препарат</button>` : ''}
+    <div class="editor-actions"><p class="help" data-editor-status aria-live="polite"></p><button class="primary" type="submit">Сохранить препарат</button></div>
   </form>`;
+}
+
+function profileScreen() {
+  return `<form data-form="profile" class="form editor-form">
+    ${field('childName', 'Имя ребёнка', settings.childName, 'maxlength="50" required autocomplete="name"')}
+    <label for="zoneSearch">Поиск часового пояса</label>
+    <input id="zoneSearch" type="search" data-zone-search placeholder="Берлин, Москва, Asia…" autocomplete="off">
+    <label for="timezone">Часовой пояс</label>
+    <select id="timezone" name="timezone" required>${timezoneOptions(settings.timezone)}</select>
+    <p class="help">Выберите пояс по местоположению ребёнка. Время приёмов указано в этом поясе; переход на летнее и зимнее время учитывается автоматически.</p>
+    <div class="editor-actions"><p class="help" data-editor-status aria-live="polite"></p><button class="primary" type="submit">Сохранить настройки</button></div>
+  </form>`;
+}
+
+function editorSnapshot() {
+  const form = $('screen').querySelector('form');
+  if (screen === 'medication') {
+    syncSchemeDraft(form);
+    return JSON.stringify(schemeDraft?.[editingMedication]);
+  }
+  if (screen === 'profile' && form) return JSON.stringify({ childName: form.elements.childName.value, timezone: form.elements.timezone.value });
+  return null;
+}
+
+function editorDirty() {
+  return editorBaseline !== null && editorSnapshot() !== editorBaseline;
+}
+
+function leaveEditor() {
+  if (saving) return false;
+  if (editorDirty() && !window.confirm('Выйти без сохранения изменений?')) return false;
+  editorBaseline = null;
+  editingMedication = null;
+  schemeDraft = null;
+  return true;
+}
+
+function updateEditorStatus() {
+  const status = $('screen').querySelector('[data-editor-status]');
+  if (status) status.textContent = editorDirty() ? 'Есть несохранённые изменения' : '';
+}
+
+function goBack() {
+  showScreen(['medication', 'profile'].includes(screen) ? 'scheme' : 'today');
+}
+
+function openMedication(index = null) {
+  if (!leaveEditor()) return;
+  ensureSchemeDraft();
+  if (index === null) {
+    if (schemeDraft.length >= 6) return;
+    schemeDraft.push({ id: newMedId(), name: '', intakes: [{ time: '08:00', dose: '' }, { time: '20:00', dose: '' }] });
+    index = schemeDraft.length - 1;
+  }
+  editingMedication = index;
+  screen = 'medication';
+  history.replaceState({ epi: screen }, '');
+  render();
+  editorBaseline = editorSnapshot();
+  syncTelegramBack();
 }
 
 function remindersScreen() {
@@ -622,11 +720,14 @@ function render() {
   if (screen === 'settings') root.innerHTML = settingsScreen();
   else if (mode === 'child') root.innerHTML = childScreen();
   else if (screen === 'scheme') root.innerHTML = schemeScreen();
+  else if (screen === 'medication') root.innerHTML = medicationScreen();
+  else if (screen === 'profile') root.innerHTML = profileScreen();
   else if (screen === 'reminders') root.innerHTML = remindersScreen();
   else if (screen === 'month') root.innerHTML = monthScreen();
   else if (screen === 'telegram') root.innerHTML = telegramScreen();
   else if (screen === 'notifications') root.innerHTML = notificationsScreen();
   else root.innerHTML = parentToday();
+  if (screen === 'profile') $('timezone').value = settings.timezone;
 }
 
 function auditLine() {
@@ -661,7 +762,7 @@ function collect(form) {
     reminderRepeatMinutes: Number(readField(form, 'reminderRepeatMinutes', settings.reminderRepeatMinutes ?? 15)),
     reminderStopMinutes: Number(readField(form, 'reminderStopMinutes', settings.reminderStopMinutes ?? 60)),
   };
-  if (!reminders) {
+  if (form.dataset.form === 'medication') {
     syncSchemeDraft(form);
     payload.medications = schemeDraft;
   }
@@ -725,23 +826,35 @@ function chooseAccent(id) {
   render();
 }
 
-async function save(form) {
+async function save(form, payload = null) {
   const button = form.querySelector('button[type="submit"]');
+  if (saving) return;
+  saving = true;
+  form.inert = true;
   button.disabled = true;
   try {
     const data = await api('/api/parent/settings', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(collect(form)),
+      body: JSON.stringify(payload || collect(form)),
     });
     settings = data.settings;
     settingsPack = { ...settingsPack, ...data, telegramConfigured: settingsPack?.telegramConfigured };
     schemeDraft = null;
+    editorBaseline = null;
+    editingMedication = null;
+    if (['medication', 'profile'].includes(screen)) {
+      screen = 'scheme';
+      history.replaceState({ epi: screen }, '');
+    }
     toast('Сохранено.');
     await refresh();
   } catch (error) {
     toast(error.message, true);
     button.disabled = false;
+  } finally {
+    form.inert = false;
+    saving = false;
   }
 }
 
@@ -959,14 +1072,20 @@ export function boot() {
   paintTelegram();
   if (!history.state?.epi) history.replaceState({ epi: 'today' }, '');
   window.addEventListener('popstate', () => {
+    if (!leaveEditor()) { history.pushState({ epi: screen }, ''); return; }
     screen = history.state?.epi && history.state.epi !== 'today' ? history.state.epi : 'today';
+    if (['medication', 'profile'].includes(screen)) screen = 'scheme';
     if (screen === 'today') schemeDraft = null;
     render();
     syncTelegramBack();
   });
-  window.Telegram?.WebApp?.BackButton?.onClick(() => showScreen('today'));
+  window.addEventListener('beforeunload', (event) => {
+    if (editorDirty() || saving) { event.preventDefault(); event.returnValue = ''; }
+  });
+  window.Telegram?.WebApp?.BackButton?.onClick(goBack);
   $('gear').addEventListener('click', () => {
-    showScreen(screen === 'today' ? 'settings' : 'today');
+    if (screen === 'today') showScreen('settings');
+    else goBack();
   });
   $('screen').addEventListener('click', (event) => {
     if (event.target.closest('[data-parent-test]')) {
@@ -980,10 +1099,11 @@ export function boot() {
     }
     const go = event.target.closest('[data-go]');
     if (go) {
-      if (go.dataset.go === 'scheme') schemeDraft = null;
       showScreen(go.dataset.go);
       return;
     }
+    const edit = event.target.closest('[data-edit-med]');
+    if (edit) { openMedication(Number(edit.dataset.editMed)); return; }
     const accent = event.target.closest('[data-accent]');
     if (accent) {
       chooseAccent(accent.dataset.accent);
@@ -993,23 +1113,24 @@ export function boot() {
     if (count) {
       syncSchemeDraft(count.closest('form'));
       const medication = schemeDraft?.[Number(count.dataset.med)];
-      if (medication) setIntakeCount(medication, Number(count.dataset.count));
-      render();
-      return;
-    }
-    if (event.target.closest('[data-add-med]')) {
-      syncSchemeDraft(event.target.closest('form'));
-      if (schemeDraft && schemeDraft.length < 6) {
-        schemeDraft.push({ id: newMedId(), name: '', intakes: [{ time: '08:00', dose: '' }, { time: '20:00', dose: '' }] });
+      if (medication) {
+        const nextCount = Number(count.dataset.count);
+        if (nextCount < medication.intakes.length && !window.confirm('Убрать лишние приёмы из этого препарата?')) return;
+        setIntakeCount(medication, nextCount);
       }
       render();
+      updateEditorStatus();
       return;
     }
+    if (event.target.closest('[data-add-med]')) { openMedication(); return; }
     const remove = event.target.closest('[data-remove-med]');
     if (remove) {
-      syncSchemeDraft(remove.closest('form'));
-      schemeDraft?.splice(Number(remove.dataset.removeMed), 1);
-      render();
+      if (!window.confirm('Удалить препарат из схемы?')) return;
+      const index = Number(remove.dataset.removeMed);
+      const form = remove.closest('form');
+      const payload = collect(form);
+      const removed = schemeDraft.splice(index, 1)[0];
+      save(form, payload).finally(() => { if (screen === 'medication' && schemeDraft) schemeDraft.splice(index, 0, removed); });
       return;
     }
     const take = event.target.closest('.take');
@@ -1026,7 +1147,18 @@ export function boot() {
     }
     if (event.target.id === 'testTelegram') sendTest();
   });
+  $('screen').addEventListener('input', (event) => {
+    if (event.target.hasAttribute('data-zone-search')) {
+      const select = event.target.form.elements.timezone;
+      const selected = select.value;
+      select.innerHTML = timezoneOptions(selected, event.target.value);
+      select.value = selected;
+    }
+    event.target.setCustomValidity?.('');
+    updateEditorStatus();
+  });
   $('screen').addEventListener('change', (event) => {
+    updateEditorStatus();
     if (event.target.hasAttribute('data-parent-alerts')) {
       window.EpiAppNative?.setParentNotificationsEnabled?.(event.target.checked);
       toast(event.target.checked ? 'Оповещения на этом телефоне включены.' : 'Оповещения на этом телефоне выключены.');
@@ -1049,7 +1181,21 @@ export function boot() {
     }
     if (event.target.dataset.form === 'history-period') showHistoryPeriod(event.target);
     else if (event.target.dataset.form === 'import-history') importHistory(event.target);
-    else save(event.target);
+    else {
+      if (event.target.dataset.form === 'medication') {
+        syncSchemeDraft(event.target);
+        const nameInput = event.target.elements[`med-name-${editingMedication}`];
+        nameInput.setCustomValidity(nameInput.value.trim() ? '' : 'Введите название препарата.');
+        const seen = new Set();
+        for (const [index, item] of schemeDraft[editingMedication].intakes.entries()) {
+          const input = event.target.elements[`med-time-${editingMedication}-${index}`];
+          input.setCustomValidity(seen.has(item.time) ? 'Время приёмов не должно совпадать.' : '');
+          seen.add(item.time);
+        }
+        if (!event.target.reportValidity()) return;
+      }
+      save(event.target);
+    }
   });
   $('sheetNo').addEventListener('click', closeSheet);
   $('sheetYes').addEventListener('click', confirmTake);

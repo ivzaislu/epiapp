@@ -213,6 +213,11 @@ test('invited parent can manage medication settings and read statistics', async 
     const cookie = await authenticate(baseUrl, '333333333');
     const read = await fetch(`${baseUrl}/api/parent/settings`, { headers: { cookie } });
     assert.equal(read.status, 200);
+    const available = (await read.json()).timezones;
+    assert.ok(available.includes('Europe/Berlin'));
+    assert.ok(available.includes('UTC'));
+    assert.ok(available.length > 300);
+    for (const zone of available) assert.doesNotThrow(() => new Intl.DateTimeFormat('ru', { timeZone: zone }));
 
     const update = await fetch(`${baseUrl}/api/parent/settings`, {
       method: 'POST',
