@@ -84,6 +84,7 @@ let settingsPack = null;
 let stats7 = null;
 let stats30 = null;
 let parentAlerts = [];
+let notificationTab = 'messages';
 let monthThrough = '';
 let historyExpanded = false;
 let pendingSlot = null;
@@ -194,6 +195,7 @@ function labelForSlot(slot) {
 }
 
 function showScreen(next) {
+  if (next === 'reminders') { next = 'notifications'; notificationTab = 'settings'; }
   if (next === screen) return;
   if (!leaveEditor()) return;
   if (next === 'today') schemeDraft = null;
@@ -259,10 +261,9 @@ function paintChrome() {
     scheme: ['Схема', name, '', false],
     medication: ['Препарат', editingMedication === null ? name : schemeDraft?.[editingMedication]?.name || 'Новый препарат', '', false],
     profile: ['Настройки ребёнка', name, '', false],
-    reminders: ['Напоминания', name, '', false],
     month: ['30 дней', name, '', false],
     telegram: ['Семья', name, '', false],
-    notifications: ['Оповещения', name, '', false],
+    notifications: ['Уведомления', name, '', false],
   };
   const [kicker, title, sub, isDate] = titles[screen] || titles.today;
   setKicker(kicker, isDate);
@@ -515,8 +516,17 @@ function editorDirty() {
   return editorBaseline !== null && editorSnapshot() !== editorBaseline;
 }
 
+function notificationSettingsDirty(form) {
+  const payload = collect(form);
+  return ['remindersEnabled', 'telegramRemindersEnabled', 'reminderFirstMinutes', 'reminderUrgentMinutes', 'reminderRepeatMinutes', 'reminderStopMinutes']
+    .some((key) => payload[key] !== (settings[key] ?? (key === 'telegramRemindersEnabled' ? true : payload[key])));
+}
+
 function leaveEditor() {
   if (saving) return false;
+  const notificationsForm = $('screen').querySelector('[data-form=reminders]');
+  if (notificationsForm && notificationSettingsDirty(notificationsForm)
+    && !window.confirm('Выйти без сохранения настроек уведомлений?')) return false;
   if (editorDirty() && !window.confirm('Выйти без сохранения изменений?')) return false;
   editorBaseline = null;
   editingMedication = null;
@@ -572,17 +582,17 @@ function remindersScreen() {
 function parentAppControls() {
   const native = window.EpiAppNative;
   if (!native?.parentNotificationStatus) {
-    return '<section class="block"><h2 class="block-title">Оповещения в приложении</h2><p class="help">Откройте кабинет в Android-приложении EpiApp 0.7.4 или новее, чтобы получать оповещения на телефоне.</p></section>';
+    return '<section class="block"><h2 class="block-title">Уведомления в приложении</h2><p class="help">Откройте кабинет в Android-приложении EpiApp 0.7.4 или новее, чтобы получать уведомления на телефоне.</p></section>';
   }
   let status;
   try { status = JSON.parse(native.parentNotificationStatus()); } catch { return ''; }
   return `<section class="block" data-parent-controls>
-    <h2 class="block-title">Оповещения на этом телефоне</h2>
-    <label class="toggle"><input type="checkbox" data-parent-alerts${status.enabled ? ' checked' : ''}><span>Получать оповещения для родителя</span></label>
+    <h2 class="block-title">Уведомления на этом телефоне</h2>
+    <label class="toggle"><input type="checkbox" data-parent-alerts${status.enabled ? ' checked' : ''}><span>Получать уведомления для родителя</span></label>
     <p class="help">Подтверждения ребёнка и сообщения об отсутствии отметки. В фоне проверяем примерно раз в 15 минут. Android может задерживать проверку.</p>
     <p class="help">${status.permission ? 'Уведомления Android разрешены.' : 'Уведомления Android выключены. Разрешите их в настройках телефона.'}</p>
     ${status.lastCheck ? `<p class="help">Последняя проверка: ${escapeHtml(formatTakenAt(status.lastCheck, settings.timezone))}</p>` : ''}
-    <button type="button" class="quiet" data-parent-test${status.enabled && status.permission ? '' : ' disabled'}>Проверить оповещение</button>
+    <button type="button" class="quiet" data-parent-test${status.enabled && status.permission ? '' : ' disabled'}>Проверить уведомление</button>
     <button type="button" class="texty" data-notification-settings>Настройки уведомлений Android</button>
   </section>`;
 }
@@ -593,7 +603,12 @@ function notificationsScreen() {
     <p class="sentence">${escapeHtml(item.body)}</p>
     <p class="help">${escapeHtml(formatTakenAt(item.at, state.settings.timezone))}</p>
   </article>`).join('');
-  return `<p class="help">Подтверждения за последние сутки и текущие напоминания.</p>${rows || '<p class="sentence">Новых оповещений пока нет.</p>'}${parentAppControls()}`;
+  const tabs = `<nav class="notification-tabs" aria-label="Разделы уведомлений">
+    <button type="button" data-alert-tab="messages" aria-pressed="${notificationTab === 'messages'}">Сообщения</button>
+    <button type="button" data-alert-tab="settings" aria-pressed="${notificationTab === 'settings'}">Настройки</button>
+  </nav>`;
+  return tabs + (notificationTab === 'settings' ? remindersScreen()
+    : `<p class="help">Подтверждения за последние сутки и текущие напоминания.</p>${rows || '<p class="sentence">Новых уведомлений пока нет.</p>'}`);
 }
 
 function monthScreen() {
@@ -679,8 +694,7 @@ function parentToday() {
     <section class="block">${weekBlock()}</section>
     <nav class="menu tiles">
       <button type="button" data-go="scheme"><span>Схема</span><small>препарат и приёмы</small></button>
-      <button type="button" data-go="reminders"><span>Напоминания</span><small>если отметки нет</small></button>
-      <button type="button" data-go="notifications"><span>Оповещения</span><small>сообщения для родителя</small></button>
+      <button type="button" data-go="notifications"><span>Уведомления</span><small>сообщения и напоминания</small></button>
       <button type="button" data-go="month"><span>30 дней</span><small>точки за месяц</small></button>
       <button type="button" data-go="telegram"><span>Семья</span><small>второй родитель</small></button>
     </nav>`;
@@ -722,7 +736,6 @@ function render() {
   else if (screen === 'scheme') root.innerHTML = schemeScreen();
   else if (screen === 'medication') root.innerHTML = medicationScreen();
   else if (screen === 'profile') root.innerHTML = profileScreen();
-  else if (screen === 'reminders') root.innerHTML = remindersScreen();
   else if (screen === 'month') root.innerHTML = monthScreen();
   else if (screen === 'telegram') root.innerHTML = telegramScreen();
   else if (screen === 'notifications') root.innerHTML = notificationsScreen();
@@ -756,7 +769,7 @@ function collect(form) {
     childName: readField(form, 'childName', settings.childName),
     timezone: readField(form, 'timezone', settings.timezone),
     remindersEnabled: reminders ? readField(form, 'remindersEnabled', false) : settings.remindersEnabled !== false,
-    telegramRemindersEnabled: reminders ? readField(form, 'telegramRemindersEnabled', false) : settings.telegramRemindersEnabled !== false,
+    telegramRemindersEnabled: reminders ? readField(form, 'telegramRemindersEnabled', settings.telegramRemindersEnabled !== false) : settings.telegramRemindersEnabled !== false,
     reminderFirstMinutes: Number(readField(form, 'reminderFirstMinutes', settings.reminderFirstMinutes ?? 15)),
     reminderUrgentMinutes: Number(readField(form, 'reminderUrgentMinutes', settings.reminderUrgentMinutes ?? 30)),
     reminderRepeatMinutes: Number(readField(form, 'reminderRepeatMinutes', settings.reminderRepeatMinutes ?? 15)),
@@ -1074,13 +1087,15 @@ export function boot() {
   window.addEventListener('popstate', () => {
     if (!leaveEditor()) { history.pushState({ epi: screen }, ''); return; }
     screen = history.state?.epi && history.state.epi !== 'today' ? history.state.epi : 'today';
+    if (screen === 'reminders') { screen = 'notifications'; notificationTab = 'settings'; }
     if (['medication', 'profile'].includes(screen)) screen = 'scheme';
     if (screen === 'today') schemeDraft = null;
     render();
     syncTelegramBack();
   });
   window.addEventListener('beforeunload', (event) => {
-    if (editorDirty() || saving) { event.preventDefault(); event.returnValue = ''; }
+    const reminders = $('screen').querySelector('[data-form=reminders]');
+    if (editorDirty() || saving || (reminders && notificationSettingsDirty(reminders))) { event.preventDefault(); event.returnValue = ''; }
   });
   window.Telegram?.WebApp?.BackButton?.onClick(goBack);
   $('gear').addEventListener('click', () => {
@@ -1088,9 +1103,18 @@ export function boot() {
     else goBack();
   });
   $('screen').addEventListener('click', (event) => {
+    const tab = event.target.closest('[data-alert-tab]');
+    if (tab && tab.dataset.alertTab !== notificationTab) {
+      if (saving) return;
+      const form = $('screen').querySelector('[data-form=reminders]');
+      if (form && notificationSettingsDirty(form) && !window.confirm('Выйти без сохранения настроек уведомлений?')) return;
+      notificationTab = tab.dataset.alertTab;
+      render();
+      return;
+    }
     if (event.target.closest('[data-parent-test]')) {
       const sent = window.EpiAppNative?.testParentNotification?.();
-      toast(sent ? 'Тестовое оповещение отправлено на этот телефон.' : 'Разрешите оповещения в настройках телефона.', !sent);
+      toast(sent ? 'Тестовое уведомление отправлено на этот телефон.' : 'Разрешите уведомления в настройках телефона.', !sent);
       return;
     }
     if (event.target.closest('[data-notification-settings]')) {
@@ -1161,7 +1185,7 @@ export function boot() {
     updateEditorStatus();
     if (event.target.hasAttribute('data-parent-alerts')) {
       window.EpiAppNative?.setParentNotificationsEnabled?.(event.target.checked);
-      toast(event.target.checked ? 'Оповещения на этом телефоне включены.' : 'Оповещения на этом телефоне выключены.');
+      toast(event.target.checked ? 'Уведомления на этом телефоне включены.' : 'Уведомления на этом телефоне выключены.');
       return;
     }
     const pref = event.target.dataset.pref;
@@ -1214,7 +1238,8 @@ export function boot() {
     showApp();
     const requested = params.get('screen');
     if (mode === 'parent' && ['scheme', 'reminders', 'month', 'telegram', 'notifications'].includes(requested)) {
-      screen = requested;
+      screen = requested === 'reminders' ? 'notifications' : requested;
+      if (requested === 'reminders') notificationTab = 'settings';
     }
     render();
     return;

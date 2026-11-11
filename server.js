@@ -14,7 +14,7 @@ import {
 import { parentNotificationFeed, startReminderScheduler } from './src/reminders.js';
 import { Store, familyParents } from './src/store.js';
 import { PostgresStore } from './src/postgres-store.js';
-import { notifyDose, sendTelegramMessage, startTelegramBot } from './src/telegram.js';
+import { notifyDose, resolveAndroidApkUrl, sendTelegramMessage, startTelegramBot } from './src/telegram.js';
 import { ValidationError, schedulePlan } from './src/validation.js';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
@@ -218,6 +218,7 @@ function nativeSchedule(settings) {
 export function createServer(options = {}) {
   const context = {
     store: options.store || defaultStore,
+    apkUrl: resolveAndroidApkUrl(options.apkUrl),
     botToken: options.botToken ?? process.env.TELEGRAM_BOT_TOKEN ?? '',
     adminId: String(options.adminId ?? process.env.TELEGRAM_ADMIN_ID ?? '').trim(),
   };
@@ -267,6 +268,8 @@ p{line-height:1.5;color:#566177}
 <h1>EpiApp</h1>
 <p>Открываю приложение и передаю данные подключения. Если ничего не произошло, нажмите кнопку ниже.</p>
 <a id="open" href="#">Открыть EpiApp</a>
+<p>Приложение ещё не установлено? Скачайте APK, установите его, затем вернитесь в бот и получите новую ссылку подключения.</p>
+<a href="${context.apkUrl.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;')}">Скачать EpiApp для Android</a>
 </main>
 <script>
 const target='epiapp://connect?server='+encodeURIComponent(location.origin)+'&token=${linkToken}';

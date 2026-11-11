@@ -776,3 +776,7 @@ html.no-emblem .identity { grid-template-columns: minmax(0, 1fr); }
 .danger { color: var(--danger); }
 input[type="search"] { width: 100%; min-width: 0; height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--control); font-size: 16px; background: #fff; }
 .form select { min-width: 0; max-width: 100%; padding-right: 24px; }
+
+.notification-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 14px; padding: 4px; border-radius: 14px; background: var(--blue-soft); }
+.notification-tabs button { min-height: 42px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); }
+.notification-tabs button[aria-pressed="true"] { background: #fff; color: var(--blue); font-weight: 650; }
