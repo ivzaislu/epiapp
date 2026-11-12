@@ -44,8 +44,26 @@ jobs:
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager 'platforms;android-35' 'build-tools;34.0.0' 'platform-tools'
 
+      - name: Test without live Firebase
+        run: gradle --no-daemon --max-workers=2 -p android :app:testDebugUnitTest
+
+      - name: Configure Firebase for the distributable APK
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON }}
+        run: |
+          python3 - <<'PYCONFIG'
+          import json, os
+          config = os.environ.get('GOOGLE_SERVICES_JSON', '')
+          configured = bool(config.strip())
+          if configured:
+              parsed = json.loads(config)
+              assert any(c.get('client_info', {}).get('android_client_info', {}).get('package_name') == 'org.epiapp.android' for c in parsed.get('client', [])), 'Firebase Android package must be org.epiapp.android'
+              with open('android/app/google-services.json', 'w') as f: json.dump(parsed, f)
+          with open(os.environ['GITHUB_ENV'], 'a') as f: f.write('FIREBASE_CONFIGURED=' + str(configured).lower() + '\n')
+          PYCONFIG
+
       - name: Build debug APK
-        run: gradle --no-daemon --max-workers=2 -p android :app:testDebugUnitTest :app:assembleDebug
+        run: gradle --no-daemon --max-workers=2 -p android :app:assembleDebug
 
       - name: Verify and package APK
         run: |
@@ -63,6 +81,7 @@ jobs:
           echo "DEBUG_VERSION=$version" >> "$GITHUB_ENV"
 
       - name: Publish debug prerelease
+        if: env.FIREBASE_CONFIGURED == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -73,7 +92,7 @@ jobs:
 
           Коммит ${GITHUB_SHA}.
 
-          Добавлены оповещения в родительском кабинете и Android-приложении. Настройки Telegram и оповещений на телефоне разделены. В фоне приложение проверяет сервер примерно раз в 15 минут, Android может задерживать проверку.
+          Добавлена FCM push-доставка родительских уведомлений без открытия кабинета. Для работы серверу нужна конфигурация того же Firebase-проекта. Исправлена потеря сообщений при отключённых разрешениях Android. Резервная фоновая проверка выполняется примерно раз в 15 минут, Android может задерживать проверку.
 
           APK подписан тестовым ключом GitHub Actions. При несовпадении подписи с установленным APK потребуется переустановка и повторное подключение через Telegram. Ключ debug-сборки может меняться между запусками CI.
 
@@ -86,3 +105,7 @@ jobs:
             gh release create "$DEBUG_TAG" dist/* --target "$GITHUB_SHA" --draft --prerelease --latest=false --title "EpiApp ${DEBUG_VERSION} debug" --notes-file notes.md
           fi
           gh release edit "$DEBUG_TAG" --draft=false --prerelease --latest=false
+
+      - name: Explain missing Firebase config
+        if: env.FIREBASE_CONFIGURED != 'true'
+        run: echo '::notice::Build and tests completed. Publication is skipped until ANDROID_GOOGLE_SERVICES_JSON is configured. A polling-only APK is not published as the push update.'

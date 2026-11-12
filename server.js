@@ -11,6 +11,7 @@ import {
   validateTelegramInitData,
   verifySessionToken,
 } from './src/auth.js';
+import { createFcmSender, createPushDispatcher } from './src/push.js';
 import { parentNotificationFeed, startReminderScheduler } from './src/reminders.js';
 import { Store, familyParents } from './src/store.js';
 import { PostgresStore } from './src/postgres-store.js';
@@ -218,6 +219,7 @@ function nativeSchedule(settings) {
 export function createServer(options = {}) {
   const context = {
     store: options.store || defaultStore,
+    pushDispatcher: options.pushDispatcher || null,
     apkUrl: resolveAndroidApkUrl(options.apkUrl),
     botToken: options.botToken ?? process.env.TELEGRAM_BOT_TOKEN ?? '',
     adminId: String(options.adminId ?? process.env.TELEGRAM_ADMIN_ID ?? '').trim(),
@@ -327,6 +329,14 @@ location.replace(target);
         }, { 'set-cookie': buildSessionCookie(session) });
       }
 
+      if (req.method === 'POST' && url.pathname === '/api/device/push') {
+        const { device, user } = await requireDevice(req, context);
+        const input = await body(req);
+        if (input.enabled && !['parent', 'admin'].includes(user.role)) throw new AuthError('Push для родителя недоступен детскому профилю.', 403);
+        const registered = await context.store.registerDevicePush(device.id, { token: input.token, enabled: input.enabled, revision: input.revision });
+        return json(res, 200, { registered, configured: Boolean(context.pushDispatcher) });
+      }
+
       if (req.method === 'GET' && url.pathname === '/api/device/schedule') {
         const { device, user } = await requireDevice(req, context);
         const [childState, fullState] = await Promise.all([
@@ -347,6 +357,7 @@ location.replace(target);
         if (user.role !== 'child') throw new AuthError('Отмечать приём может только детский профиль.', 403);
         const payload = await body(req);
         const result = await context.store.takeDose(payload.slot, new Date(), user);
+        void context.pushDispatcher?.check().catch(() => console.error('Push scheduler failed.'));
         const notification = await notifyDose({
           token: context.botToken,
           chatIds: await notificationChatIds(context),
@@ -376,6 +387,7 @@ location.replace(target);
         const child = await requireUser(req, context, ['child']);
         const payload = await body(req);
         const result = await context.store.takeDose(payload.slot, new Date(), child);
+        void context.pushDispatcher?.check().catch(() => console.error('Push scheduler failed.'));
         const notification = await notifyDose({
           token: context.botToken,
           chatIds: await notificationChatIds(context),
@@ -492,7 +504,11 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === normalize(process.argv
     console.error('EpiApp requires PostgreSQL. Set DATABASE_URL or POSTGRES_URI.');
     process.exit(1);
   }
-  const server = createServer();
+  const appUrl = resolvePublicAppUrl();
+  const adminId = String(process.env.TELEGRAM_ADMIN_ID || '').trim();
+  const pushSender = createFcmSender(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+  const pushDispatcher = pushSender && appUrl ? createPushDispatcher({ store: defaultStore, adminId, origin: appUrl, send: pushSender, logger: console }) : null;
+  const server = createServer({ pushDispatcher });
   server.listen(PORT, HOST, () => {
     console.log(`EpiApp: http://${HOST}:${PORT}`);
     console.log(`EpiApp storage: ${DATABASE_URL ? 'PostgreSQL' : DATA_FILE}`);
@@ -500,8 +516,6 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === normalize(process.argv
   });
 
   const botToken = process.env.TELEGRAM_BOT_TOKEN || '';
-  const adminId = String(process.env.TELEGRAM_ADMIN_ID || '').trim();
-  const appUrl = resolvePublicAppUrl();
   if (botToken && adminId && appUrl) {
     startTelegramBot({ token: botToken, store: defaultStore, adminId, appUrl })
       .then(({ username }) => console.log(`EpiApp Telegram bot: @${username}`))

@@ -581,6 +581,54 @@ export class Store {
     return publicDevice(device);
   }
 
+  async registerDevicePush(deviceId, { token = '', enabled, revision, now = new Date() }) {
+    if (typeof enabled !== 'boolean' || !Number.isSafeInteger(revision) || revision < 0) {
+      throw new ValidationError('Некорректные настройки push.');
+    }
+    if (enabled && (typeof token !== 'string' || !/^[A-Za-z0-9_:.-]{20,4096}$/.test(token))) {
+      throw new ValidationError('Некорректный push-токен.');
+    }
+    return this.mutate(async (state) => {
+      const device = state.access.devices.find((item) => item.id === deviceId && !item.revokedAt);
+      if (!device) throw new DeviceAuthError('Устройство не подключено.');
+      if (revision < (device.push?.revision ?? -1)) return false;
+      if (enabled) {
+        for (const other of state.access.devices) {
+          if (other.id !== deviceId && other.push?.token === token) other.push = { ...other.push, enabled: false, token: '' };
+        }
+      }
+      device.push = {
+        token: enabled ? token : '', enabled, revision,
+        since: enabled && device.push?.enabled === false ? now.toISOString() : device.push?.since || now.toISOString(),
+        deliveries: device.push?.deliveries || [],
+      };
+      return true;
+    });
+  }
+
+  async claimDevicePush(deviceId, token, eventId, { now = new Date() } = {}) {
+    return this.mutate(async (state) => {
+      const device = state.access.devices.find((item) => item.id === deviceId && !item.revokedAt);
+      if (!device?.push?.enabled || device.push.token !== token) return false;
+      const deliveries = device.push.deliveries || [];
+      const entry = deliveries.find((item) => item.id === eventId);
+      if (entry?.sentAt || Date.parse(entry?.until || '') > now.getTime()) return false;
+      device.push.deliveries = deliveries.filter((item) => item.id !== eventId && Date.parse(item.sentAt || item.until || '') >= now.getTime() - 48 * 3600_000).slice(-2047);
+      device.push.deliveries.push({ id: eventId, until: new Date(now.getTime() + 60_000).toISOString() });
+      return true;
+    });
+  }
+
+  async completeDevicePush(deviceId, token, eventId, { sent = false, invalid = false, now = new Date() } = {}) {
+    return this.mutate(async (state) => {
+      const device = state.access.devices.find((item) => item.id === deviceId && !item.revokedAt);
+      if (!device?.push || device.push.token !== token) return;
+      if (invalid) { device.push.token = ''; device.push.enabled = false; }
+      device.push.deliveries = (device.push.deliveries || []).filter((item) => item.id !== eventId);
+      if (sent) device.push.deliveries.push({ id: eventId, sentAt: now.toISOString() });
+    });
+  }
+
   async listDevices() {
     const state = await this.read();
     return state.access.devices.map(publicDevice);

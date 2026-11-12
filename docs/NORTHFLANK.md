@@ -17,6 +17,7 @@
 | `TELEGRAM_BOT_TOKEN` | Токен бота в runtime secrets. При переносе старого бота добавьте токен после остановки его процесса на VPS. |
 | `TELEGRAM_ADMIN_ID` | Числовой Telegram ID администратора. |
 | `HOST`, `PORT` | `0.0.0.0`, `3000`. Эти значения уже заданы в Dockerfile. |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | Необязательный runtime secret: приватный service account JSON для FCM. Порядок настройки — [PUSH.md](PUSH.md). |
 | `ANDROID_APK_URL` | Необязательно: HTTPS-ссылка на конкретный APK для кнопки скачивания в боте. По умолчанию `v0.7.4-debug` из GitHub Releases. |
 | `APP_BASE_URL` | Публичный HTTPS-origin без пути, например `https://epiapp.example.com`. Для автоматически выданного домена можно оставить пустым. EpiApp возьмёт первый адрес из `NF_HOSTS`. |
 

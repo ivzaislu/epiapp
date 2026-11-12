@@ -55,6 +55,8 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         refreshNotificationControls()
+        ParentNotifications.checkNow(this)
+        PushNotifications.sync(this)
     }
 
     private fun refreshNotificationControls() {
@@ -117,7 +119,7 @@ class MainActivity : AppCompatActivity() {
         val deviceToken = JSONObject(response.body).optString("deviceToken")
         if (deviceToken.isBlank()) throw IllegalStateException("Сервер не выдал ключ устройства.")
         storeCookie(origin, response.cookie)
-        ParentNotifications.configure(this, origin, deviceToken, JSONObject(response.body).getJSONObject("user"))
+        ParentNotifications.configure(this, origin, deviceToken, JSONObject(response.body).getJSONObject("user"), JSONObject(response.body).getJSONObject("device").getString("id"))
     }
 
     private fun restoreSession(origin: String, token: String) {
@@ -127,7 +129,7 @@ class MainActivity : AppCompatActivity() {
             "Bearer $token",
         )
         storeCookie(origin, response.cookie)
-        ParentNotifications.configure(this, origin, token, JSONObject(response.body).getJSONObject("user"))
+        ParentNotifications.configure(this, origin, token, JSONObject(response.body).getJSONObject("user"), JSONObject(response.body).getJSONObject("device").getString("id"))
     }
 
     private fun post(url: String, json: String, authorization: String? = null): HttpResult {

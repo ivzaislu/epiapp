@@ -1,0 +1,39 @@
+name: Android push checks
+on:
+  push:
+    branches: [web-next]
+    paths: ['android/**', 'src/push.js', '.github/workflows/android-push-check.yml']
+  pull_request:
+    paths: ['android/**', 'src/push.js', '.github/workflows/android-push-check.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Prepare Android SDK
+        run: sdkmanager 'platforms;android-35' 'build-tools;34.0.0' 'platform-tools'
+      - name: Test without live Firebase
+        run: gradle --no-daemon --max-workers=2 -p android :app:testDebugUnitTest :app:assembleDebug
+      - name: Add synthetic Firebase client config for compilation only
+        run: |
+          python3 - <<'PY'
+          import json
+          config = {'project_info': {'project_number': '123456789012', 'project_id': 'epiapp-ci-fixture'}, 'client': [{'client_info': {'mobilesdk_app_id': '1:123456789012:android:0000000000000000', 'android_client_info': {'package_name': 'org.epiapp.android'}}, 'api_key': [{'current_key': 'AIzaSy' + '0' * 33}]}], 'configuration_version': '1'}
+          with open('android/app/google-services.json', 'w') as f: json.dump(config, f)
+          PY
+      - name: Compile Firebase-enabled variant (never published)
+        run: gradle --no-daemon --max-workers=2 -p android :app:assembleDebug

@@ -427,3 +427,31 @@ test('Northflank public hostname can supply APP_BASE_URL automatically', () => {
     'https://custom.example.com',
   );
 });
+
+test('push registration requires device authentication and parent role and does not expose tokens', async () => {
+  const store = await tempStore();
+  const invite = await store.createInvite('child', ADMIN_ID);
+  await store.acceptInvite(invite.token, { id: '222222222' });
+  const adminCode = await store.createDevicePairCode(ADMIN_ID);
+  const parent = await store.pairDevice(adminCode.code);
+  const childCode = await store.createDevicePairCode('222222222');
+  const child = await store.pairDevice(childCode.code);
+  const server = createServer({ store, botToken: BOT_TOKEN, adminId: ADMIN_ID, pushDispatcher: { check: async () => {} } });
+  const port = await listen(server);
+  const base = `http://127.0.0.1:${port}`;
+  const payload = { token: 'fixture_push_registration_token', enabled: true, revision: 1 };
+  const register = (credential, body = payload) => fetch(`${base}/api/device/push`, { method: 'POST', headers: { authorization: `Bearer ${credential}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  try {
+    assert.equal((await register('invalid')).status, 401);
+    assert.equal((await register(child.deviceToken)).status, 403);
+    const response = await register(parent.deviceToken);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { registered: true, configured: true });
+    assert.equal((await register(parent.deviceToken, { enabled: false, revision: 2 })).status, 200);
+    assert.equal((await (await register(parent.deviceToken)).json()).registered, false);
+    const devices = await store.listDevices();
+    assert.doesNotMatch(JSON.stringify(devices), /fixture_push_registration_token|push|tokenHash/);
+    await store.revokeDevice(parent.device.id);
+    assert.equal((await register(parent.deviceToken)).status, 401);
+  } finally { await new Promise((resolve) => server.close(resolve)); }
+});

@@ -17,6 +17,9 @@ import androidx.work.WorkManager
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 
 object ParentNotifications {
     private const val PERIODIC = "epiapp-parent-notifications"
@@ -24,7 +27,7 @@ object ParentNotifications {
     private const val CHECKINS = "epiapp-parent-checkins"
     private const val REMINDERS = "epiapp-parent-reminders"
 
-    fun configure(context: Context, origin: String, token: String, user: JSONObject) {
+    fun configure(context: Context, origin: String, token: String, user: JSONObject, deviceId: String = "") {
         val prefs = context.getSharedPreferences("epiapp", Context.MODE_PRIVATE)
         val identity = origin + "|" + user.optString("telegramId")
         synchronized(this) {
@@ -32,20 +35,21 @@ object ParentNotifications {
             if (prefs.getString("parentIdentity", "") != identity) {
                 cancelNotifications(context)
                 editor.putString("parentIdentity", identity)
-                    .putString("parentCursor", "")
+                    .putString("parentCursor", monitoringStart())
                     .putLong("parentGeneration", prefs.getLong("parentGeneration", 0) + 1)
-                    .putStringSet("parentSeen", emptySet())
+                    .putStringSet("parentSeen", emptySet()).putStringSet("parentResolved", emptySet())
                     .putBoolean("parentEnabled", true)
                     .remove("parentLastCheck")
             }
             editor.putString("origin", origin).putString("deviceToken", token)
-                .putString("accountRole", user.optString("role")).commit()
+                .putString("accountRole", user.optString("role")).putString("deviceId", deviceId).commit()
             if (!isParent(context)) cancelNotifications(context)
             if (user.optString("role") != "child") {
                 AlarmScheduler.saveAndSchedule(context, """{"plan":[],"remindersEnabled":false}""")
             }
         }
         schedule(context)
+        PushNotifications.sync(context)
     }
 
     fun isParent(context: Context): Boolean {
@@ -62,6 +66,11 @@ object ParentNotifications {
         val prefs = context.getSharedPreferences("epiapp", Context.MODE_PRIVATE)
         return JSONObject().put("enabled", enabled(context))
             .put("permission", NotificationManagerCompat.from(context).areNotificationsEnabled())
+            .put("pushConfigured", BuildConfig.PUSH_CONFIGURED)
+            .put("pushServerConfigured", prefs.getBoolean("pushServerConfigured", false))
+            .put("pushRegistered", prefs.getBoolean("pushRegistered", false) && prefs.getLong("pushRegisteredRevision", -1) == prefs.getLong("parentGeneration", 0))
+            .put("confirmationsAllowed", channelAllowed(context, CHECKINS))
+            .put("remindersAllowed", channelAllowed(context, REMINDERS))
             .put("lastCheck", prefs.getString("parentLastCheck", "")).toString()
     }
 
@@ -70,13 +79,14 @@ object ParentNotifications {
         synchronized(this) {
             val prefs = context.getSharedPreferences("epiapp", Context.MODE_PRIVATE)
             if (prefs.getBoolean("parentEnabled", true) != enabled) {
-                prefs.edit().putBoolean("parentEnabled", enabled).putString("parentCursor", "")
+                prefs.edit().putBoolean("parentEnabled", enabled).putString("parentCursor", monitoringStart())
                     .putLong("parentGeneration", prefs.getLong("parentGeneration", 0) + 1)
                     .putStringSet("parentSeen", emptySet()).commit()
             }
             if (!enabled) cancelNotifications(context)
         }
         schedule(context)
+        PushNotifications.sync(context)
     }
 
     private fun schedule(context: Context) {
@@ -108,6 +118,7 @@ object ParentNotifications {
             cancelNotifications(context)
         }
         schedule(context)
+        PushNotifications.sync(context)
     }
 
     fun consume(context: Context, batch: JSONObject, origin: String, token: String, generation: Long): Boolean {
@@ -120,6 +131,7 @@ object ParentNotifications {
             if (checkedAt < prefs.getString("parentCursor", "").orEmpty()) return false
             val manager = context.getSystemService(NotificationManager::class.java)
             val seen = prefs.getStringSet("parentSeen", emptySet()).orEmpty().toMutableSet()
+            val resolved = prefs.getStringSet("parentResolved", emptySet()).orEmpty().toMutableSet()
             val posted = prefs.getStringSet("parentPosted", emptySet()).orEmpty().toMutableSet()
             val active = batch.getJSONArray("activeReminderTags").strings().toSet()
             posted.filter { it.startsWith("reminder:") && it !in active }.forEach {
@@ -128,23 +140,76 @@ object ParentNotifications {
             }
             val firstCheck = prefs.getString("parentCursor", "").isNullOrEmpty()
             val notifications = batch.getJSONArray("notifications")
+            for (index in 0 until notifications.length()) {
+                val item = notifications.getJSONObject(index)
+                if (item.optString("type") == "taken" && item.optString("resolvesTag").startsWith("reminder:")) resolved.add(item.getString("resolvesTag"))
+            }
             if (firstCheck) {
                 for (index in 0 until notifications.length()) seen.add(notifications.getJSONObject(index).getString("id"))
             }
-            if (!firstCheck && NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+            var deferred = false
+            if (!firstCheck) {
                 for (index in 0 until notifications.length()) {
                     val item = notifications.getJSONObject(index)
                     if (item.getString("id") in seen) continue
+                    val channel = if (item.getString("type") == "reminder") REMINDERS else CHECKINS
+                    if (!channelAllowed(context, channel)) { deferred = true; continue }
                     post(context, item.getString("tag"), item.getString("title"), item.getString("body"),
                         item.getString("type") == "reminder")
                     seen.add(item.getString("id"))
                     posted.add(item.getString("tag"))
                 }
             }
-            prefs.edit().putString("parentCursor", batch.getString("checkedAt"))
+            val editor = prefs.edit()
+            if (!deferred) editor.putString("parentCursor", batch.getString("checkedAt"))
+            editor
                 .putString("parentLastCheck", batch.getString("checkedAt"))
-                .putStringSet("parentSeen", seen.toList().takeLast(200).toSet())
+                .putStringSet("parentSeen", seen.toList().takeLast(2048).toSet())
+                .putStringSet("parentResolved", resolved.toList().takeLast(100).toSet())
                 .putStringSet("parentPosted", posted.toList().takeLast(200).toSet()).commit()
+            return true
+        }
+    }
+
+    internal fun monitoringStart(now: Instant = Instant.now()): String = DateTimeFormatter
+        .ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC).format(now)
+
+    private fun channelAllowed(context: Context, channel: String): Boolean =
+        NotificationManagerCompat.from(context).areNotificationsEnabled() &&
+            context.getSystemService(NotificationManager::class.java).getNotificationChannel(channel)?.importance != NotificationManager.IMPORTANCE_NONE
+
+    fun consumePush(context: Context, data: Map<String, String>): Boolean {
+        synchronized(this) {
+            val prefs = context.getSharedPreferences("epiapp", Context.MODE_PRIVATE)
+            if (!enabled(context) || data["deviceId"].isNullOrBlank()
+                || prefs.getString("deviceId", "") != data["deviceId"]
+                || prefs.getString("origin", "") != data["origin"]
+                || data["revision"] != prefs.getLong("parentGeneration", 0).toString()) return false
+            val id = data["id"] ?: return false
+            val tag = data["tag"] ?: return false
+            val type = data["type"] ?: return false
+            if (type != "reminder" && type != "taken") return false
+            val at = try { Instant.parse(data["at"]) } catch (_: Exception) { return false }
+            if (at.isBefore(Instant.now().minusSeconds(86400)) || at.isAfter(Instant.now().plusSeconds(300))) return false
+            val channel = if (type == "reminder") REMINDERS else CHECKINS
+            if (!channelAllowed(context, channel)) return false
+            val seen = prefs.getStringSet("parentSeen", emptySet()).orEmpty().toMutableSet()
+            if (id in seen) return false
+            if (type == "reminder" && tag in prefs.getStringSet("parentResolved", emptySet()).orEmpty()) return false
+            val posted = prefs.getStringSet("parentPosted", emptySet()).orEmpty().toMutableSet()
+            val resolved = prefs.getStringSet("parentResolved", emptySet()).orEmpty().toMutableSet()
+            val resolvedTag = data["resolvesTag"].orEmpty()
+            if (type == "taken" && resolvedTag.startsWith("reminder:")) {
+                context.getSystemService(NotificationManager::class.java).cancel(resolvedTag, 0)
+                posted.remove(resolvedTag)
+                resolved.add(resolvedTag)
+            }
+            post(context, tag, data["title"] ?: return false, data["body"] ?: return false, type == "reminder")
+            seen.add(id)
+            posted.add(tag)
+            prefs.edit().putStringSet("parentSeen", seen.toList().takeLast(2048).toSet())
+                .putStringSet("parentPosted", posted.toList().takeLast(200).toSet())
+                .putStringSet("parentResolved", resolved.toList().takeLast(100).toSet()).commit()
             return true
         }
     }
@@ -176,8 +241,8 @@ object ParentNotifications {
     }
 
     fun sendTest(context: Context): Boolean {
-        if (!enabled(context) || !NotificationManagerCompat.from(context).areNotificationsEnabled()) return false
-        post(context, "parent-test", "Оповещения EpiApp", "На этом телефоне включены оповещения для родителя.", false)
+        if (!enabled(context) || !channelAllowed(context, CHECKINS)) return false
+        post(context, "parent-test", "Уведомления EpiApp", "На этом телефоне включены уведомления для родителя.", false)
         return true
     }
 }

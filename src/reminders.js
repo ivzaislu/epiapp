@@ -81,6 +81,7 @@ export function parentNotificationFeed(state, { now = new Date(), since = null }
       id: `taken:${dose.id}`,
       tag: `taken:${dose.id}`,
       type: 'taken',
+      resolvesTag: `reminder:${dose.localDate}:${dose.slot}`,
       at: dose.takenAt,
       title: 'Приём подтверждён',
       body: buildDoseMessage({

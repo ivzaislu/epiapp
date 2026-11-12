@@ -589,7 +589,10 @@ function parentAppControls() {
   return `<section class="block" data-parent-controls>
     <h2 class="block-title">Уведомления на этом телефоне</h2>
     <label class="toggle"><input type="checkbox" data-parent-alerts${status.enabled ? ' checked' : ''}><span>Получать уведомления для родителя</span></label>
-    <p class="help">Подтверждения ребёнка и сообщения об отсутствии отметки. В фоне проверяем примерно раз в 15 минут. Android может задерживать проверку.</p>
+    <p class="help">Подтверждения ребёнка и сообщения об отсутствии отметки.</p>
+    <p class="help">${status.pushConfigured ? status.pushServerConfigured && status.pushRegistered ? 'Устройство зарегистрировано для push. Фоновая проверка остаётся резервной.' : 'Push ещё не подключён к серверу. Пока работает проверка примерно раз в 15 минут.' : 'Этот APK использует проверку примерно раз в 15 минут. Для push потребуется обновление приложения.'} Android может задерживать доставку.</p>
+    ${status.confirmationsAllowed === false ? '<p class="help">Категория «Родителю — подтверждения» заблокирована в Android.</p>' : ''}
+    ${status.remindersAllowed === false ? '<p class="help">Категория «Родителю — нет отметки» заблокирована в Android.</p>' : ''}
     <p class="help">${status.permission ? 'Уведомления Android разрешены.' : 'Уведомления Android выключены. Разрешите их в настройках телефона.'}</p>
     ${status.lastCheck ? `<p class="help">Последняя проверка: ${escapeHtml(formatTakenAt(status.lastCheck, settings.timezone))}</p>` : ''}
     <button type="button" class="quiet" data-parent-test${status.enabled && status.permission ? '' : ' disabled'}>Проверить уведомление</button>

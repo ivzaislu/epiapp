@@ -109,6 +109,7 @@ npm run doctor
 - [docs/MIGRATION.md](docs/MIGRATION.md) — перенос сервера;
 - [docs/SECURITY.md](docs/SECURITY.md) — модель безопасности;
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — диагностика;
+- [docs/PUSH.md](docs/PUSH.md) — подключение Firebase для фоновых Android-уведомлений;
 - [docs/RELEASE.md](docs/RELEASE.md) — стабильная подпись Android release APK.
 
 ## Ручная установка

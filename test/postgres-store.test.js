@@ -105,3 +105,18 @@ test('JSON import refuses to overwrite existing PostgreSQL state unless forced',
     assert.equal((await store.read()).settings.childName, 'Forced import');
   });
 });
+
+test('PostgreSQL push registration and delivery leases persist across connections', { skip: !DATABASE_URL }, async () => {
+  await withStores(2, async ([first, second]) => {
+    const pairing = await first.createDevicePairCode('111111111');
+    const { device } = await first.pairDevice(pairing.code);
+    const token = 'postgres_fixture_push_token';
+    await second.registerDevicePush(device.id, { enabled: true, token, revision: 1 });
+    const claims = await Promise.all([first.claimDevicePush(device.id, token, 'fixture-event'), second.claimDevicePush(device.id, token, 'fixture-event')]);
+    assert.equal(claims.filter(Boolean).length, 1);
+    await second.completeDevicePush(device.id, token, 'fixture-event', { sent: true });
+    assert.equal(await first.claimDevicePush(device.id, token, 'fixture-event'), false);
+    await first.registerDevicePush(device.id, { enabled: false, revision: 2 });
+    assert.equal(await second.claimDevicePush(device.id, token, 'another-event'), false);
+  });
+});
