@@ -5,6 +5,12 @@ import android.app.NotificationManager
 import android.app.NotificationChannel
 import java.time.Instant
 import android.content.Context
+import androidx.work.Configuration
+import androidx.work.ListenableWorker
+import androidx.work.Worker
+import androidx.work.WorkerFactory
+import androidx.work.WorkerParameters
+import androidx.work.WorkManager
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.*
@@ -135,6 +141,11 @@ class ParentNotificationsTest {
 
     @Test fun connectionCursorIsSetBeforeTheFirstNetworkResponse() {
         val context = prepare()
+        // Robolectric does not run AndroidX Startup. Stub workers so this test cannot use the network.
+        WorkManager.initialize(context, Configuration.Builder().setWorkerFactory(object : WorkerFactory() {
+            override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker =
+                object : Worker(appContext, workerParameters) { override fun doWork(): Result = Result.success() }
+        }).build())
         ParentNotifications.configure(context, origin, token, JSONObject().put("telegramId", "100").put("role", "parent"), "fixture-device")
         val prefs = context.getSharedPreferences("epiapp", Context.MODE_PRIVATE)
         val started = Instant.parse(prefs.getString("parentCursor", ""))
