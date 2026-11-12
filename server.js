@@ -11,7 +11,8 @@ import {
   validateTelegramInitData,
   verifySessionToken,
 } from './src/auth.js';
-import { createFcmSender, createPushDispatcher } from './src/push.js';
+import { createPushDispatcher } from './src/push.js';
+import { createWebPushSender } from './src/webpush.js';
 import { parentNotificationFeed, startReminderScheduler } from './src/reminders.js';
 import { Store, familyParents } from './src/store.js';
 import { PostgresStore } from './src/postgres-store.js';
@@ -274,7 +275,7 @@ p{line-height:1.5;color:#566177}
 <a href="${context.apkUrl.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;')}">Скачать EpiApp для Android</a>
 </main>
 <script>
-const target='epiapp://connect?server='+encodeURIComponent(location.origin)+'&token=${linkToken}';
+const target='epiapp-up://connect?server='+encodeURIComponent(location.origin)+'&token=${linkToken}';
 document.getElementById('open').href=target;
 location.replace(target);
 </script>
@@ -329,11 +330,25 @@ location.replace(target);
         }, { 'set-cookie': buildSessionCookie(session) });
       }
 
+      if (req.method === 'GET' && url.pathname === '/api/device/push/key') {
+        const { user } = await requireDevice(req, context);
+        if (!['parent', 'admin'].includes(user.role)) throw new AuthError('Push доступен родителям.', 403);
+        const { publicKey } = await context.store.ensureWebPushKeys();
+        return json(res, 200, { publicKey, transport: 'unifiedpush-webpush' });
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/device/push/test') {
+        const { device, user } = await requireDevice(req, context);
+        if (!['parent', 'admin'].includes(user.role)) throw new AuthError('Тест push доступен родителям.', 403);
+        if (!context.pushDispatcher) throw new ValidationError('Push-доставка на сервере не запущена.');
+        return json(res, 200, await context.store.queueDevicePushTest(device.id));
+      }
+
       if (req.method === 'POST' && url.pathname === '/api/device/push') {
         const { device, user } = await requireDevice(req, context);
         const input = await body(req);
         if (input.enabled && !['parent', 'admin'].includes(user.role)) throw new AuthError('Push для родителя недоступен детскому профилю.', 403);
-        const registered = await context.store.registerDevicePush(device.id, { token: input.token, enabled: input.enabled, revision: input.revision });
+        const registered = await context.store.registerDevicePush(device.id, { subscription: input.subscription, enabled: input.enabled, revision: input.revision, vapidPublicKey: input.vapidPublicKey, origin: input.origin });
         return json(res, 200, { registered, configured: Boolean(context.pushDispatcher) });
       }
 
@@ -506,8 +521,9 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === normalize(process.argv
   }
   const appUrl = resolvePublicAppUrl();
   const adminId = String(process.env.TELEGRAM_ADMIN_ID || '').trim();
-  const pushSender = createFcmSender(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-  const pushDispatcher = pushSender && appUrl ? createPushDispatcher({ store: defaultStore, adminId, origin: appUrl, send: pushSender, logger: console }) : null;
+  if (appUrl) await defaultStore.ensureWebPushKeys();
+  const pushSender = appUrl ? createWebPushSender({ store: defaultStore, subject: appUrl }) : null;
+  const pushDispatcher = pushSender ? createPushDispatcher({ store: defaultStore, adminId, origin: appUrl, send: pushSender, logger: console }) : null;
   const server = createServer({ pushDispatcher });
   server.listen(PORT, HOST, () => {
     console.log(`EpiApp: http://${HOST}:${PORT}`);

@@ -67,6 +67,8 @@ object ParentNotifications {
         return JSONObject().put("enabled", enabled(context))
             .put("permission", NotificationManagerCompat.from(context).areNotificationsEnabled())
             .put("pushConfigured", BuildConfig.PUSH_CONFIGURED)
+            .put("pushTransport", "UnifiedPush/VAPID")
+            .put("pushError", prefs.getString("pushError", ""))
             .put("pushServerConfigured", prefs.getBoolean("pushServerConfigured", false))
             .put("pushRegistered", prefs.getBoolean("pushRegistered", false) && prefs.getLong("pushRegisteredRevision", -1) == prefs.getLong("parentGeneration", 0))
             .put("confirmationsAllowed", channelAllowed(context, CHECKINS))

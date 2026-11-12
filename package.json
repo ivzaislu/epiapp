@@ -8,7 +8,7 @@
     "dev": "node --watch server.js",
     "start": "node server.js",
     "test": "node --import ./test-support/network-stub.mjs --test",
-    "check": "node --check server.js && node --check src/auth.js && node --check src/push.js && node --check src/reminders.js && node --check src/store.js && node --check src/postgres-store.js && node --check src/telegram.js && node --check src/validation.js && node --check public/auth.js && node --check public/app.js && node --check public/web.js && node --check public/history.js && node --check public/sw.js && node --check scripts/doctor.mjs && node --check scripts/import-json-to-postgres.mjs",
+    "check": "node --check server.js && node --check src/auth.js && node --check src/webpush.js && node --check src/push.js && node --check src/reminders.js && node --check src/store.js && node --check src/postgres-store.js && node --check src/telegram.js && node --check src/validation.js && node --check public/auth.js && node --check public/app.js && node --check public/web.js && node --check public/history.js && node --check public/sw.js && node --check scripts/doctor.mjs && node --check scripts/import-json-to-postgres.mjs",
     "doctor": "node scripts/doctor.mjs",
     "doctor:offline": "node scripts/doctor.mjs --offline",
     "doctor:docker": "node scripts/doctor.mjs --docker",
@@ -19,6 +19,7 @@
     "node": ">=18.19.0"
   },
   "dependencies": {
-    "pg": "^8.13.1"
+    "pg": "^8.13.1",
+    "web-push": "3.6.7"
   }
 }

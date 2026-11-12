@@ -67,6 +67,7 @@ class MainActivity : AppCompatActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         refreshNotificationControls()
         ParentNotifications.checkNow(this)
+        PushNotifications.sync(this)
     }
 
     private fun askNotifications() {
@@ -97,7 +98,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleConnect(intent: Intent?): Boolean {
         val data = intent?.data ?: return false
-        if (data.scheme != "epiapp" || data.host != "connect") return false
+        if (data.scheme != "epiapp-up" || data.host != "connect") return false
         val origin = normalize(data.getQueryParameter("server").orEmpty())
         val token = data.getQueryParameter("token").orEmpty()
         if (origin == null || !token.matches(Regex("^[A-Za-z0-9_-]{32,128}$"))) {
@@ -139,6 +140,7 @@ class MainActivity : AppCompatActivity() {
             connectTimeout = 15000
             readTimeout = 15000
             setRequestProperty("content-type", "application/json")
+            instanceFollowRedirects = false
             if (authorization != null) setRequestProperty("authorization", authorization)
         }
         connection.outputStream.use { it.write(json.toByteArray()) }
@@ -291,6 +293,15 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun testParentNotification(): Boolean = ParentNotifications.sendTest(this@MainActivity)
+
+        @JavascriptInterface
+        fun testPushDelivery(): Boolean {
+            if (!ParentNotifications.enabled(this@MainActivity)) return false
+            return try {
+                post("${prefs.getString("origin", "")}/api/device/push/test", "{}", "Bearer ${prefs.getString("deviceToken", "")}")
+                true
+            } catch (_: Exception) { false }
+        }
 
         @JavascriptInterface
         fun openNotificationSettings() {

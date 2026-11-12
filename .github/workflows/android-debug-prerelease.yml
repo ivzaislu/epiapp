@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   prerelease:
-    if: github.ref == 'refs/heads/web-next'
+    if: github.ref == 'refs/heads/web-next' # No publication from unifiedpush-vapid
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

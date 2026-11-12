@@ -15,6 +15,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
+import org.junit.Before
+import org.unifiedpush.android.connector.data.PushEndpoint
+import org.unifiedpush.android.connector.data.PublicKeySet
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
@@ -26,6 +29,15 @@ import org.robolectric.annotation.Config
 class ParentNotificationsTest {
     private val origin = "https://fixture.example"
     private val token = "fixture-token"
+
+    @Before fun stubBackgroundWorkers() {
+        val context = RuntimeEnvironment.getApplication() as Context
+        // Robolectric does not run AndroidX Startup. Stub workers so this test cannot use the network.
+        WorkManagerTestInitHelper.initializeTestWorkManager(context, Configuration.Builder().setWorkerFactory(object : WorkerFactory() {
+            override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker =
+                object : Worker(appContext, workerParameters) { override fun doWork(): Result = Result.success() }
+        }).build())
+    }
 
     private fun prepare(role: String = "parent"): Context {
         val context = RuntimeEnvironment.getApplication()
@@ -141,16 +153,38 @@ class ParentNotificationsTest {
 
     @Test fun connectionCursorIsSetBeforeTheFirstNetworkResponse() {
         val context = prepare()
-        // Robolectric does not run AndroidX Startup. Stub workers so this test cannot use the network.
-        WorkManagerTestInitHelper.initializeTestWorkManager(context, Configuration.Builder().setWorkerFactory(object : WorkerFactory() {
-            override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker =
-                object : Worker(appContext, workerParameters) { override fun doWork(): Result = Result.success() }
-        }).build())
         ParentNotifications.configure(context, origin, token, JSONObject().put("telegramId", "100").put("role", "parent"), "fixture-device")
         val prefs = context.getSharedPreferences("epiapp", Context.MODE_PRIVATE)
         val started = Instant.parse(prefs.getString("parentCursor", ""))
         assertTrue(ParentNotifications.consume(context, batch("taken", ParentNotifications.monitoringStart(started.plusSeconds(2))), origin, token, prefs.getLong("parentGeneration", 0)))
         assertEquals(1, Shadows.shadowOf(context.getSystemService(NotificationManager::class.java)).allNotifications.size)
+    }
+
+
+    @Test fun embeddedMessagesRequireDecryptionAndTheCurrentRegistration() {
+        val context = prepare()
+        val data = push(context)
+        context.getSharedPreferences("epiapp", Context.MODE_PRIVATE).edit().putString("upInstance", "current-instance").commit()
+        val content = JSONObject(data).toString().toByteArray()
+        assertFalse(PushNotifications.received(context, content, false, "current-instance"))
+        assertFalse(PushNotifications.received(context, content, true, "old-instance"))
+        assertTrue(PushNotifications.received(context, content, true, "current-instance"))
+        assertFalse(PushNotifications.received(context, content, true, "current-instance"))
+        assertEquals(1, Shadows.shadowOf(context.getSystemService(NotificationManager::class.java)).allNotifications.size)
+    }
+
+    @Test fun endpointCallbacksCannotReplaceAnotherRegistrationAndIdenticalCallbacksDoNotLoop() {
+        val context = prepare()
+        val prefs = context.getSharedPreferences("epiapp", Context.MODE_PRIVATE)
+        prefs.edit().putString("upInstance", "current-instance").commit()
+        val endpoint = PushEndpoint("https://fcm.googleapis.com/fcm/send/fixture_endpoint_1234567890", PublicKeySet("fixture-public-key", "fixture-auth"), false)
+        PushNotifications.endpoint(context, endpoint, "old-instance")
+        assertFalse(prefs.contains("upSubscription"))
+        PushNotifications.endpoint(context, endpoint, "current-instance")
+        assertTrue(prefs.contains("upSubscription"))
+        val generation = prefs.getLong("parentGeneration", 0)
+        PushNotifications.endpoint(context, endpoint, "current-instance")
+        assertEquals(generation, prefs.getLong("parentGeneration", 0))
     }
 
 }

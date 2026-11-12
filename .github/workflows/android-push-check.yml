@@ -1,40 +1,85 @@
-name: Android push checks
+name: UnifiedPush experiment
 on:
   push:
-    branches: [web-next]
-    paths: ['android/**', 'src/push.js', '.github/workflows/android-push-check.yml']
-  pull_request:
-    paths: ['android/**', 'src/push.js', '.github/workflows/android-push-check.yml']
+    branches: [unifiedpush-vapid]
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  android:
+  experiment:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm test && npm run check
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: '8.13'
           cache-read-only: false
       - uses: android-actions/setup-android@v3
         with:
           packages: platform-tools
       - name: Prepare Android SDK
-        run: sdkmanager 'platforms;android-35' 'build-tools;34.0.0' 'platform-tools'
-      - name: Test without live Firebase
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'platform-tools'
+      - name: Test and assemble without Firebase project configuration
         run: gradle --no-daemon --max-workers=2 -p android :app:testDebugUnitTest :app:assembleDebug
-      - name: Add synthetic Firebase client config for compilation only
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unifiedpush-test-reports
+          path: android/app/build/test-results/testDebugUnitTest
+          if-no-files-found: ignore
+      - name: Verify and package APK
         run: |
-          python3 - <<'PY'
-          import json
-          config = {'project_info': {'project_number': '123456789012', 'project_id': 'epiapp-ci-fixture'}, 'client': [{'client_info': {'mobilesdk_app_id': '1:123456789012:android:0000000000000000', 'android_client_info': {'package_name': 'org.epiapp.android'}}, 'api_key': [{'current_key': 'AIzaSy' + '0' * 33}]}], 'configuration_version': '1'}
-          with open('android/app/google-services.json', 'w') as f: json.dump(config, f)
-          PY
-      - name: Compile Firebase-enabled variant (never published)
-        run: gradle --no-daemon --max-workers=2 -p android :app:assembleDebug
+          set -euo pipefail
+          version=$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' android/app/build.gradle.kts)
+          mkdir -p dist
+          apk="EpiApp-${version}.apk"
+          cp android/app/build/outputs/apk/debug/app-debug.apk "dist/$apk"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "dist/$apk" > dist/SIGNING_CERT.txt
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "dist/$apk" | head -1
+          (cd dist && sha256sum "$apk" > SHA256SUMS.txt)
+          echo "UP_TAG=v${version}" >> "$GITHUB_ENV"
+          echo "UP_VERSION=$version" >> "$GITHUB_ENV"
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EpiApp-UP
+          path: dist/*
+
+      - name: Publish experimental prerelease
+        if: github.ref == 'refs/heads/unifiedpush-vapid'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          cat > notes.md <<EOF
+          Эксперимент UnifiedPush/VAPID из ветки unifiedpush-vapid.
+
+          Коммит ${GITHUB_SHA}.
+
+          APK EpiApp UP устанавливается отдельно от основного EpiApp. Требуется бэкенд из этой же ветки: он автоматически создаёт ключи VAPID и использует Google Web Push без Firebase-проекта и service account.
+
+          Это прототип. Сборка и автоматические тесты не заменяют проверку доставки на физическом телефоне с закрытым приложением. Основная ветка web-next этим пререлизом не обновляется.
+
+          APK подписан тестовым ключом CI; ключ может меняться между сборками. Контрольная сумма и сертификат находятся в приложенных файлах.
+          EOF
+          if gh api "repos/$GH_REPO/releases/tags/$UP_TAG" > existing.json 2>/dev/null; then
+            jq -e --arg commit "$GITHUB_SHA" '.draft == true and .target_commitish == $commit' existing.json >/dev/null
+            gh release upload "$UP_TAG" dist/* --clobber
+          else
+            gh release create "$UP_TAG" dist/* --target "$GITHUB_SHA" --draft --prerelease --latest=false --title "EpiApp ${UP_VERSION} — UnifiedPush experiment" --notes-file notes.md
+          fi
+          gh release edit "$UP_TAG" --draft=false --prerelease --latest=false

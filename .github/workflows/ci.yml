@@ -10,6 +10,7 @@ on:
       - northflank
       - android-native
       - web-next
+      - unifiedpush-vapid
   pull_request:
   workflow_dispatch:
 
@@ -50,9 +51,9 @@ jobs:
   postgres:
     name: PostgreSQL store
     if: >-
-      contains(fromJSON('["northflank","android-native","web-next"]'), github.ref_name)
-      || contains(fromJSON('["northflank","android-native","web-next"]'), github.head_ref)
-      || contains(fromJSON('["northflank","android-native","web-next"]'), github.base_ref)
+      contains(fromJSON('["northflank","android-native","web-next","unifiedpush-vapid"]'), github.ref_name)
+      || contains(fromJSON('["northflank","android-native","web-next","unifiedpush-vapid"]'), github.head_ref)
+      || contains(fromJSON('["northflank","android-native","web-next","unifiedpush-vapid"]'), github.base_ref)
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -89,9 +90,9 @@ jobs:
   selfhost:
     name: Self-host Docker stack
     if: >-
-      contains(fromJSON('["epiappapk","main","northflank","android-native","web-next"]'), github.ref_name)
-      || contains(fromJSON('["epiappapk","northflank","android-native","web-next"]'), github.head_ref)
-      || contains(fromJSON('["main","web-next"]'), github.base_ref)
+      contains(fromJSON('["epiappapk","main","northflank","android-native","web-next","unifiedpush-vapid"]'), github.ref_name)
+      || contains(fromJSON('["epiappapk","northflank","android-native","web-next","unifiedpush-vapid"]'), github.head_ref)
+      || contains(fromJSON('["main","web-next","unifiedpush-vapid"]'), github.base_ref)
     runs-on: ubuntu-latest
 
     steps:

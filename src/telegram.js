@@ -41,7 +41,7 @@ export async function sendTelegramMessage({ token, chatId, text, replyMarkup = u
   });
 }
 
-export const DEFAULT_ANDROID_APK_URL = 'https://github.com/ivzaislu/epiapp/releases/download/v0.7.4-debug/EpiApp-0.7.4-debug.apk';
+export const DEFAULT_ANDROID_APK_URL = 'https://github.com/ivzaislu/epiapp/releases/download/v0.7.5-up.1/EpiApp-0.7.5-up.1.apk';
 const apkFileIds = new Map();
 const MAX_APK_BYTES = 49_000_000;
 
@@ -54,7 +54,7 @@ export function resolveAndroidApkUrl(value = process.env.ANDROID_APK_URL || DEFA
 }
 
 export function androidInstallText(apkUrl) {
-  const debug = apkUrl.includes('-debug') ? '\n\nЭто тестовая сборка. Если подпись отличается от установленной версии, потребуется переустановка и повторное подключение.' : '';
+  const debug = apkUrl.includes('-debug') || apkUrl.includes('-up.') ? '\n\nЭто тестовая сборка. EpiApp UP устанавливается рядом с основным приложением. Если подпись отличается от установленной версии, потребуется переустановка и повторное подключение.' : '';
   return '📥 EpiApp для Android\n\n1. Скачайте APK и нажмите на файл.\n2. По запросу Android разрешите установку из Telegram и подтвердите установку.\n3. Вернитесь в бота и нажмите «📲 Подключить Android».\n\nЕсли скачиваете через браузер, Android может запросить разрешение для браузера.' + debug;
 }
 

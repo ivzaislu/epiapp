@@ -1,3 +1,5 @@
+> Экспериментальная ветка **unifiedpush-vapid**: EpiApp UP и Web Push/VAPID с автоматическими серверными ключами. Основная ветка — `web-next`. План установки и проверки закрытого приложения: [docs/PUSH.md](docs/PUSH.md).
+
 # EpiApp
 
 EpiApp — приложение для одной семьи. Ребёнок подтверждает приём, родитель видит отметки и управляет схемой. Ветка `web-next` содержит сервер, веб-кабинет и Android-модуль с WebView и локальными будильниками.
@@ -109,7 +111,7 @@ npm run doctor
 - [docs/MIGRATION.md](docs/MIGRATION.md) — перенос сервера;
 - [docs/SECURITY.md](docs/SECURITY.md) — модель безопасности;
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — диагностика;
-- [docs/PUSH.md](docs/PUSH.md) — подключение Firebase для фоновых Android-уведомлений;
+- [docs/PUSH.md](docs/PUSH.md) — эксперимент UnifiedPush/VAPID без настройки Firebase-проекта;
 - [docs/RELEASE.md](docs/RELEASE.md) — стабильная подпись Android release APK.
 
 ## Ручная установка

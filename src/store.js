@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { generateWebPushKeys, validateSubscription } from './webpush.js';
 import { assertSlot, sanitizeSettings, schedulePlan, ValidationError } from './validation.js';
 
 const DEFAULT_DOSE_RETENTION = 730;
@@ -22,6 +23,7 @@ const DEFAULT_STATE = {
     reminderStopMinutes: 60,
     telegramChatIds: [],
   },
+  webPushKeys: null,
   doses: [],
   audit: [],
   reminderDeliveries: [],
@@ -581,28 +583,52 @@ export class Store {
     return publicDevice(device);
   }
 
-  async registerDevicePush(deviceId, { token = '', enabled, revision, now = new Date() }) {
+  async ensureWebPushKeys() {
+    const current = await this.read();
+    if (current.webPushKeys) return clone(current.webPushKeys);
+    return this.mutate(async (state) => {
+      if (!state.webPushKeys) state.webPushKeys = generateWebPushKeys();
+      return clone(state.webPushKeys);
+    });
+  }
+
+  async registerDevicePush(deviceId, { subscription, enabled, revision, vapidPublicKey, origin, now = new Date() }) {
     if (typeof enabled !== 'boolean' || !Number.isSafeInteger(revision) || revision < 0) {
       throw new ValidationError('Некорректные настройки push.');
     }
-    if (enabled && (typeof token !== 'string' || !/^[A-Za-z0-9_:.-]{20,4096}$/.test(token))) {
-      throw new ValidationError('Некорректный push-токен.');
+    const validated = enabled ? validateSubscription(subscription) : null;
+    let pushOrigin;
+    if (enabled) {
+      try { const url = new URL(origin); if (url.protocol !== 'https:' || url.username || url.password || url.origin !== origin) throw new Error(); pushOrigin = url.origin; }
+      catch { throw new ValidationError('Некорректный сервер подписки.'); }
     }
     return this.mutate(async (state) => {
       const device = state.access.devices.find((item) => item.id === deviceId && !item.revokedAt);
       if (!device) throw new DeviceAuthError('Устройство не подключено.');
       if (revision < (device.push?.revision ?? -1)) return false;
+      if (enabled && vapidPublicKey !== state.webPushKeys?.publicKey) throw new ValidationError('Ключ VAPID изменился. Повторите регистрацию.');
+      const token = validated?.endpoint || '';
       if (enabled) {
         for (const other of state.access.devices) {
-          if (other.id !== deviceId && other.push?.token === token) other.push = { ...other.push, enabled: false, token: '' };
+          if (other.id !== deviceId && other.push?.token === token) other.push = { ...other.push, enabled: false, token: '', subscription: null };
         }
       }
       device.push = {
-        token: enabled ? token : '', enabled, revision,
+        token, subscription: validated, origin: pushOrigin || device.push?.origin || '', enabled, revision,
         since: enabled && device.push?.enabled === false ? now.toISOString() : device.push?.since || now.toISOString(),
         deliveries: device.push?.deliveries || [],
+        test: enabled ? device.push?.test || null : null,
       };
       return true;
+    });
+  }
+
+  async queueDevicePushTest(deviceId, { now = new Date() } = {}) {
+    return this.mutate(async (state) => {
+      const device = state.access.devices.find((item) => item.id === deviceId && !item.revokedAt);
+      if (!device?.push?.enabled || !device.push.subscription) throw new ValidationError('Сначала дождитесь регистрации push.');
+      if (!device.push.test || Date.parse(device.push.test.at) < now.getTime()) device.push.test = { id: `test:${randomUUID()}`, at: new Date(now.getTime() + 30000).toISOString() };
+      return { dueAt: device.push.test.at };
     });
   }
 
@@ -623,9 +649,12 @@ export class Store {
     return this.mutate(async (state) => {
       const device = state.access.devices.find((item) => item.id === deviceId && !item.revokedAt);
       if (!device?.push || device.push.token !== token) return;
-      if (invalid) { device.push.token = ''; device.push.enabled = false; }
+      if (invalid) { device.push.token = ''; device.push.subscription = null; device.push.enabled = false; }
       device.push.deliveries = (device.push.deliveries || []).filter((item) => item.id !== eventId);
-      if (sent) device.push.deliveries.push({ id: eventId, sentAt: now.toISOString() });
+      if (sent) {
+        device.push.deliveries.push({ id: eventId, sentAt: now.toISOString() });
+        if (device.push.test?.id === eventId) device.push.test = null;
+      }
     });
   }
 

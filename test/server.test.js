@@ -1,3 +1,4 @@
+import { pushFixture } from '../test-support/subscription.mjs';
 import assert from 'node:assert/strict';
 import { createHmac, randomUUID } from 'node:crypto';
 import { mkdtemp } from 'node:fs/promises';
@@ -386,7 +387,7 @@ test('Android pairing handoff opens the native deep link without manual server e
     assert.equal(response.status, 200);
     assert.match(response.headers.get('cache-control') || '', /no-store/);
     const html = await response.text();
-    assert.match(html, /epiapp:\/\/connect/);
+    assert.match(html, /epiapp-up:\/\/connect/);
     assert.match(html, /token=AAAAAAAA/);
 
     const invalid = await fetch(`http://127.0.0.1:${port}/android/connect?token=nope`);
@@ -439,9 +440,11 @@ test('push registration requires device authentication and parent role and does 
   const server = createServer({ store, botToken: BOT_TOKEN, adminId: ADMIN_ID, pushDispatcher: { check: async () => {} } });
   const port = await listen(server);
   const base = `http://127.0.0.1:${port}`;
-  const payload = { token: 'fixture_push_registration_token', enabled: true, revision: 1 };
+  const payload = { subscription: pushFixture('api').subscription, vapidPublicKey: (await store.ensureWebPushKeys()).publicKey, origin: 'https://family.example', enabled: true, revision: 1 };
   const register = (credential, body = payload) => fetch(`${base}/api/device/push`, { method: 'POST', headers: { authorization: `Bearer ${credential}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
   try {
+    const key = await fetch(`${base}/api/device/push/key`, { headers: { authorization: `Bearer ${parent.deviceToken}` } });
+    assert.deepEqual(await key.json(), { publicKey: payload.vapidPublicKey, transport: 'unifiedpush-webpush' });
     assert.equal((await register('invalid')).status, 401);
     assert.equal((await register(child.deviceToken)).status, 403);
     const response = await register(parent.deviceToken);
@@ -450,7 +453,7 @@ test('push registration requires device authentication and parent role and does 
     assert.equal((await register(parent.deviceToken, { enabled: false, revision: 2 })).status, 200);
     assert.equal((await (await register(parent.deviceToken)).json()).registered, false);
     const devices = await store.listDevices();
-    assert.doesNotMatch(JSON.stringify(devices), /fixture_push_registration_token|push|tokenHash/);
+    assert.doesNotMatch(JSON.stringify(devices), /fcm.googleapis.com|privateKey|subscription|push|tokenHash/);
     await store.revokeDevice(parent.device.id);
     assert.equal((await register(parent.deviceToken)).status, 401);
   } finally { await new Promise((resolve) => server.close(resolve)); }

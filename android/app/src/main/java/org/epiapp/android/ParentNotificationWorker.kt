@@ -10,6 +10,7 @@ import java.net.URLEncoder
 
 class ParentNotificationWorker(context: Context, parameters: WorkerParameters) : Worker(context, parameters) {
     override fun doWork(): Result {
+        PushNotifications.sync(applicationContext)
         if (!ParentNotifications.enabled(applicationContext)) return Result.success()
         val prefs = applicationContext.getSharedPreferences("epiapp", Context.MODE_PRIVATE)
         val origin = prefs.getString("origin", "").orEmpty()

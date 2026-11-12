@@ -582,20 +582,32 @@ function remindersScreen() {
 function parentAppControls() {
   const native = window.EpiAppNative;
   if (!native?.parentNotificationStatus) {
-    return '<section class="block"><h2 class="block-title">Уведомления в приложении</h2><p class="help">Откройте кабинет в Android-приложении EpiApp 0.7.4 или новее, чтобы получать уведомления на телефоне.</p></section>';
+    return '<section class="block"><h2 class="block-title">Уведомления в приложении</h2><p class="help">Откройте кабинет в экспериментальном Android-приложении EpiApp UP, чтобы получать уведомления на телефоне.</p></section>';
   }
   let status;
   try { status = JSON.parse(native.parentNotificationStatus()); } catch { return ''; }
+  const pushErrors = {
+    ACTION_REQUIRED: 'Проверьте доступность и обновления сервисов Google Play.',
+    NETWORK: 'Нет связи для регистрации push. Приложение повторит попытку.',
+    HTTP_401: 'Подключите приложение заново через бота.',
+    HTTP_403: 'Проверьте доступ аккаунта и подключите приложение заново.',
+    HTTP_404: 'Этот сервер не поддерживает эксперимент UnifiedPush. Нужен бэкенд из ветки unifiedpush-vapid.',
+    HTTP_400: 'Сервер не принял подписку. Приложение повторит регистрацию.',
+    REGISTRATION_RETRY: 'Регистрация push будет повторена при доступной сети.',
+    UNREGISTERED: 'Push-подписка завершена. Приложение повторит регистрацию.',
+  };
   return `<section class="block" data-parent-controls>
     <h2 class="block-title">Уведомления на этом телефоне</h2>
     <label class="toggle"><input type="checkbox" data-parent-alerts${status.enabled ? ' checked' : ''}><span>Получать уведомления для родителя</span></label>
     <p class="help">Подтверждения ребёнка и сообщения об отсутствии отметки.</p>
-    <p class="help">${status.pushConfigured ? status.pushServerConfigured && status.pushRegistered ? 'Устройство зарегистрировано для push. Фоновая проверка остаётся резервной.' : 'Push ещё не подключён к серверу. Пока работает проверка примерно раз в 15 минут.' : 'Этот APK использует проверку примерно раз в 15 минут. Для push потребуется обновление приложения.'} Android может задерживать доставку.</p>
+    <p class="help">${status.pushConfigured ? status.pushServerConfigured && status.pushRegistered ? 'Устройство зарегистрировано для UnifiedPush/VAPID. Фоновая проверка остаётся резервной.' : 'Push ещё не подключён к серверу. Пока работает проверка примерно раз в 15 минут.' : 'Этот APK использует проверку примерно раз в 15 минут. Для push потребуется обновление приложения.'} Android может задерживать доставку.</p>
     ${status.confirmationsAllowed === false ? '<p class="help">Категория «Родителю — подтверждения» заблокирована в Android.</p>' : ''}
     ${status.remindersAllowed === false ? '<p class="help">Категория «Родителю — нет отметки» заблокирована в Android.</p>' : ''}
+    ${status.pushError ? `<p class="help">Регистрация push: ${escapeHtml(pushErrors[status.pushError] || 'Push временно недоступен.') } Резервная проверка продолжает работать.</p>` : ''}
     <p class="help">${status.permission ? 'Уведомления Android разрешены.' : 'Уведомления Android выключены. Разрешите их в настройках телефона.'}</p>
     ${status.lastCheck ? `<p class="help">Последняя проверка: ${escapeHtml(formatTakenAt(status.lastCheck, settings.timezone))}</p>` : ''}
     <button type="button" class="quiet" data-parent-test${status.enabled && status.permission ? '' : ' disabled'}>Проверить уведомление</button>
+    ${native.testPushDelivery ? `<button type="button" class="quiet" data-push-test${status.pushRegistered && status.permission ? '' : ' disabled'}>Тест доставки через 30 секунд</button><p class="help">После нажатия сверните приложение и заблокируйте телефон. Тест не меняет статистику приёмов.</p>` : ''}
     <button type="button" class="texty" data-notification-settings>Настройки уведомлений Android</button>
   </section>`;
 }
@@ -1115,6 +1127,11 @@ export function boot() {
       render();
       return;
     }
+    if (event.target.closest('[data-push-test]')) {
+      const queued = window.EpiAppNative?.testPushDelivery?.();
+      toast(queued ? 'Тест запланирован. Сверните приложение: уведомление должно прийти через 30 секунд при доступной сети.' : 'Не удалось запланировать push. Проверьте подключение приложения к серверу.', !queued);
+      return;
+    }
     if (event.target.closest('[data-parent-test]')) {
       const sent = window.EpiAppNative?.testParentNotification?.();
       toast(sent ? 'Тестовое уведомление отправлено на этот телефон.' : 'Разрешите уведомления в настройках телефона.', !sent);
@@ -1265,6 +1282,7 @@ export function boot() {
       throw error;
     }
     setInterval(() => {
+      if (screen === 'notifications') window.epiappParentNotificationsChanged?.();
       if (['today', 'notifications', 'reminders'].includes(screen) && $('sheet').hidden
         && !$('screen').querySelector('form')) refresh().catch(() => undefined);
     }, 30000);

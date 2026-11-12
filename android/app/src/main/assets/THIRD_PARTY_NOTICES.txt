@@ -1,0 +1,7 @@
+EpiApp UP experiment includes:
+UnifiedPush Android connector 3.3.5 and embedded-fcm-distributor 3.1.0.
+https://codeberg.org/UnifiedPush/android-connector
+https://codeberg.org/UnifiedPush/android-embedded_fcm_distributor
+The Maven artifacts declare Apache License 2.0.
+Tink Android 1.23.0: https://github.com/tink-crypto/tink-java (Apache License 2.0).
+See LICENSE-2.0.txt in this APK for the license text.

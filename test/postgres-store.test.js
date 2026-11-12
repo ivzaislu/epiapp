@@ -1,3 +1,4 @@
+import { pushFixture } from '../test-support/subscription.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { randomUUID } from 'node:crypto';
@@ -110,8 +111,11 @@ test('PostgreSQL push registration and delivery leases persist across connection
   await withStores(2, async ([first, second]) => {
     const pairing = await first.createDevicePairCode('111111111');
     const { device } = await first.pairDevice(pairing.code);
-    const token = 'postgres_fixture_push_token';
-    await second.registerDevicePush(device.id, { enabled: true, token, revision: 1 });
+    const subscription = pushFixture('postgres').subscription;
+    const token = subscription.endpoint;
+    const vapidPublicKey = (await first.ensureWebPushKeys()).publicKey;
+    assert.equal((await second.ensureWebPushKeys()).publicKey, vapidPublicKey);
+    await second.registerDevicePush(device.id, { enabled: true, subscription, vapidPublicKey, origin: 'https://family.example', revision: 1 });
     const claims = await Promise.all([first.claimDevicePush(device.id, token, 'fixture-event'), second.claimDevicePush(device.id, token, 'fixture-event')]);
     assert.equal(claims.filter(Boolean).length, 1);
     await second.completeDevicePush(device.id, token, 'fixture-event', { sent: true });
