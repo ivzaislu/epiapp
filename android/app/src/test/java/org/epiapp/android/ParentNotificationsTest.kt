@@ -10,7 +10,7 @@ import androidx.work.ListenableWorker
 import androidx.work.Worker
 import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
-import androidx.work.WorkManager
+import androidx.work.testing.WorkManagerTestInitHelper
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.*
@@ -142,7 +142,7 @@ class ParentNotificationsTest {
     @Test fun connectionCursorIsSetBeforeTheFirstNetworkResponse() {
         val context = prepare()
         // Robolectric does not run AndroidX Startup. Stub workers so this test cannot use the network.
-        WorkManager.initialize(context, Configuration.Builder().setWorkerFactory(object : WorkerFactory() {
+        WorkManagerTestInitHelper.initializeTestWorkManager(context, Configuration.Builder().setWorkerFactory(object : WorkerFactory() {
             override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker =
                 object : Worker(appContext, workerParameters) { override fun doWork(): Result = Result.success() }
         }).build())
