@@ -48,6 +48,7 @@ object ParentNotifications {
                 AlarmScheduler.saveAndSchedule(context, """{"plan":[],"remindersEnabled":false}""")
             }
         }
+        ChildReminders.configure(context)
         schedule(context)
         PushNotifications.sync(context)
     }
@@ -119,6 +120,8 @@ object ParentNotifications {
             prefs.edit().remove("accountRole").commit()
             cancelNotifications(context)
         }
+        AlarmScheduler.saveAndSchedule(context, """{"plan":[],"remindersEnabled":false}""")
+        ChildReminders.configure(context)
         schedule(context)
         PushNotifications.sync(context)
     }
@@ -232,7 +235,7 @@ object ParentNotifications {
         manager.createNotificationChannel(NotificationChannel(channel,
             if (reminder) "Родителю — нет отметки" else "Родителю — подтверждения",
             if (reminder) NotificationManager.IMPORTANCE_HIGH else NotificationManager.IMPORTANCE_DEFAULT))
-        val open = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java),
+        val open = PendingIntent.getActivity(context, 0, MainActivity.cabinetIntent(context),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         manager.notify(tag, 0, NotificationCompat.Builder(context, channel)
             .setSmallIcon(R.drawable.ic_stat).setContentTitle(title).setContentText(body)

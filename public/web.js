@@ -690,11 +690,24 @@ function telegramScreen() {
     </section>`;
 }
 
+function childReminderControls() {
+  const native = window.EpiAppNative;
+  if (!native?.childReminderStatus) return '';
+  let status;
+  try { status = JSON.parse(native.childReminderStatus()); } catch { return ''; }
+  return `<section class="block"><h2 class="block-title">Напоминания на телефоне</h2>
+    <p class="help">Сохранённое расписание работает без интернета. Звук и вибрация зависят от настроек телефона.</p>
+    ${!status.permission ? '<p class="help">Уведомления запрещены. Разрешите их в настройках телефона.</p>' : ''}
+    ${status.permission && !status.sound ? '<p class="help">Звук напоминаний отключён в настройках уведомлений.</p>' : ''}
+    ${!status.exact ? '<p class="help">Без разрешения на точные напоминания Android может задержать сигнал.</p><button type="button" class="quiet" data-exact-settings>Разрешить точное время</button>' : ''}
+    <button type="button" class="quiet" data-notification-settings>Настройки звука и уведомлений</button></section>`;
+}
+
 function childScreen() {
   return `<section class="block">
       ${doseRows(true)}
       <p class="note">Отметка появляется только после ответа сервера.</p>
-    </section>
+    </section>${childReminderControls()}
     <section class="block">
       <h2 class="block-title">Последние отметки</h2>
       ${historyBlock(state.recentDoses || [], historyExpanded, 'Пока нет отметок.')}
@@ -976,6 +989,7 @@ function publishNativeSchedule() {
     reminderRepeatMinutes: state.settings.reminderRepeatMinutes ?? 15,
     reminderStopMinutes: state.settings.reminderStopMinutes ?? 60,
     childName: state.settings.childName || '',
+    scheduleDate: state.today,
     plan,
   }));
 }
@@ -1135,6 +1149,10 @@ export function boot() {
     if (event.target.closest('[data-parent-test]')) {
       const sent = window.EpiAppNative?.testParentNotification?.();
       toast(sent ? 'Тестовое уведомление отправлено на этот телефон.' : 'Разрешите уведомления в настройках телефона.', !sent);
+      return;
+    }
+    if (event.target.closest('[data-exact-settings]')) {
+      window.EpiAppNative?.openExactAlarmSettings?.();
       return;
     }
     if (event.target.closest('[data-notification-settings]')) {

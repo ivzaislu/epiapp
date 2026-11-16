@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { dateKey } from './store.js';
 import { parentNotificationFeed } from './reminders.js';
 
 export async function runPushCheck({ store, adminId, origin, send, now = new Date(), logger = console }) {
@@ -7,10 +9,14 @@ export async function runPushCheck({ store, adminId, origin, send, now = new Dat
   let sent = 0;
   let failed = 0;
   for (const device of state.access.devices) {
-    if (device.revokedAt || !parents.has(String(device.telegramId)) || !device.push?.enabled || !device.push.token || !device.push.subscription) continue;
-    const feed = parentNotificationFeed(state, { now, since: new Date(device.push.since) });
+    const child = device.push?.scheduleSync === true && state.access.users.some(user => String(user.telegramId) === String(device.telegramId) && user.role === 'child');
+    if (device.revokedAt || (!parents.has(String(device.telegramId)) && !child) || !device.push?.enabled || !device.push.token || !device.push.subscription) continue;
+    const today = dateKey(now, state.settings.timezone);
+    const fingerprint = createHash('sha256').update(JSON.stringify([state.settings, today, state.doses.filter(dose => dose.localDate === today), device.push.revision])).digest('hex');
+    const feed = child ? { notifications: [{ id: `schedule:${fingerprint}`, type: 'schedule', at: now.toISOString() }] }
+      : parentNotificationFeed(state, { now, since: new Date(device.push.since) });
     const test = device.push.test;
-    if (test && Date.parse(test.at) <= now.getTime() && now.getTime() - Date.parse(test.at) <= 300000) {
+    if (!child && test && Date.parse(test.at) <= now.getTime() && now.getTime() - Date.parse(test.at) <= 300000) {
       feed.notifications.push({ id: test.id, tag: test.id, type: 'taken', at: test.at, title: 'Тест фоновой доставки', body: 'Уведомление пришло через UnifiedPush/VAPID. Это тест, он не создаёт отметку о приёме.' });
     }
     for (const event of feed.notifications) {
@@ -18,7 +24,7 @@ export async function runPushCheck({ store, adminId, origin, send, now = new Dat
       // Check access again after taking the lease; revocation/opt-out must stop new sends.
       const current = await store.read();
       const target = current.access.devices.find((item) => item.id === device.id);
-      const allowed = String(device.telegramId) === String(adminId) || current.access.users.some((user) => String(user.telegramId) === String(device.telegramId) && user.role === 'parent');
+      const allowed = String(device.telegramId) === String(adminId) || current.access.users.some((user) => String(user.telegramId) === String(device.telegramId) && (user.role === 'parent' && !child || user.role === 'child' && child));
       if (!allowed || target?.revokedAt || !target?.push?.enabled || target.push.token !== device.push.token) {
         await store.completeDevicePush(device.id, device.push.token, event.id);
         continue;

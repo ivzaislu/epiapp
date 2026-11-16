@@ -447,6 +447,16 @@ test('push registration requires device authentication and parent role and does 
     assert.deepEqual(await key.json(), { publicKey: payload.vapidPublicKey, transport: 'unifiedpush-webpush' });
     assert.equal((await register('invalid')).status, 401);
     assert.equal((await register(child.deviceToken)).status, 403);
+    assert.equal((await register(child.deviceToken, { ...payload, scheduleSync: true })).status, 200);
+    const childKey = await fetch(`${base}/api/device/push/key`, { headers: { authorization: `Bearer ${child.deviceToken}` } });
+    assert.equal(childKey.status, 200);
+    const childPlan = await fetch(`${base}/api/device/schedule`, { headers: { authorization: `Bearer ${child.deviceToken}` } });
+    const native = await childPlan.json();
+    assert.ok(native.schedule.plan.length >= 2);
+    assert.ok(native.schedule.plan.every(item => item.slot && item.time && typeof item.medicationName === 'string'));
+    assert.match(native.today, /^\d{4}-\d{2}-\d{2}$/);
+    const forbiddenTest = await fetch(`${base}/api/device/push/test`, { method: 'POST', headers: { authorization: `Bearer ${child.deviceToken}` } });
+    assert.equal(forbiddenTest.status, 403);
     const response = await register(parent.deviceToken);
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { registered: true, configured: true });

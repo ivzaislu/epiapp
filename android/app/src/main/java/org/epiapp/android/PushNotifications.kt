@@ -15,6 +15,8 @@ import java.security.MessageDigest
 import java.util.UUID
 
 object PushNotifications {
+    fun enabled(context: Context) = ParentNotifications.enabled(context) || ChildReminders.isChild(context)
+
     fun sync(context: Context) {
         WorkManager.getInstance(context).enqueueUniqueWork("epiapp-up-registration", ExistingWorkPolicy.REPLACE,
             OneTimeWorkRequestBuilder<PushRegistrationWorker>()
@@ -31,7 +33,7 @@ object PushNotifications {
         val prefs = context.getSharedPreferences("epiapp", Context.MODE_PRIVATE)
         var changed = false
         synchronized(ParentNotifications) {
-            if (prefs.getString("upInstance", "") != instance || !ParentNotifications.enabled(context)) return
+            if (prefs.getString("upInstance", "") != instance || !enabled(context)) return
             if (prefs.getString("upSubscription", "") != subscription) {
                 prefs.edit().putString("upSubscription", subscription).putString("pushError", "")
                     .putLong("parentGeneration", prefs.getLong("parentGeneration", 0) + 1)
@@ -66,6 +68,11 @@ object PushNotifications {
             if (prefs.getString("upInstance", "") != instance) return false
             val json = try { JSONObject(content.toString(Charsets.UTF_8)) } catch (_: Exception) { return false }
             val data = json.keys().asSequence().associateWith { json.optString(it) }
+            if (data["type"] == "schedule") {
+                if (!ChildReminders.isChild(context) || data["deviceId"] != prefs.getString("deviceId", "") || data["origin"] != prefs.getString("origin", "") || data["revision"] != prefs.getLong("parentGeneration", 0).toString()) return false
+                ChildReminders.sync(context)
+                return true
+            }
             return ParentNotifications.consumePush(context, data)
         }
     }
@@ -100,7 +107,7 @@ class PushRegistrationWorker(context: Context, params: WorkerParameters) : Worke
         val deviceId = prefs.getString("deviceId", "").orEmpty()
         if (origin.isBlank() || credential.isBlank() || deviceId.isBlank()) return Result.success()
         try {
-            if (!ParentNotifications.enabled(applicationContext) || !NotificationManagerCompat.from(applicationContext).areNotificationsEnabled()) {
+            if (!PushNotifications.enabled(applicationContext) || !NotificationManagerCompat.from(applicationContext).areNotificationsEnabled()) {
                 val old = synchronized(ParentNotifications) {
                     val value = prefs.getString("upInstance", "")
                     prefs.edit().remove("upInstance").remove("upSubscription").putBoolean("pushRegistered", false).commit()
@@ -117,7 +124,7 @@ class PushRegistrationWorker(context: Context, params: WorkerParameters) : Worke
             val revision: Long
             val subscription: String
             synchronized(ParentNotifications) {
-                if (prefs.getString("origin", "") != origin || prefs.getString("deviceToken", "") != credential || !ParentNotifications.enabled(applicationContext)) return Result.success()
+                if (prefs.getString("origin", "") != origin || prefs.getString("deviceToken", "") != credential || !PushNotifications.enabled(applicationContext)) return Result.success()
                 if (prefs.getString("upBinding", "") != binding || prefs.getString("upInstance", "").isNullOrEmpty()) {
                     previous = prefs.getString("upInstance", "").orEmpty()
                     prefs.edit().putString("upInstance", "$binding-${UUID.randomUUID()}").putString("upBinding", binding).putString("upKey", key).remove("upSubscription")
@@ -132,7 +139,7 @@ class PushRegistrationWorker(context: Context, params: WorkerParameters) : Worke
             if (subscription.isNotBlank()) {
                 val response = request(origin, credential, "/api/device/push", JSONObject()
                     .put("enabled", true).put("revision", revision).put("subscription", JSONObject(subscription))
-                    .put("vapidPublicKey", key).put("origin", origin))
+                    .put("vapidPublicKey", key).put("origin", origin).put("scheduleSync", ChildReminders.isChild(applicationContext)))
                 synchronized(ParentNotifications) {
                     if (prefs.getString("deviceToken", "") == credential && prefs.getLong("parentGeneration", 0) == revision) {
                         prefs.edit().putBoolean("pushServerConfigured", response.optBoolean("configured"))

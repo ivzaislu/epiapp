@@ -156,3 +156,26 @@ test('delayed background-delivery test is independent of the dose feed and does 
   assert.equal((await runPushCheck(later)).sent, 0);
   assert.deepEqual((await store.read()).doses, beforeState.doses);
 });
+
+test('child schedule synchronization is separate from parent messages and updates after changes', async (t) => {
+  const { store, devices } = await fixture(t);
+  const child = devices[2].device.id;
+  for (const device of devices.slice(0, 2)) await store.registerDevicePush(device.device.id, { enabled: false, revision: 2 });
+  await store.registerDevicePush(child, { enabled: true, scheduleSync: true, subscription: pushFixture('child-sync').subscription,
+    revision: 2, origin: 'https://family.example', vapidPublicKey: (await store.ensureWebPushKeys()).publicKey });
+  const calls = [];
+  const check = () => runPushCheck(options(store, async message => calls.push(message.data)));
+  assert.equal((await check()).sent, 1);
+  assert.equal(calls[0].type, 'schedule');
+  assert.equal(calls[0].deviceId, child);
+  assert.equal(calls[0].title, undefined);
+  assert.equal(calls[0].body, undefined);
+  assert.equal((await check()).sent, 0);
+  await store.updateSettings({ childName: 'Updated fixture' });
+  assert.equal((await check()).sent, 1);
+  await store.takeDose('evening', now);
+  assert.equal((await check()).sent, 1);
+  assert.ok(calls.every(item => item.type === 'schedule'));
+  await store.revokeDevice(child);
+  assert.equal((await check()).sent, 0);
+});

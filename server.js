@@ -203,6 +203,7 @@ function publicSettings(settings) {
 function nativeSchedule(settings) {
   return {
     childName: settings.childName,
+    plan: schedulePlan(settings),
     medicationName: settings.medicationName,
     morningDose: settings.morningDose,
     eveningDose: settings.eveningDose,
@@ -316,6 +317,7 @@ location.replace(target);
           device: paired.device,
           user,
           schedule: nativeSchedule(state.settings),
+          ...(({ today, todayDoses }) => ({ today, todayDoses }))(await context.store.childState()),
         }, { 'set-cookie': buildSessionCookie(session) });
       }
 
@@ -327,12 +329,13 @@ location.replace(target);
           device,
           user,
           schedule: nativeSchedule(state.settings),
+          ...(({ today, todayDoses }) => ({ today, todayDoses }))(await context.store.childState()),
         }, { 'set-cookie': buildSessionCookie(session) });
       }
 
       if (req.method === 'GET' && url.pathname === '/api/device/push/key') {
         const { user } = await requireDevice(req, context);
-        if (!['parent', 'admin'].includes(user.role)) throw new AuthError('Push доступен родителям.', 403);
+        if (!['parent', 'admin', 'child'].includes(user.role)) throw new AuthError('Push недоступен.', 403);
         const { publicKey } = await context.store.ensureWebPushKeys();
         return json(res, 200, { publicKey, transport: 'unifiedpush-webpush' });
       }
@@ -347,8 +350,8 @@ location.replace(target);
       if (req.method === 'POST' && url.pathname === '/api/device/push') {
         const { device, user } = await requireDevice(req, context);
         const input = await body(req);
-        if (input.enabled && !['parent', 'admin'].includes(user.role)) throw new AuthError('Push для родителя недоступен детскому профилю.', 403);
-        const registered = await context.store.registerDevicePush(device.id, { subscription: input.subscription, enabled: input.enabled, revision: input.revision, vapidPublicKey: input.vapidPublicKey, origin: input.origin });
+        if (input.enabled && !['parent', 'admin'].includes(user.role) && !(user.role === 'child' && input.scheduleSync === true)) throw new AuthError('Push для родителя недоступен детскому профилю.', 403);
+        const registered = await context.store.registerDevicePush(device.id, { subscription: input.subscription, enabled: input.enabled, revision: input.revision, vapidPublicKey: input.vapidPublicKey, origin: input.origin, scheduleSync: user.role === 'child' && input.scheduleSync === true });
         return json(res, 200, { registered, configured: Boolean(context.pushDispatcher) });
       }
 

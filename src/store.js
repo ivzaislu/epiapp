@@ -592,7 +592,7 @@ export class Store {
     });
   }
 
-  async registerDevicePush(deviceId, { subscription, enabled, revision, vapidPublicKey, origin, now = new Date() }) {
+  async registerDevicePush(deviceId, { subscription, enabled, revision, vapidPublicKey, origin, scheduleSync = false, now = new Date() }) {
     if (typeof enabled !== 'boolean' || !Number.isSafeInteger(revision) || revision < 0) {
       throw new ValidationError('Некорректные настройки push.');
     }
@@ -614,7 +614,7 @@ export class Store {
         }
       }
       device.push = {
-        token, subscription: validated, origin: pushOrigin || device.push?.origin || '', enabled, revision,
+        token, subscription: validated, scheduleSync: enabled && scheduleSync === true, origin: pushOrigin || device.push?.origin || '', enabled, revision,
         since: enabled && device.push?.enabled === false ? now.toISOString() : device.push?.since || now.toISOString(),
         deliveries: device.push?.deliveries || [],
         test: enabled ? device.push?.test || null : null,

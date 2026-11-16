@@ -14,8 +14,8 @@ android {
         minSdk = 26
         targetSdk = 35
         buildConfigField("boolean", "PUSH_CONFIGURED", "true")
-        versionCode = 37
-        versionName = "0.7.5-up.1"
+        versionCode = 38
+        versionName = "0.7.5-up.2"
     }
 
     buildTypes {

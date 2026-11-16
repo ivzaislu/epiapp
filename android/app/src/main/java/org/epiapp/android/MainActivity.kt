@@ -49,7 +49,7 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        handleConnect(intent)
+        if (!handleConnect(intent) && intent.action == ACTION_OPEN_CABINET) openSaved()
     }
 
     override fun onResume() {
@@ -57,6 +57,8 @@ class MainActivity : AppCompatActivity() {
         refreshNotificationControls()
         ParentNotifications.checkNow(this)
         PushNotifications.sync(this)
+        ChildReminders.sync(this)
+        AlarmScheduler.reschedule(this)
     }
 
     private fun refreshNotificationControls() {
@@ -84,9 +86,10 @@ class MainActivity : AppCompatActivity() {
         if (!saved.isNullOrBlank() && !token.isNullOrBlank()) {
             showStatus("Открываю кабинет…")
             Thread {
-                val error = runCatching { restoreSession(saved, token) }.exceptionOrNull()?.message
+                val result = runCatching { restoreSession(saved, token) }
                 runOnUiThread {
-                    if (error == null) showCabinet(saved) else showAddress(error)
+                    result.onSuccess { cookie -> storeCookie(saved, cookie) { showCabinet(saved) } }
+                        .onFailure { showReconnect(it.message) }
                 }
             }.start()
         } else if (saved.isNullOrBlank()) {
@@ -107,30 +110,33 @@ class MainActivity : AppCompatActivity() {
         }
         showStatus("Подключаю кабинет…")
         Thread {
-            val error = runCatching { pair(origin, token) }.exceptionOrNull()?.message
+            val result = runCatching { pair(origin, token) }
             runOnUiThread {
-                if (error == null) showCabinet(origin) else showAddress(error)
+                result.onSuccess { cookie -> storeCookie(origin, cookie) { showCabinet(origin) } }
+                    .onFailure { showAddress(it.message) }
             }
         }.start()
         return true
     }
 
-    private fun pair(origin: String, token: String) {
+    private fun pair(origin: String, token: String): String {
         val response = post("$origin/api/device/pair", """{"code":"$token","deviceName":"EpiApp"}""")
         val deviceToken = JSONObject(response.body).optString("deviceToken")
         if (deviceToken.isBlank()) throw IllegalStateException("Сервер не выдал ключ устройства.")
-        storeCookie(origin, response.cookie)
         ParentNotifications.configure(this, origin, deviceToken, JSONObject(response.body).getJSONObject("user"), JSONObject(response.body).getJSONObject("device").getString("id"))
+        ChildReminders.apply(this, JSONObject(response.body))
+        return response.cookie
     }
 
-    private fun restoreSession(origin: String, token: String) {
+    private fun restoreSession(origin: String, token: String): String {
         val response = post(
             "$origin/api/device/session",
             "{}",
             "Bearer $token",
         )
-        storeCookie(origin, response.cookie)
         ParentNotifications.configure(this, origin, token, JSONObject(response.body).getJSONObject("user"), JSONObject(response.body).getJSONObject("device").getString("id"))
+        ChildReminders.apply(this, JSONObject(response.body))
+        return response.cookie
     }
 
     private fun post(url: String, json: String, authorization: String? = null): HttpResult {
@@ -153,12 +159,19 @@ class MainActivity : AppCompatActivity() {
         return HttpResult(body, connection.getHeaderField("Set-Cookie").orEmpty())
     }
 
-    private fun storeCookie(origin: String, cookie: String) {
-        if (cookie.isBlank()) return
+    private fun storeCookie(origin: String, cookie: String, ready: () -> Unit) {
+        if (cookie.isBlank()) { ready(); return }
         val manager = CookieManager.getInstance()
         manager.setAcceptCookie(true)
-        manager.setCookie(origin, cookie)
-        manager.flush()
+        // WebView may load before asynchronous cookie storage finishes without this callback.
+        manager.setCookie(origin, cookie) { manager.flush(); ready() }
+    }
+
+    private fun showReconnect(problem: String?) {
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(48, 120, 48, 48) }
+        root.addView(TextView(this).apply { text = "Не удалось открыть кабинет. Проверьте интернет. Сохранённые напоминания продолжают работать.\n${problem.orEmpty()}"; textSize = 18f })
+        root.addView(Button(this).apply { text = "Повторить подключение"; setOnClickListener { openSaved() } })
+        setContentView(root)
     }
 
     private fun showStatus(text: String) {
@@ -243,7 +256,7 @@ class MainActivity : AppCompatActivity() {
             }
         })
         setContentView(web)
-        web.loadUrl(origin)
+        web.loadUrl("$origin/?native=${System.currentTimeMillis()}")
         if (prefs.getString("accountRole", "") == "child") askExactAlarms()
     }
 
@@ -251,7 +264,7 @@ class MainActivity : AppCompatActivity() {
         val manager = getSystemService(android.app.AlarmManager::class.java)
         if (Build.VERSION.SDK_INT >= 31 && !manager.canScheduleExactAlarms() && !prefs.getBoolean("askedExact", false)) {
             prefs.edit().putBoolean("askedExact", true).apply()
-            startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
+            startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:$packageName")))
         }
     }
 
@@ -271,6 +284,22 @@ class MainActivity : AppCompatActivity() {
                 val schedule = JSONObject(json)
                 if (prefs.getString("accountRole", "") != "child") schedule.put("plan", org.json.JSONArray())
                 AlarmScheduler.saveAndSchedule(this@MainActivity, schedule.toString())
+            }
+        }
+
+        @JavascriptInterface
+        fun childReminderStatus(): String {
+            val manager = getSystemService(android.app.NotificationManager::class.java)
+            val channel = manager.getNotificationChannel(AlarmReceiver.CHANNEL)
+            return JSONObject().put("permission", androidx.core.app.NotificationManagerCompat.from(this@MainActivity).areNotificationsEnabled())
+                .put("sound", channel == null || (channel.sound != null && channel.importance >= android.app.NotificationManager.IMPORTANCE_DEFAULT))
+                .put("exact", Build.VERSION.SDK_INT < 31 || getSystemService(android.app.AlarmManager::class.java).canScheduleExactAlarms()).toString()
+        }
+
+        @JavascriptInterface
+        fun openExactAlarmSettings() {
+            runOnUiThread {
+                if (Build.VERSION.SDK_INT >= 31) startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:$packageName")))
             }
         }
 
@@ -309,6 +338,14 @@ class MainActivity : AppCompatActivity() {
                 startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                     .putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
             }
+        }
+    }
+
+    companion object {
+        const val ACTION_OPEN_CABINET = "org.epiapp.android.OPEN_CABINET"
+        fun cabinetIntent(context: android.content.Context) = Intent(context, MainActivity::class.java).apply {
+            action = ACTION_OPEN_CABINET
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
     }
 
