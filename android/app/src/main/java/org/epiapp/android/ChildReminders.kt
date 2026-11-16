@@ -41,7 +41,7 @@ object ChildReminders {
 
     fun sync(context: Context) {
         if (!isChild(context)) return
-        WorkManager.getInstance(context).enqueueUniqueWork("epiapp-child-sync-now", ExistingWorkPolicy.KEEP,
+        WorkManager.getInstance(context).enqueueUniqueWork("epiapp-child-sync-now", ExistingWorkPolicy.APPEND_OR_REPLACE,
             OneTimeWorkRequestBuilder<ChildScheduleWorker>()
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()).build())
     }

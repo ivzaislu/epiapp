@@ -41,7 +41,7 @@ export async function sendTelegramMessage({ token, chatId, text, replyMarkup = u
   });
 }
 
-export const DEFAULT_ANDROID_APK_URL = 'https://github.com/ivzaislu/epiapp/releases/download/v0.7.5-up.2/EpiApp-0.7.5-up.2.apk';
+export const DEFAULT_ANDROID_APK_URL = 'https://github.com/ivzaislu/epiapp/releases/download/v0.7.5-up.3/EpiApp-0.7.5-up.3.apk';
 const apkFileIds = new Map();
 const MAX_APK_BYTES = 49_000_000;
 

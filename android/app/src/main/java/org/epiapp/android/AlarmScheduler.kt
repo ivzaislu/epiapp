@@ -67,8 +67,14 @@ object AlarmScheduler {
     fun advance(context: Context, intent: Intent, root: JSONObject, item: JSONObject) {
         val code = intent.getIntExtra("code", -1)
         if (code !in FIRST_CODE until LAST_CODE) return
-        val date = LocalDate.parse(intent.getStringExtra("date")).plusDays(1)
-        val at = date.atTime(java.time.LocalTime.parse(item.getString("time"))).atZone(zone(root)).plusMinutes(intent.getIntExtra("offset", 0).toLong())
+        var date = LocalDate.parse(intent.getStringExtra("date")).plusDays(1)
+        var at = date.atTime(java.time.LocalTime.parse(item.getString("time"))).atZone(zone(root)).plusMinutes(intent.getIntExtra("offset", 0).toLong())
+        val now = ZonedDateTime.now(zone(root))
+        if (!at.isAfter(now)) {
+            date = now.toLocalDate()
+            at = date.atTime(java.time.LocalTime.parse(item.getString("time"))).atZone(zone(root)).plusMinutes(intent.getIntExtra("offset", 0).toLong())
+            if (!at.isAfter(now)) { date = date.plusDays(1); at = date.atTime(java.time.LocalTime.parse(item.getString("time"))).atZone(zone(root)).plusMinutes(intent.getIntExtra("offset", 0).toLong()) }
+        }
         place(context, code, at.toInstant().toEpochMilli(), item, intent.getStringExtra("kind").orEmpty(), date.toString(), intent.getIntExtra("revision", 0), intent.getIntExtra("offset", 0))
     }
 

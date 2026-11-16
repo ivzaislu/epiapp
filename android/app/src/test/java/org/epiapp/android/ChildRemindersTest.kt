@@ -88,4 +88,25 @@ class ChildRemindersTest {
         AlarmReceiver().onReceive(context, delivery(raw).putExtra("revision", 123))
         assertTrue(Shadows.shadowOf(manager()).allNotifications.isEmpty())
     }
+    @Test fun veryLateDeliveryRearmsTheNextDayWithoutShowingOldReminder() {
+        val raw = schedule(); AlarmScheduler.saveAndSchedule(context, raw)
+        val alarms = Shadows.shadowOf(context.getSystemService(AlarmManager::class.java))
+        val old = delivery(raw).putExtra("dueAt", System.currentTimeMillis() - 2 * 86400000L)
+            .putExtra("date", LocalDate.parse(today).minusDays(2).toString())
+        AlarmReceiver().onReceive(context, old)
+        val next = alarms.scheduledAlarms.first { Shadows.shadowOf(it.operation).savedIntent.getIntExtra("code", -1) == 1000 }
+        assertTrue(next.triggerAtTime > System.currentTimeMillis())
+        assertTrue(Shadows.shadowOf(manager()).allNotifications.isEmpty())
+    }
+    @Test fun medicinesAtTheSameTimeRemainIndependentWhenOneRearms() {
+        val root = JSONObject(schedule())
+        root.getJSONArray("plan").put(JSONObject(root.getJSONArray("plan").getJSONObject(0).toString()).put("slot", "second"))
+        val raw = root.toString(); AlarmScheduler.saveAndSchedule(context, raw)
+        AlarmReceiver().onReceive(context, delivery(raw))
+        AlarmReceiver().onReceive(context, delivery(raw).putExtra("slot", "second").putExtra("code", 1020))
+        assertEquals(2, Shadows.shadowOf(manager()).allNotifications.size)
+        val codes = Shadows.shadowOf(context.getSystemService(AlarmManager::class.java)).scheduledAlarms.map { Shadows.shadowOf(it.operation).savedIntent.getIntExtra("code", -1) }
+        assertTrue(codes.containsAll(listOf(1000, 1020)))
+    }
+
 }

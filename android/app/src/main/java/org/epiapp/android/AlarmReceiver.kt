@@ -23,12 +23,13 @@ class AlarmReceiver : BroadcastReceiver() {
         val slot = intent.getStringExtra("slot") ?: return
         val dueAt = intent.getLongExtra("dueAt", 0)
         val now = System.currentTimeMillis()
-        if (dueAt <= 0 || dueAt > now + 60000 || now - dueAt > 3600000) return
+        if (dueAt <= 0 || dueAt > now + 60000) return
         val plan = schedule.optJSONArray("plan") ?: return
         val item = (0 until plan.length()).map { plan.getJSONObject(it) }.find { it.optString("slot") == slot } ?: return
         if (schedule.optString("scheduleDate") == date && item.optBoolean("taken")) return
-        // Re-arm tomorrow and remaining repeats even while the app stays closed/offline.
+        // Keep the daily chain alive even when Android delivers an obsolete occurrence late.
         AlarmScheduler.advance(context, intent, schedule, item)
+        if (now - dueAt > 3600000) return
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
         val dose = intent.getStringExtra("kind") == "dose"
         val title = if (dose) "Пора принять" else "Приём ещё не отмечен"
